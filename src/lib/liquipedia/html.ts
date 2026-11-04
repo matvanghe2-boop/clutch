@@ -107,19 +107,48 @@ export function streamsFrom($: CheerioAPI, $scope: El): Stream[] {
   return out;
 }
 
-export function timerFrom($scope: El): { timestamp?: number; finished: boolean } {
-  const t = $scope.find(".timer-object[data-timestamp]").first();
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/**
+ * « November 7, 2026 » ou « Nov 7 » → AAAA-MM-JJ. Sans année (format court
+ * des pages d'équipe), on prend celle qui met la date au plus près d'aujourd'hui.
+ */
+export function dayFromText(raw: string, now = new Date()): string | undefined {
+  const m = raw.match(/\b([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2})(?:,\s*(\d{4}))?/);
+  const month = m && MONTHS[m[1].toLowerCase()];
+  if (!m || !month) return undefined;
+  const day = Number(m[2]);
+  const year = m[3]
+    ? Number(m[3])
+    : [now.getUTCFullYear() - 1, now.getUTCFullYear(), now.getUTCFullYear() + 1].sort(
+        (a, b) => Math.abs(Date.UTC(a, month - 1, day) - now.getTime()) - Math.abs(Date.UTC(b, month - 1, day) - now.getTime()),
+      )[0];
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * Horaire d'un match. Quand Liquipedia ne connaît que le jour, le texte du
+ * compteur n'a pas d'heure (« November 7, 2026 ») : on garde le jour, rangé en
+ * fin de soirée (21 h UTC, soit 22 h ou 23 h à Paris), et on le signale.
+ */
+export function timerFrom($scope: El): { timestamp?: number; finished: boolean; timeTbd?: boolean } {
+  const t = $scope.find(".timer-object").first();
   if (!t.length) return { finished: false };
+  const finished = Boolean(t.attr("data-finished"));
+  const label = text(t);
+  if (label && !/\d{1,2}:\d{2}/.test(label)) {
+    const day = dayFromText(label);
+    if (day) return { timestamp: Date.parse(`${day}T21:00:00Z`) / 1000, finished, timeTbd: true };
+  }
   const ts = Number(t.attr("data-timestamp"));
-  return {
-    timestamp: Number.isFinite(ts) && ts > 0 ? ts : undefined,
-    finished: Boolean(t.attr("data-finished")),
-  };
+  return { timestamp: Number.isFinite(ts) && ts > 0 ? ts : undefined, finished };
 }
 
 /** Ce que contient le popup de détail d'un match, commun aux listes et aux brackets. */
 export function popupInfo($: CheerioAPI, $popup: El) {
-  const { timestamp, finished } = timerFrom($popup);
+  const { timestamp, finished, timeTbd } = timerFrom($popup);
   const pages = $popup
     .find(".match-info-header-opponent")
     .toArray()
@@ -148,6 +177,7 @@ export function popupInfo($: CheerioAPI, $popup: El) {
   const bo = clean($popup.text()).match(/\(?\bBo(\d+)\)?/i);
   return {
     timestamp,
+    timeTbd,
     finished,
     pages,
     games,

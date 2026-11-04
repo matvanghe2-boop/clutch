@@ -9,9 +9,10 @@
  * Une tâche à la fois, la plus urgente d'abord. Le rythme des appels est tenu
  * par le client ; ici on décide seulement quoi rafraîchir et quand.
  */
-import { FOLLOWED, GAME_IDS, IGNORE_TOURNAMENTS } from "../src/config/follow";
-import { isTeam } from "../src/lib/derive";
+import { FOLLOWED, GAME_IDS, IGNORE_TOURNAMENTS, TIER_LISTS } from "../src/config/follow";
+import { isTeam, watchingTeam } from "../src/lib/derive";
 import { LiquipediaError, parsePage, queryWikitext } from "../src/lib/liquipedia/client";
+import { parseListing } from "../src/lib/liquipedia/listing";
 import { parsePortal } from "../src/lib/liquipedia/portal";
 import { parseTeamPage } from "../src/lib/liquipedia/team-page";
 import { parseTournamentPage } from "../src/lib/liquipedia/tournament-page";
@@ -46,6 +47,10 @@ const PLANNED_TTL = 12 * HOUR;
 const OUTSIDER_TTL = 24 * HOUR;
 /** Liste des compétitions d'un jeu (Liquipedia:Tournaments), requête légère. */
 const PORTAL_TTL = 6 * HOUR;
+/** Listes par niveau (« S-Tier Tournaments ») : elles bougent peu. */
+const LISTING_TTL = 24 * HOUR;
+/** Une compétition surveillée est lue en détail dans les 45 jours qui précèdent son début. */
+const WATCH_HORIZON_DAYS = 45;
 const MAX_PAGES = ci ? 6 : Infinity;
 /** Une compétition jouée par une équipe suivie reste suivie trois semaines. */
 const RECENT_WINDOW_S = 21 * 24 * 3600;
@@ -102,6 +107,12 @@ function discover(snap: Snapshot): Map<string, Discovered> {
   for (const wiki of GAME_IDS)
     for (const e of snap.portals?.[wiki]?.entries ?? [])
       if (e.status !== "completed") add(wiki, "portal", e.page, e.name);
+  // Les grandes compétitions des listes par niveau qu'une équipe suivie dispute
+  // d'habitude, dès qu'elles approchent : on y guette son inscription.
+  const horizon = new Date(Date.now() + WATCH_HORIZON_DAYS * 86400_000).toISOString().slice(0, 10);
+  for (const listing of Object.values(snap.listings ?? {}))
+    for (const e of listing.entries)
+      if ((e.startDate ?? "9999") <= horizon && watchingTeam(e.wiki, e.page, e.tier)) add(e.wiki, "portal", e.page, e.name);
   return out;
 }
 
@@ -181,14 +192,37 @@ function plan(snap: Snapshot): Task[] {
     });
   }
 
+  for (const wiki of GAME_IDS)
+    for (const list of TIER_LISTS[wiki]) {
+      const key = `listing:${wiki}:${list}`;
+      const age = ageOf(snap.listings?.[`${wiki}:${list}`]?.fetchedAt);
+      const forced = force && !doneThisRun.has(key);
+      if ((!forced && age < LISTING_TTL) || failedRecently(key)) continue;
+      tasks.push({
+        key,
+        label: `${list} (${wiki})`,
+        priority: 2.9,
+        staleness: age,
+        run: async (s) => {
+          const page = await parsePage(wiki, list, onWait);
+          const entries = parseListing(page.html, wiki, list, today());
+          s.listings = { ...s.listings, [`${wiki}:${list}`]: { entries, fetchedAt: new Date().toISOString() } };
+          return `${entries.length} à venir ou en cours`;
+        },
+      });
+    }
+
   for (const [key, ref] of discover(snap)) {
     const current = snap.tournaments[key];
     const state = current ? tournamentState(current, snap) : undefined;
     const forced = force && !doneThisRun.has(key);
     if ((!forced && state === "done") || failedRecently(key)) continue;
+    const watched = Boolean(watchingTeam(ref.wiki, ref.page, current?.info["Liquipedia Tier"]));
     const ttl =
       current?.participating === false
-        ? OUTSIDER_TTL
+        ? watched
+          ? PLANNED_TTL
+          : OUTSIDER_TTL
         : state === "live"
           ? LIVE_TTL
           : state === "planned"

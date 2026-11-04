@@ -1,8 +1,8 @@
-import { FOLLOWED, OTHER_TITLES } from "@/config/follow";
-import { isTeam, orient, recentFeed, sameTeam, statusOf, upcomingFeed, type MatchStatus } from "./derive";
+import { FOLLOWED } from "@/config/follow";
+import { isOtherTitle, isTeam, orient, recentFeed, sameTeam, statusOf, upcomingFeed, watchingTeam, type MatchStatus } from "./derive";
 import { dayKey } from "./format";
 import { tournamentMatches } from "./tournament";
-import type { GameId, Match, Snapshot, Stream, TeamRef, Tournament, TournamentRef } from "./types";
+import type { GameId, Match, PortalEntry, Snapshot, Stream, TeamRef, Tournament, TournamentRef } from "./types";
 
 /** « mes » : mes équipes seulement ; « tout » : aussi les autres matchs et compétitions du jeu. */
 export type Scope = "mes" | "tout";
@@ -11,6 +11,8 @@ export interface CalMatch {
   id: string;
   game: GameId;
   timestamp: number;
+  /** Le jour est connu, pas l'heure. */
+  timeTbd?: boolean;
   /** Jour à l'heure de Paris (AAAA-MM-JJ). */
   day: string;
   /** Une équipe suivie joue : elle est alors toujours en premier. */
@@ -25,6 +27,14 @@ export interface CalMatch {
   streams: Stream[];
 }
 
+/**
+ * - « confirmed » : une équipe suivie y est inscrite ou y joue ;
+ * - « watched » : une équipe suivie la dispute d'habitude (règle `watch` de
+ *   la config), inscription pas encore confirmée ;
+ * - « other » : le reste du circuit, pour la vue « Tout le circuit ».
+ */
+export type Relevance = "confirmed" | "watched" | "other";
+
 export interface CalCompetition {
   key: string;
   game: GameId;
@@ -32,15 +42,26 @@ export interface CalCompetition {
   page: string;
   start: string;
   end: string;
-  /** Une équipe suivie y est inscrite ou y joue. */
-  participating: boolean;
+  relevance: Relevance;
   location?: string;
   prize?: string;
+}
+
+/** Un de mes matchs dont l'affiche est connue mais pas encore la date. */
+export interface Unscheduled {
+  id: string;
+  game: GameId;
+  teams: [TeamRef | null, TeamRef | null];
+  tournament?: TournamentRef;
+  round?: string;
+  /** Période de la compétition : le match a lieu dedans. */
+  span?: { start: string; end: string };
 }
 
 export interface CalendarData {
   matches: CalMatch[];
   competitions: CalCompetition[];
+  unscheduled: Unscheduled[];
 }
 
 const isoDay = (ts: number) => new Date(ts * 1000).toISOString().slice(0, 10);
@@ -53,6 +74,7 @@ function fromMatch(m: Match, now: number): CalMatch | null {
     id: m.id,
     game: m.wiki,
     timestamp: m.timestamp,
+    timeTbd: m.timeTbd,
     day: dayKey(m.timestamp),
     ours: Boolean(o),
     teams: o ? [o.us, o.them] : m.opponents,
@@ -66,15 +88,23 @@ function fromMatch(m: Match, now: number): CalMatch | null {
   };
 }
 
-/** Période d'une compétition : infobox, sinon liste du jeu, sinon premier et dernier match. */
-function span(t: Tournament, snap: Snapshot): { start: string; end: string } | null {
-  const portal = snap.portals?.[t.wiki]?.entries.find((e) => e.page === t.page);
+/** Les entrées de liste (liste du jeu, listes par niveau) qui parlent d'une page. */
+function listEntries(snap: Snapshot): PortalEntry[] {
+  return [
+    ...Object.values(snap.portals ?? {}).flatMap((p) => p?.entries ?? []),
+    ...Object.values(snap.listings ?? {}).flatMap((l) => l.entries),
+  ];
+}
+
+/** Période d'une compétition : infobox, sinon listes, sinon premier et dernier match. */
+function span(t: Tournament, entries: PortalEntry[]): { start: string; end: string } | null {
+  const listed = entries.find((e) => e.wiki === t.wiki && e.page === t.page && e.startDate);
   const stamps = tournamentMatches(t)
     .map((m) => m.timestamp)
     .filter((x): x is number => x !== undefined)
     .sort((a, b) => a - b);
-  const start = t.startDate ?? portal?.startDate ?? (stamps.length ? isoDay(stamps[0]) : undefined);
-  const end = t.endDate ?? portal?.endDate ?? (stamps.length ? isoDay(stamps.at(-1)!) : start);
+  const start = t.startDate ?? listed?.startDate ?? (stamps.length ? isoDay(stamps[0]) : undefined);
+  const end = t.endDate ?? listed?.endDate ?? (stamps.length ? isoDay(stamps.at(-1)!) : start);
   return start && end ? { start, end: end < start ? start : end } : null;
 }
 
@@ -123,46 +153,81 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
     }
   }
 
+  const entries = listEntries(snap);
   const competitions: CalCompetition[] = [];
+  const keep = (c: CalCompetition) => {
+    if (game && c.game !== game) return;
+    if (scope === "mes" && c.relevance === "other") return;
+    if (competitions.some((x) => x.game === c.game && x.page === c.page)) return;
+    competitions.push(c);
+  };
+
+  const today = dayKey(now);
   for (const t of Object.values(snap.tournaments)) {
-    if (game && t.wiki !== game) continue;
-    if (OTHER_TITLES[t.wiki]?.test(t.info["Game"] ?? "")) continue;
-    const participating = t.participating !== false;
-    if (!participating && scope === "mes") continue;
-    const s = span(t, snap);
+    if (isOtherTitle(t.wiki, t.name, t.info["Game"])) continue;
+    const s = span(t, entries);
     if (!s) continue;
-    competitions.push({
+    const tier = t.info["Liquipedia Tier"] ?? entries.find((e) => e.page === t.page && e.tier)?.tier;
+    // Liste des participants close (l'événement a commencé, ou toutes les places
+    // sont attribuées) sans mon équipe : on sait qu'elle n'y joue pas.
+    const listed = t.participants?.length ?? 0;
+    const places = Number(t.info["Number of teams"]?.match(/\d+/)?.[0] ?? 0);
+    const closed = listed > 0 && (s.start <= today || (places > 0 && listed >= places));
+    keep({
       key: t.key,
       game: t.wiki,
       name: t.name,
       page: t.page,
       ...s,
-      participating,
+      relevance:
+        t.participating !== false ? "confirmed" : !closed && watchingTeam(t.wiki, t.page, tier) ? "watched" : "other",
       location: t.info["Location"],
       prize: t.info["Prize Pool"],
     });
   }
-  // En vue « tout », les compétitions de la liste du jeu pas encore lues.
-  if (scope === "tout")
-    for (const [wiki, portal] of Object.entries(snap.portals ?? {}) as [GameId, NonNullable<Snapshot["portals"]>[GameId]][]) {
-      if (!portal || (game && wiki !== game)) continue;
-      for (const e of portal.entries) {
-        if (e.status === "completed" || !e.startDate || competitions.some((c) => c.game === wiki && c.page === e.page)) continue;
-        competitions.push({
-          key: `${wiki}:${e.page}`,
-          game: wiki,
-          name: e.name,
-          page: e.page,
-          start: e.startDate,
-          end: e.endDate ?? e.startDate,
-          participating: false,
-        });
-      }
-    }
+  // Compétitions connues par les listes seulement : pas encore lues en détail,
+  // souvent parce qu'elles sont loin. C'est la vue à plusieurs mois.
+  for (const e of entries) {
+    if (e.status === "completed" || !e.startDate || isOtherTitle(e.wiki, e.name)) continue;
+    // Déjà lue en détail : elle a été retenue (ou écartée) plus haut, en connaissance de cause.
+    if (snap.tournaments[`${e.wiki}:${e.page}`]) continue;
+    keep({
+      key: `${e.wiki}:${e.page}`,
+      game: e.wiki,
+      name: e.name,
+      page: e.page,
+      start: e.startDate,
+      end: e.endDate ?? e.startDate,
+      relevance: watchingTeam(e.wiki, e.page, e.tier) ? "watched" : "other",
+      location: e.location,
+      prize: e.prize,
+    });
+  }
 
+  // Mes matchs à l'affiche connue mais sans date : listés à part jusqu'à ce que Liquipedia les programme.
+  const unscheduled: Unscheduled[] = [];
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.participating === false || (game && t.wiki !== game)) continue;
+    const team = FOLLOWED.find((f) => f.game === t.wiki);
+    if (!team) continue;
+    for (const m of tournamentMatches(t)) {
+      if (m.finished || m.timestamp !== undefined || !m.opponents.every(Boolean) || !m.opponents.some((o) => isTeam(o, team))) continue;
+      const o = orient(m, team);
+      unscheduled.push({
+        id: m.id,
+        game: t.wiki,
+        teams: [o.us, o.them],
+        tournament: m.tournament,
+        round: m.round,
+        span: span(t, entries) ?? undefined,
+      });
+    }
+  }
+
+  const rank: Record<Relevance, number> = { confirmed: 0, watched: 1, other: 2 };
   matches.sort((a, b) => a.timestamp - b.timestamp);
-  competitions.sort((a, b) => a.start.localeCompare(b.start) || Number(b.participating) - Number(a.participating));
-  return { matches, competitions };
+  competitions.sort((a, b) => a.start.localeCompare(b.start) || rank[a.relevance] - rank[b.relevance]);
+  return { matches, competitions, unscheduled };
 }
 
 /** AAAA-MM-JJ → AAAA-MM-JJ décalé de n jours, sans fuseau. */

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { GAME_IDS, GAMES } from "@/config/follow";
-import { AgendaMatch, competitionLink, MonthGrid } from "@/components/calendar";
-import { cn, Empty, GameTag, SectionTitle } from "@/components/ui";
+import { AgendaMatch, competitionLink, MonthGrid, RELEVANCE_LABEL } from "@/components/calendar";
+import { cn, Empty, GameTag, Logo, SectionTitle } from "@/components/ui";
 import { calendarData, type CalCompetition, type CalMatch, monthGrid, type Scope, shiftMonth } from "@/lib/calendar";
 import { dayKey, dayLabel, infoDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
@@ -49,7 +49,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   };
 
   const snap = await loadSnapshot();
-  const { matches, competitions } = calendarData(snap, now, scope, game);
+  const { matches, competitions, unscheduled } = calendarData(snap, now, scope, game);
   const days = monthGrid(month);
   const visible = competitions.filter((c) => c.end >= days[0] && c.start <= days.at(-1)!);
 
@@ -70,7 +70,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   const coming = agenda.filter((d) => d.day >= today);
 
   const monthMatches = matches.filter((m) => m.day.startsWith(month) && m.ours).length;
-  const upcomingComps = competitions.filter((c) => c.end >= today).slice(0, 14);
+  // Les miennes d'abord : les compétitions surveillées peuvent être nombreuses (tout le S-Tier en CS2).
+  const relevanceRank = { confirmed: 0, watched: 1, other: 2 };
+  const upcomingComps = competitions
+    .filter((c) => c.end >= today)
+    .sort((a, b) => relevanceRank[a.relevance] - relevanceRank[b.relevance] || a.start.localeCompare(b.start))
+    .slice(0, 16);
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "clutch-ochre.vercel.app";
@@ -166,6 +171,33 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
         </section>
 
         <aside className="space-y-8">
+          {unscheduled.length > 0 && (
+            <section>
+              <SectionTitle>Matchs à programmer</SectionTitle>
+              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+                {unscheduled.map((u) => (
+                  <li key={u.id} data-game={u.game} className="px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-2 text-sm">
+                      <Logo team={u.teams[0]} size={18} />
+                      <span className="shrink-0 font-medium">{u.teams[0]?.short ?? u.teams[0]?.name}</span>
+                      <span className="shrink-0 font-display text-xs text-faint">VS</span>
+                      <Logo team={u.teams[1]} size={18} />
+                      <span className="truncate">{u.teams[1]?.name}</span>
+                    </div>
+                    <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-faint">
+                      <GameTag game={u.game} />
+                      <span className="truncate">{[u.tournament?.name, u.round].filter(Boolean).join(" · ")}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-dim">
+                      Date à confirmer
+                      {u.span && ` · entre le ${infoDate(u.span.start, now)} et le ${infoDate(u.span.end, now)}`}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section>
             <SectionTitle>Prochaines compétitions</SectionTitle>
             {upcomingComps.length ? (
@@ -252,13 +284,16 @@ function CompetitionPill({ c, label }: { c: CalCompetition; label: string }) {
       data-game={c.game}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-        c.participating
+        c.relevance === "confirmed"
           ? "border-[color-mix(in_srgb,var(--accent)_40%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"
-          : "border-line text-faint hover:text-dim",
+          : c.relevance === "watched"
+            ? "border-dashed border-[color-mix(in_srgb,var(--accent)_40%,transparent)] text-dim hover:text-ink"
+            : "border-line text-faint hover:text-dim",
       )}
     >
       <span className="font-medium">{label}</span>
       <span className="truncate">{c.name}</span>
+      {c.relevance === "watched" && <span className="shrink-0 text-faint">· à confirmer</span>}
     </a>
   );
 }
@@ -274,21 +309,29 @@ function UpcomingCompetition({ c, today, now }: { c: CalCompetition; today: stri
       <a
         href={href}
         {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-        className={cn("block px-4 py-3 transition-colors hover:bg-panel-2", !c.participating && "opacity-75")}
+        className={cn("block px-4 py-3 transition-colors hover:bg-panel-2", c.relevance === "other" && "opacity-75")}
       >
         <div className="flex items-center justify-between gap-2">
           <GameTag game={c.game} />
           <span className={cn("text-[11px]", running ? "font-medium text-[var(--accent)]" : "text-faint")}>
-            {running ? "En cours" : inDays === 1 ? "Demain" : `Dans ${inDays} j`}
+            {running
+              ? "En cours"
+              : inDays === 1
+                ? "Demain"
+                : inDays > 60
+                  ? `Dans ${Math.round(inDays / 30)} mois`
+                  : `Dans ${inDays} j`}
           </span>
         </div>
         <div className="mt-1.5 font-medium leading-snug">{c.name}</div>
         <div className="mt-0.5 text-xs text-faint">
           {[start === end ? start : `${start} → ${end}`, c.location, c.prize].filter(Boolean).join(" · ")}
         </div>
-        {c.participating ? (
-          <div className="mt-1 text-xs text-[var(--accent)]">Mon équipe y joue</div>
-        ) : null}
+        {c.relevance !== "other" && (
+          <div className={cn("mt-1 text-xs", c.relevance === "confirmed" ? "text-[var(--accent)]" : "text-dim")}>
+            {RELEVANCE_LABEL[c.relevance]}
+          </div>
+        )}
       </a>
     </li>
   );

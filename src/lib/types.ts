@@ -41,6 +41,11 @@ export interface Match {
   wiki: GameId;
   /** Secondes depuis l'epoch ; absent quand Liquipedia n'a pas encore d'horaire. */
   timestamp?: number;
+  /**
+   * Le jour est connu, pas l'heure. `timestamp` vaut alors la fin de soirée de
+   * ce jour (heure de Paris), pour le ranger après les matchs à l'heure connue.
+   */
+  timeTbd?: boolean;
   finished: boolean;
   opponents: [TeamRef | null, TeamRef | null];
   scores: [string | null, string | null];
@@ -141,6 +146,10 @@ export interface PortalEntry {
   /** AAAA-MM-JJ ; l'année, absente de la liste, est déduite. */
   startDate?: string;
   endDate?: string;
+  /** Renseignés par les listes par niveau (« S-Tier Tournaments »). */
+  location?: string;
+  prize?: string;
+  tier?: string;
 }
 
 export interface Portal {
@@ -174,6 +183,11 @@ export interface Snapshot {
   tournaments: Record<string, Tournament>;
   /** Liste des compétitions à venir, en cours et terminées de chaque jeu. */
   portals?: Partial<Record<GameId, Portal>>;
+  /**
+   * Listes par niveau (« S-Tier Tournaments »…), clé « wiki:page » : elles
+   * annoncent les grandes compétitions des mois à l'avance.
+   */
+  listings?: Record<string, Portal>;
   /** Échecs récents par clé de tâche, pour espacer les nouvelles tentatives. */
   failures: Record<string, { at: string; message: string }>;
 }

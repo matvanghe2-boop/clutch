@@ -17,6 +17,7 @@ const MINUTES_PER_GAME: Record<GameId, number> = { rocketleague: 10, counterstri
 const DEFAULT_BEST_OF: Record<GameId, number> = { rocketleague: 5, counterstrike: 3, callofduty: 5 };
 /** On garde deux semaines de résultats : utile pour retrouver un match tout juste joué. */
 const KEEP_PAST_S = 14 * 86400;
+const WATCH_AHEAD_DAYS = 120;
 
 const escape = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 const utc = (ts: number) => new Date(ts * 1000).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -65,7 +66,8 @@ export async function GET(request: Request) {
     const bestOf = m.bestOf ?? DEFAULT_BEST_OF[m.game];
     const end = m.timestamp + (MINUTES_PER_GAME[m.game] * bestOf + 15) * 60;
     const score = m.status === "done" && m.scores[0] !== null ? ` (${m.scores[0]}-${m.scores[1]})` : "";
-    const summary = `${GAMES[m.game].short} · ${us?.short ?? us?.name} vs ${them?.name ?? "à déterminer"}${score}`;
+    const tbd = m.timeTbd ? " (heure à confirmer)" : "";
+    const summary = `${GAMES[m.game].short} · ${us?.short ?? us?.name} vs ${them?.name ?? "à déterminer"}${score}${tbd}`;
     const description = [
       m.tournament?.name,
       m.round ?? m.tournament?.stage,
@@ -78,8 +80,11 @@ export async function GET(request: Request) {
       "BEGIN:VEVENT",
       `UID:${uid(m.id)}`,
       `DTSTAMP:${utc(now)}`,
-      `DTSTART:${utc(m.timestamp)}`,
-      `DTEND:${utc(end)}`,
+      // Jour connu sans heure : un événement « journée entière », remplacé par le
+      // vrai créneau (même UID) dès que l'heure est publiée.
+      ...(m.timeTbd
+        ? [`DTSTART;VALUE=DATE:${m.day.replace(/-/g, "")}`, `DTEND;VALUE=DATE:${addDays(m.day, 1).replace(/-/g, "")}`]
+        : [`DTSTART:${utc(m.timestamp)}`, `DTEND:${utc(end)}`]),
       `SUMMARY:${escape(summary)}`,
       `DESCRIPTION:${escape(description)}`,
       ...(m.tournament?.page ? [`URL:${origin}${competitionHref(m.game, m.tournament.page)}`] : []),
@@ -90,6 +95,9 @@ export async function GET(request: Request) {
   const today = dayKey(now);
   for (const c of competitions) {
     if (c.end < addDays(today, -14)) continue;
+    // Les compétitions « à surveiller » vont loin (tout le S-Tier en CS2) : dans
+    // l'agenda du téléphone, on s'en tient aux quatre prochains mois.
+    if (c.relevance === "watched" && c.start > addDays(today, WATCH_AHEAD_DAYS)) continue;
     lines.push(
       "BEGIN:VEVENT",
       `UID:${uid(`competition:${c.key}`)}`,
@@ -97,7 +105,7 @@ export async function GET(request: Request) {
       `DTSTART;VALUE=DATE:${c.start.replace(/-/g, "")}`,
       // La fin d'un événement « journée entière » est exclue : on vise le lendemain.
       `DTEND;VALUE=DATE:${addDays(c.end, 1).replace(/-/g, "")}`,
-      `SUMMARY:${escape(`${GAMES[c.game].short} · ${c.name}`)}`,
+      `SUMMARY:${escape(`${GAMES[c.game].short} · ${c.name}${c.relevance === "watched" ? " (à confirmer)" : ""}`)}`,
       ...(c.location ? [`LOCATION:${escape(c.location)}`] : []),
       "TRANSP:TRANSPARENT",
       `URL:${origin}${competitionHref(c.game, c.page)}`,

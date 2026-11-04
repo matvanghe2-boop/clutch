@@ -26,7 +26,7 @@ export function parseTeamPage(html: string, team: FollowedTeam): ParsedTeamPage 
   const upcoming: Match[] = [];
   $(".carousel-item .match-info").each((_, el) => {
     const $m = $(el);
-    const { timestamp, finished } = timerFrom($m);
+    const { timestamp, finished, timeTbd } = timerFrom($m);
     const $t = $m.find(".match-info-tournament-name a").first();
     const target = parseHref($t.attr("href"));
     const stage = text($m.find(".match-info-stage").first()) || undefined;
@@ -49,6 +49,7 @@ export function parseTeamPage(html: string, team: FollowedTeam): ParsedTeamPage 
     upcoming.push(
       makeMatch(team.game, {
         timestamp,
+        timeTbd,
         finished,
         opponents,
         scores,

@@ -1,4 +1,5 @@
-import { FOLLOWED, type FollowedTeam } from "@/config/follow";
+import { FOLLOWED, type FollowedTeam, OTHER_TITLES } from "@/config/follow";
+import { dayKey } from "./format";
 import { tournamentMatches } from "./tournament";
 import type { GameId, Match, Snapshot, StandingRow, TeamRef, Tournament, TournamentRef } from "./types";
 
@@ -30,8 +31,27 @@ export type MatchStatus = "upcoming" | "live" | "done" | "stale";
 /** Un match commencé depuis plus de 5 h sans résultat : la donnée est en retard, pas le match. */
 export function statusOf(m: Match, now: number): MatchStatus {
   if (m.finished) return "done";
-  if (m.timestamp === undefined || m.timestamp > now) return "upcoming";
+  if (m.timestamp === undefined) return "upcoming";
+  // Jour connu sans heure : à venir toute la journée, en retard le lendemain.
+  if (m.timeTbd) return dayKey(m.timestamp) >= dayKey(now) ? "upcoming" : "stale";
+  if (m.timestamp > now) return "upcoming";
   return now - m.timestamp < 5 * 3600 ? "live" : "stale";
+}
+
+/** Une compétition d'un autre jeu du même wiki (Call of Duty Mobile, Warzone…). */
+export function isOtherTitle(wiki: GameId, ...labels: (string | undefined)[]): boolean {
+  const re = OTHER_TITLES[wiki];
+  return Boolean(re && labels.some((l) => l && re.test(l)));
+}
+
+/** L'équipe suivie qui dispute d'habitude cette compétition, d'après sa règle de surveillance. */
+export function watchingTeam(wiki: GameId, page: string, tier?: string): FollowedTeam | undefined {
+  return FOLLOWED.find((f) => {
+    const w = f.watch;
+    if (f.game !== wiki || !w) return false;
+    if (w.exclude?.some((r) => r.test(page))) return false;
+    return Boolean(w.pages?.some((r) => r.test(page)) || (tier && w.tiers?.includes(tier)));
+  });
 }
 
 /** Un match vu du côté de l'équipe suivie : elle est toujours à gauche. */
@@ -125,7 +145,9 @@ export function upcomingFeed(snap: Snapshot, game?: GameId): Oriented[] {
     const team = FOLLOWED.find((f) => f.game === t.wiki);
     if (!team) continue;
     for (const m of tournamentMatches(t)) {
-      if (m.finished || m.timestamp === undefined || seen.has(m.id) || !m.opponents.some((o) => isTeam(o, team))) continue;
+      if (m.finished || seen.has(m.id) || !m.opponents.some((o) => isTeam(o, team))) continue;
+      // Sans date, on ne garde que les affiches connues (pas « M8 contre le vainqueur de… »).
+      if (m.timestamp === undefined && !m.opponents.every(Boolean)) continue;
       if (out.some((o) => sameMatch(o.match, m))) continue;
       seen.add(m.id);
       out.push(orient(m, team));

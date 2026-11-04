@@ -82,6 +82,11 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
                 <span className="px-2 text-faint">–</span>
                 {o.themScore ?? 0}
               </div>
+            ) : m.timestamp && m.timeTbd ? (
+              <>
+                <div className="font-display text-3xl font-bold leading-none sm:text-4xl">{dayLabel(m.timestamp, now)}</div>
+                <div className="mt-1.5 text-sm text-dim">Heure à confirmer</div>
+              </>
             ) : m.timestamp ? (
               <>
                 <div className="font-display text-5xl font-bold leading-none tabular-nums sm:text-6xl">{clock(m.timestamp)}</div>
@@ -90,7 +95,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
             ) : (
               <div className="font-display text-3xl text-dim">Horaire à venir</div>
             )}
-            {!live && m.timestamp && (
+            {!live && m.timestamp && !m.timeTbd && (
               <div className="mt-2 font-display text-lg font-semibold text-[var(--accent)]">
                 <Countdown ts={m.timestamp} initialNow={now} />
               </div>
@@ -125,10 +130,18 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
         {st === "live" ? (
           <LiveBadge />
         ) : (
-          <div className="font-display text-2xl font-semibold leading-none tabular-nums">{m.timestamp ? clock(m.timestamp) : "—"}</div>
+          <div className="font-display text-2xl font-semibold leading-none tabular-nums">
+            {m.timestamp && !m.timeTbd ? clock(m.timestamp) : "—"}
+          </div>
         )}
         <div className="mt-1 truncate text-[11px] text-faint">
-          {st === "live" ? `${o.usScore ?? 0} – ${o.themScore ?? 0}` : m.timestamp ? relative(m.timestamp, now) : "à confirmer"}
+          {st === "live"
+            ? `${o.usScore ?? 0} – ${o.themScore ?? 0}`
+            : m.timeTbd
+              ? "heure à conf."
+              : m.timestamp
+                ? relative(m.timestamp, now)
+                : "à confirmer"}
         </div>
       </div>
       <div className="min-w-0">
@@ -229,7 +242,7 @@ export function TournamentCard({ tr, now }: { tr: Tracked; now: number }) {
             <span className="truncate">{tr.next.them?.name ?? "À déterminer"}</span>
             {tr.next.match.timestamp && (
               <span className="ml-auto shrink-0 text-faint">
-                {shortDay(tr.next.match.timestamp, now)} {clock(tr.next.match.timestamp)}
+                {shortDay(tr.next.match.timestamp, now)} {tr.next.match.timeTbd ? "" : clock(tr.next.match.timestamp)}
               </span>
             )}
           </div>

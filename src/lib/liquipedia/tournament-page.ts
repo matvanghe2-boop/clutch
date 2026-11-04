@@ -144,6 +144,7 @@ function withPopup(
     ...base,
     opponents,
     timestamp: p.timestamp,
+    timeTbd: p.timeTbd,
     finished: p.finished || base.finished,
     bestOf: p.bestOf,
     streams: p.streams,

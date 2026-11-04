@@ -18,9 +18,9 @@ const MAX_LANES = 3;
 export function assignLanes(competitions: CalCompetition[]): Map<string, number> {
   const lanes = new Map<string, number>();
   const ends: string[] = [];
+  const rank = { confirmed: 0, watched: 1, other: 2 };
   const order = [...competitions].sort(
-    (a, b) =>
-      Number(b.participating) - Number(a.participating) || a.start.localeCompare(b.start) || b.end.localeCompare(a.end),
+    (a, b) => rank[a.relevance] - rank[b.relevance] || a.start.localeCompare(b.start) || b.end.localeCompare(a.end),
   );
   for (const c of order) {
     let lane = ends.findIndex((end) => end < c.start);
@@ -31,23 +31,35 @@ export function assignLanes(competitions: CalCompetition[]): Map<string, number>
   return lanes;
 }
 
-export function competitionLink(c: Pick<CalCompetition, "game" | "page" | "participating">): { href: string; external: boolean } {
-  return c.participating
+export function competitionLink(c: Pick<CalCompetition, "game" | "page" | "relevance">): { href: string; external: boolean } {
+  return c.relevance === "confirmed"
     ? { href: competitionHref(c.game, c.page), external: false }
     : { href: `https://liquipedia.net/${c.game}/${pageToPath(c.page)}`, external: true };
 }
+
+/** Style d'une compétition selon qu'on y joue, qu'on la surveille ou qu'elle est ailleurs dans le circuit. */
+export const RELEVANCE_STYLE = {
+  confirmed: "bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] text-[var(--accent)]",
+  watched:
+    "bg-[repeating-linear-gradient(135deg,color-mix(in_srgb,var(--accent)_16%,transparent)_0_5px,transparent_5px_9px)] text-[color-mix(in_srgb,var(--accent)_80%,var(--color-dim))]",
+  other: "bg-panel-2 text-faint",
+} as const;
+
+export const RELEVANCE_LABEL = {
+  confirmed: "Mon équipe y joue",
+  watched: "À surveiller · inscription à confirmer",
+  other: "",
+} as const;
 
 function Band({ c, day, weekStart }: { c: CalCompetition; day: string; weekStart: boolean }) {
   const first = day === c.start || weekStart;
   return (
     <div
       data-game={c.game}
-      title={`${c.name} · ${GAMES[c.game].short}`}
+      title={`${c.name} · ${GAMES[c.game].short}${c.relevance === "watched" ? " · inscription à confirmer" : ""}`}
       className={cn(
         "-mx-1.5 h-1.5 truncate px-1.5 text-[10px] font-medium leading-4 sm:h-4",
-        c.participating
-          ? "bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] text-[var(--accent)]"
-          : "bg-panel-2 text-faint",
+        RELEVANCE_STYLE[c.relevance],
         day === c.start && "ml-0 rounded-l",
         day === c.end && "mr-0 rounded-r",
       )}
@@ -67,6 +79,10 @@ function Chip({ m }: { m: CalMatch }) {
         </span>
       ) : m.status === "live" ? (
         <span className="live-dot size-1.5 shrink-0 rounded-full bg-live" />
+      ) : m.timeTbd ? (
+        <span className="shrink-0 text-faint" title="Heure à confirmer">
+          ?h
+        </span>
       ) : (
         <span className="shrink-0 font-display tabular-nums text-dim">{clock(m.timestamp)}</span>
       )}
@@ -178,6 +194,8 @@ export function AgendaMatch({ m, now }: { m: CalMatch; now: number }) {
           <LiveBadge />
         ) : m.status === "done" && m.result ? (
           <ResultBadge result={m.result} />
+        ) : m.timeTbd ? (
+          <span className="text-[11px] leading-tight text-faint">heure à confirmer</span>
         ) : (
           <span className="font-display text-xl font-semibold tabular-nums">{clock(m.timestamp)}</span>
         )}

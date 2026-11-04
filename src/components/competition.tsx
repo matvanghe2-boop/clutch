@@ -132,7 +132,7 @@ export function BracketMatch({ m, team, now }: { m: Match; team: FollowedTeam; n
       ))}
       {st !== "done" && m.timestamp && (
         <div className="flex items-center justify-between border-t border-line px-2 py-1 text-[11px] text-faint">
-          {st === "live" ? <LiveBadge /> : <span>{shortDay(m.timestamp, now)} · {clock(m.timestamp)}</span>}
+          {st === "live" ? <LiveBadge /> : <span>{shortDay(m.timestamp, now)} · {m.timeTbd ? "heure à conf." : clock(m.timestamp)}</span>}
           {m.bestOf && <span>Bo{m.bestOf}</span>}
         </div>
       )}
@@ -267,7 +267,7 @@ function ListMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number
           <>
             {st === "done" ? shortDate(m.timestamp, now) : shortDay(m.timestamp, now)}
             <br />
-            {clock(m.timestamp)}
+            {m.timeTbd ? "heure à conf." : clock(m.timestamp)}
           </>
         ) : (
           "—"
