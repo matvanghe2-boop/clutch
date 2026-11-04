@@ -40,6 +40,8 @@ const BUDGET_MS = 180_000;
 /** `always` : le cron quotidien de Vercel (vercel.json), filet de sécurité même sans visite. */
 export async function autoRefresh(seen: Snapshot, { always = false } = {}): Promise<void> {
   if (!process.env.VERCEL || !process.env.BLOB_READ_WRITE_TOKEN || !process.env.SNAPSHOT_URL) return;
+  // Next exécute aussi les `after()` des pages qu'il génère au build : pas d'appel à Liquipedia depuis la machine de build.
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
   if (running) return;
   running = true;
   try {

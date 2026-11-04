@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 import { emptySnapshot, readSnapshot } from "./snapshot";
 import type { Snapshot } from "./types";
@@ -20,6 +21,9 @@ export const loadSnapshot = cache(async (): Promise<Snapshot> => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return { ...emptySnapshot(), ...((await res.json()) as Snapshot) };
   } catch (e) {
+    // Au build, Next interrompt le rendu statique d'une page qui lit des données
+    // fraîches en levant une erreur interne : elle doit remonter, ce n'est pas une panne.
+    unstable_rethrow(e);
     console.error("Instantané illisible :", e);
     return emptySnapshot();
   }
