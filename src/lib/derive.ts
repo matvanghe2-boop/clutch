@@ -159,7 +159,10 @@ export function upcomingFeed(snap: Snapshot, game?: GameId): Oriented[] {
     for (const m of snap.teams[team.id]?.upcoming ?? []) {
       if (seen.has(m.id) || m.finished) continue;
       seen.add(m.id);
-      out.push(orient(enrich(snap, m), team));
+      // La page d'équipe peut encore l'annoncer alors que la compétition l'a déjà terminé :
+      // c'est alors un résultat (voir freshResults), plus un match à venir.
+      const e = enrich(snap, m);
+      if (!e.finished) out.push(orient(e, team));
     }
   }
   // La page d'équipe n'affiche que cinq matchs : les compétitions suivies
@@ -199,10 +202,46 @@ const toPast = (team: FollowedTeam, r: RecentMatch): PastMatch => ({
   tournament: r.tournament,
 });
 
+const samePast = (a: PastMatch, b: PastMatch) => Math.abs(a.timestamp - b.timestamp) < 3 * 3600 && sameTeam(a.opponent, b.opponent);
+
+/**
+ * Résultats que les compétitions suivies connaissent déjà, mais pas encore la
+ * page de l'équipe : Liquipedia met à jour la page de compétition pendant le
+ * match, la liste « Recent Matches » de l'équipe parfois des heures après.
+ * Seulement les matchs postérieurs au dernier résultat de cette liste.
+ */
+function freshResults(snap: Snapshot, team: FollowedTeam): PastMatch[] {
+  const known = snap.teams[team.id]?.recent ?? [];
+  const after = Math.max(0, ...known.map((r) => r.timestamp)) - 3 * 3600;
+  const out: PastMatch[] = [];
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.wiki !== team.game || t.participating === false) continue;
+    for (const m of tournamentMatches(t)) {
+      if (!m.finished || m.timestamp === undefined || m.timestamp < after) continue;
+      if (!m.opponents.some((o) => isTeam(o, team))) continue;
+      const o = orient(m, team);
+      if (!o.result || o.usScore === null || o.themScore === null) continue;
+      const past: PastMatch = {
+        team,
+        timestamp: m.timestamp,
+        opponent: o.them,
+        usScore: o.usScore,
+        themScore: o.themScore,
+        result: o.result,
+        tournament: m.tournament ?? { name: t.name, page: t.page },
+      };
+      if (out.some((x) => samePast(x, past)) || known.some((r) => samePast(toPast(team, r), past))) continue;
+      out.push(past);
+    }
+  }
+  return out;
+}
+
 export function recentFeed(snap: Snapshot, game?: GameId): PastMatch[] {
   const out: PastMatch[] = [];
   for (const team of teamsOf(snap)) {
     if (game && team.game !== game) continue;
+    out.push(...freshResults(snap, team));
     for (const r of snap.teams[team.id]?.recent ?? []) out.push(toPast(team, r));
   }
   return out.sort((a, b) => b.timestamp - a.timestamp);
@@ -211,10 +250,10 @@ export function recentFeed(snap: Snapshot, game?: GameId): PastMatch[] {
 /** Tous les résultats connus d'une équipe : historique accumulé et derniers résultats, sans doublon. */
 export function historyOf(snap: Snapshot, team: FollowedTeam): PastMatch[] {
   const all = [...(snap.teams[team.id]?.recent ?? []), ...(snap.history?.[team.id] ?? [])];
-  const out: PastMatch[] = [];
+  const out: PastMatch[] = freshResults(snap, team);
   for (const r of all) {
-    if (out.some((x) => Math.abs(x.timestamp - r.timestamp) < 3 * 3600 && sameTeam(x.opponent, r.opponent))) continue;
-    out.push(toPast(team, r));
+    const past = toPast(team, r);
+    if (!out.some((x) => samePast(x, past))) out.push(past);
   }
   return out.sort((a, b) => b.timestamp - a.timestamp);
 }
