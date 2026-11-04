@@ -2,17 +2,17 @@ import Link from "next/link";
 import { FOLLOWED, GAMES } from "@/config/follow";
 import { clock, dayKey, relative, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { InstallButton } from "./Pwa";
 import { Logo } from "./ui";
 
 export async function SiteHeader() {
   const snap = await loadSnapshot();
   return (
-    <header className="sticky top-0 z-20 border-b border-line/70 bg-bg/80 backdrop-blur-md">
+    // Installée sur iPhone, l'appli s'étend sous la barre d'état : l'en-tête la laisse libre.
+    <header className="sticky top-0 z-20 border-b border-line/70 bg-bg/80 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2">
-          <span className="grid size-7 place-items-center rounded-md bg-ink font-display text-lg font-bold leading-none text-bg transition-transform group-hover:-rotate-6">
-            C
-          </span>
+          <Mark className="size-7 transition-transform group-hover:-rotate-6" />
           <span className="font-display text-xl font-bold tracking-[0.14em]">CLUTCH</span>
         </Link>
         <nav className="scrollbar-thin -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
@@ -36,13 +36,35 @@ export async function SiteHeader() {
           })}
         </nav>
         <Freshness updatedAt={snap.updatedAt} />
+        <InstallButton />
       </div>
     </header>
   );
 }
 
+/** Le même dessin que l'icône de l'appli (scripts/icons.ts), sur fond clair. */
+function Mark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 512 512" className={className} aria-hidden>
+      <rect width="512" height="512" rx="112" className="fill-ink" />
+      <g transform="translate(14 0)">
+        <path
+          d="M 340.9 171.1 A 120 120 0 1 0 340.9 340.9"
+          fill="none"
+          className="stroke-bg"
+          strokeWidth="64"
+          strokeLinecap="round"
+        />
+        <rect x="296" y="213" width="84" height="18" rx="9" className="fill-rl" />
+        <rect x="296" y="247" width="84" height="18" rx="9" className="fill-cs" />
+        <rect x="296" y="281" width="84" height="18" rx="9" className="fill-cod" />
+      </g>
+    </svg>
+  );
+}
+
 /**
- * En production, l'instantané n'est commité que quand les données changent :
+ * En production, l'instantané n'est publié que quand les données changent :
  * son heure est celle du dernier changement, pas de la dernière vérification.
  * On l'affiche donc sans jugement de fraîcheur.
  */

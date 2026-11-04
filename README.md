@@ -121,6 +121,19 @@ dans Blob ; il vient de la page du store `clutch-data` sur Vercel.
 Lancer une passe tout de suite : `gh workflow run sync.yml`, ou le bouton
 « Run workflow » de l'onglet Actions.
 
+## Sur le téléphone
+
+Clutch s'installe comme une appli (PWA) :
+
+- **Android, Chrome, Edge** : bouton « Installer » dans l'en-tête, ou menu du
+  navigateur → « Installer l'application » ;
+- **iPhone** : dans Safari, Partager → « Sur l'écran d'accueil ».
+
+Le service worker ([`public/sw.js`](public/sw.js)) passe **d'abord par le
+réseau** : en ligne, on voit toujours les données et la version du jour. Le
+cache ne sert qu'hors connexion, avec la dernière version vue de chaque page.
+Les icônes se régénèrent avec `npx tsx scripts/icons.ts`.
+
 ## Ajouter une équipe
 
 Ajouter une ligne à `FOLLOWED` dans `src/config/follow.ts`, avec le titre exact

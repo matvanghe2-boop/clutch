@@ -13,10 +13,14 @@ const barlow = Barlow_Condensed({
 export const metadata: Metadata = {
   title: { default: "Clutch", template: "%s · Clutch" },
   description: "Mes équipes esport : prochains matchs, résultats, poules et brackets.",
+  // Installée depuis Safari : plein écran, barre d'état transparente sur le fond sombre.
+  appleWebApp: { capable: true, title: "Clutch", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#0a0c10",
+  // Nécessaire pour que env(safe-area-inset-*) ait une valeur sur iPhone.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

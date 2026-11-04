@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Le navigateur doit toujours revérifier le service worker : c'est lui
+        // qui décide de ce qui est servi hors connexion.
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
