@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Pages brutes de mise au point et état du limiteur. data/snapshot.json, lui,
+# est versionné : c'est ce que le site déployé affiche.
+/data/raw/
+/data/.ratelimit.json
+/data/*.tmp
+/.sync-cache/

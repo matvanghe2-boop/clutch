@@ -1,103 +1,120 @@
-import Image from "next/image";
+import Link from "next/link";
+import { GAME_IDS, GAMES } from "@/config/follow";
+import { MatchRow, NextMatch, ResultRow, TournamentCard } from "@/components/matches";
+import { cn, Empty, SectionTitle } from "@/components/ui";
+import { headToHead, recentFeed, statusOf, trackedTournaments, upcomingFeed } from "@/lib/derive";
+import { dayKey, dayLabel } from "@/lib/format";
+import { readSnapshot } from "@/lib/snapshot";
+import type { GameId } from "@/lib/types";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+function parseGame(v: string | string[] | undefined): GameId | undefined {
+  const s = Array.isArray(v) ? v[0] : v;
+  return GAME_IDS.find((g) => g === s || GAMES[g].short.toLowerCase() === s?.toLowerCase());
+}
+
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const game = parseGame((await searchParams).jeu);
+  const snap = readSnapshot();
+  const now = Date.now() / 1000;
+
+  if (!snap.updatedAt) {
+    return (
+      <Empty>
+        Aucune donnée pour l&apos;instant. Lance <code className="text-dim">npm run sync</code> (ou{" "}
+        <code className="text-dim">npm run dev</code>, qui synchronise en continu) : la première passe prend quelques
+        minutes, Liquipedia n&apos;autorisant qu&apos;une page toutes les 30 secondes.
+      </Empty>
+    );
+  }
+
+  const upcoming = upcomingFeed(snap, game).filter((o) => statusOf(o.match, now) !== "stale");
+  const [hero, ...rest] = upcoming;
+  const results = recentFeed(snap, game).slice(0, 10);
+  const tracked = trackedTournaments(snap, now, game);
+
+  const days = new Map<string, typeof rest>();
+  for (const o of rest) {
+    const key = o.match.timestamp ? dayKey(o.match.timestamp) : "zz";
+    days.set(key, [...(days.get(key) ?? []), o]);
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="space-y-10">
+      <nav className="flex gap-1.5" aria-label="Filtrer par jeu">
+        {[undefined, ...GAME_IDS].map((g) => (
+          <Link
+            key={g ?? "all"}
+            href={g ? `/?jeu=${GAMES[g].short.toLowerCase()}` : "/"}
+            data-game={g}
+            className={cn(
+              "rounded-full border px-3 py-1 font-display text-sm font-semibold tracking-wide transition-colors",
+              game === g
+                ? g
+                  ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]"
+                  : "border-ink bg-ink text-bg"
+                : "border-line text-dim hover:border-faint hover:text-ink",
+            )}
+          >
+            {g ? GAMES[g].short : "Tout"}
+          </Link>
+        ))}
+      </nav>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      {hero ? (
+        <NextMatch o={hero} now={now} h2h={headToHead(snap, hero.team, hero.them)} />
+      ) : (
+        <Empty>Aucun match annoncé pour {game ? GAMES[game].label : "tes équipes"} pour le moment.</Empty>
+      )}
+
+      {rest.length > 0 && (
+        <section>
+          <SectionTitle>Au programme</SectionTitle>
+          <div className="space-y-6">
+            {[...days.entries()].map(([key, list]) => (
+              <div key={key}>
+                <h3 className="mb-2 text-sm font-medium text-dim">
+                  {list[0].match.timestamp ? dayLabel(list[0].match.timestamp, now) : "Date à confirmer"}
+                </h3>
+                <div className="space-y-2">
+                  {list.map((o) => (
+                    <MatchRow key={o.match.id} o={o} now={now} h2h={headToHead(snap, o.team, o.them)} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
+        <section>
+          <SectionTitle>Derniers résultats</SectionTitle>
+          {results.length ? (
+            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+              {results.map((r) => (
+                <ResultRow key={`${r.team.id}-${r.timestamp}`} r={r} now={now} showGame={!game} />
+              ))}
+            </div>
+          ) : (
+            <Empty>Pas encore de résultat.</Empty>
+          )}
+        </section>
+
+        <section>
+          <SectionTitle>Compétitions suivies</SectionTitle>
+          {tracked.length ? (
+            <div className="grid gap-3">
+              {tracked.map((tr) => (
+                <TournamentCard key={tr.tournament.key} tr={tr} now={now} />
+              ))}
+            </div>
+          ) : (
+            <Empty>Aucune compétition en cours ou récente.</Empty>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

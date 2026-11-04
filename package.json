@@ -3,25 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "concurrently -n site,sync -c cyan,magenta \"next dev --turbopack -p 3240\" \"tsx scripts/refresh.ts --watch\"",
+    "dev:site": "next dev --turbopack -p 3240",
+    "sync": "tsx scripts/refresh.ts",
+    "sync:watch": "tsx scripts/refresh.ts --watch",
     "build": "next build --turbopack",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "next start -p 3240",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
+    "domhandler": "^5.0.3",
+    "next": "15.5.29",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.29"
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "concurrently": "^10.0.6",
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
   }
 }

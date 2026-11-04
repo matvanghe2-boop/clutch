@@ -1,0 +1,84 @@
+name: Synchroniser Liquipedia
+
+# Toutes les heures, à la 17e minute : GitHub retarde souvent les tâches
+# planifiées à l'heure pile, où tout le monde se bouscule.
+#
+# Pourquoi GitHub Actions et pas un cron Vercel : sur le plan Hobby, Vercel
+# n'exécute ses crons qu'une fois par jour. Pourquoi pas plus souvent qu'une
+# heure : le dépôt est privé, ses minutes d'Actions sont comptées, et chaque
+# page Liquipedia coûte 31 s d'attente (leur règle : une page toutes les 30 s).
+# Le script borne donc la passe à 5 pages (option --ci).
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+# Deux passes simultanées doubleraient le rythme des appels à Liquipedia.
+concurrency:
+  group: liquipedia-sync
+  cancel-in-progress: false
+
+# Nécessaire pour committer l'instantané mis à jour.
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # La synchro n'a besoin que de trois paquets. Installer tout le projet
+      # (Next, React, l'outillage) prendrait plus de temps que la synchro
+      # elle-même : on les installe à part et on les expose au dépôt.
+      - name: Installer les dépendances de la synchro
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sync" --no-audit --no-fund cheerio@1.2.0 domhandler@5 tsx@4
+          ln -s "$RUNNER_TEMP/sync/node_modules" node_modules
+
+      # L'heure de la dernière lecture de chaque page voyage de passe en passe
+      # dans ce cache, et non dans le dépôt : sinon chaque passe changerait
+      # l'instantané et redéploierait le site pour rien.
+      - name: Reprendre l'état de la passe précédente
+        uses: actions/cache/restore@v4
+        with:
+          path: .sync-cache/snapshot.json
+          key: sync-state-${{ github.run_id }}
+          restore-keys: sync-state-
+
+      - name: Appliquer l'état en cache
+        run: node_modules/.bin/tsx scripts/ci.ts restore .sync-cache/snapshot.json
+
+      - name: Synchroniser
+        run: node_modules/.bin/tsx scripts/refresh.ts --ci
+
+      - name: Mettre l'état en cache
+        if: always()
+        run: mkdir -p .sync-cache && cp data/snapshot.json .sync-cache/snapshot.json
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .sync-cache/snapshot.json
+          key: sync-state-${{ github.run_id }}
+
+      - name: Committer si les données ont changé
+        run: |
+          if [ "$(node_modules/.bin/tsx scripts/ci.ts changed)" != "changed" ]; then
+            echo "Aucun changement : pas de commit, pas de redéploiement."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/snapshot.json
+          git commit -m "Met a jour les donnees Liquipedia"
+          # Un push de code a pu arriver pendant la passe : on se replace
+          # dessus, l'instantané fraîchement lu l'emportant en cas de conflit.
+          git pull --rebase -X theirs origin main
+          git push
