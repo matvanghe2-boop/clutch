@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist } from "next/font/google";
+import Script from "next/script";
 import { SiteFooter, SiteHeader } from "@/components/site";
 import "./globals.css";
 
@@ -28,8 +29,27 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr">
+    // L'écran d'ouverture Orbit bloque le défilement (style sur <html>) avant l'hydratation.
+    <html lang="fr" suppressHydrationWarning>
       <body className={`${geist.variable} ${barlow.variable} min-h-dvh font-sans antialiased`}>
+        {/*
+          Signature du réseau Orbit : écran d'ouverture et header, avec le
+          pingouin esport. Copies servies depuis public/ (et mises en cache par
+          le service worker), pas depuis le hub : l'appli installée s'ouvre
+          aussi hors connexion. Après une évolution dans Orbit, recopier les
+          deux fichiers.
+          « beforeInteractive » : chargé plus tard, le splash laisserait voir la
+          page avant de la couvrir.
+        */}
+        <Script src="/orbit-splash.js" strategy="beforeInteractive" />
+        {/* Le script pose ses couleurs sur l'élément avant l'hydratation : écart attendu. */}
+        <orbit-splash app-name="Clutch" theme="esport" suppressHydrationWarning />
+        <Script src="/orbit-header.js" strategy="afterInteractive" />
+        {/* Sur iPhone, en appli, la barre d'état chevauche le haut de page : le header Orbit s'en écarte. */}
+        <div className="pt-[env(safe-area-inset-top)]">
+          {/* `static` : il défile avec la page, l'en-tête de Clutch reste seul collé en haut. */}
+          <orbit-header app-name="Clutch" theme="esport" compact static />
+        </div>
         <SiteHeader />
         <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-6 sm:px-6">{children}</main>
         <SiteFooter />

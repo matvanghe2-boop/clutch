@@ -35,6 +35,26 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+/* L'écran d'ouverture du réseau Orbit couvre la page dès le premier paint,
+   avant même que son script n'ait défini l'élément : Next charge ce script de
+   façon asynchrone, et sans cette règle on verrait le site une fraction de
+   seconde. Si le script n'arrivait jamais, la couverture s'efface seule à 8 s. */
+orbit-splash:not(:defined) {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: block;
+  background: var(--color-bg);
+  animation: orbit-splash-giveup 1ms linear 8s forwards;
+}
+
+@keyframes orbit-splash-giveup {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 /* Couleur d'accent du jeu, posée par GameScope sur un conteneur. */
 [data-game="rocketleague"] {
   --accent: var(--color-rl);

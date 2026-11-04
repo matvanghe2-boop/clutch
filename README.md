@@ -213,6 +213,24 @@ réseau** : en ligne, on voit toujours les données et la version du jour. Le
 cache ne sert qu'hors connexion, avec la dernière version vue de chaque page.
 Les icônes se régénèrent avec `npx tsx scripts/icons.ts`.
 
+## Réseau Orbit
+
+Clutch fait partie de mon [réseau Orbit](https://orbit-umber-sigma.vercel.app),
+où il a sa carte dans la catégorie Jeux. Comme les autres applis, il porte la
+signature du réseau, dans [`src/app/layout.tsx`](src/app/layout.tsx) :
+
+- `<orbit-splash>` : l'écran d'ouverture, une fois par onglet ;
+- `<orbit-header>` : le bandeau du réseau, avec un lien vers le hub, au-dessus
+  de l'en-tête de Clutch (il défile avec la page).
+
+Sa mascotte est le pingouin **esport** (thème `esport`, créé pour Clutch) :
+casque-micro de joueur pro et trophée doré, sur l'accent bleu de Clutch.
+
+Les deux scripts sont des copies servies depuis `public/`, et le service
+worker les garde en cache : l'appli installée s'ouvre aussi hors connexion.
+Après une évolution dans le dépôt Orbit, recopier `orbit-header.js` et
+`orbit-splash.js` dans `public/` et incrémenter `VERSION` dans `public/sw.js`.
+
 ## Réglages
 
 La page **Réglages** (icône d'engrenage, `/reglages`) ajoute ou retire une

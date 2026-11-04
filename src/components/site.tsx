@@ -18,8 +18,14 @@ export async function SiteHeader() {
   // Après l'envoi de la page : synchro de secours ou mode « match en cours », si besoin.
   after(() => autoRefresh(snap).catch((e) => console.error("[clutch] passe de secours :", e)));
   return (
-    // Installée sur iPhone, l'appli s'étend sous la barre d'état : l'en-tête la laisse libre.
-    <header className="sticky top-0 z-20 border-b border-line/70 bg-bg/80 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+    <>
+    {/*
+      Installée sur iPhone, l'appli s'étend sous la barre d'état. Le header Orbit,
+      au-dessus, s'en écarte ; une fois la page défilée, cet en-tête se colle juste
+      sous la barre d'état, qu'un aplat fixe garde opaque. Ailleurs, la marge vaut 0.
+    */}
+    <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-30 h-[env(safe-area-inset-top)] bg-bg" />
+    <header className="sticky top-[env(safe-area-inset-top)] z-20 border-b border-line/70 bg-bg/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2">
           <Mark className="size-7 transition-transform group-hover:-rotate-6" />
@@ -62,6 +68,7 @@ export async function SiteHeader() {
       <StaleBanner checkedAt={snap.checkedAt ?? snap.updatedAt} now={now} />
       <LiveRefresher active={live} />
     </header>
+    </>
   );
 }
 

@@ -10,20 +10,30 @@
  * Les fichiers de /_next/static ont un nom qui change à chaque build : on peut
  * les servir du cache sans risque. Les logos d'équipes viennent de Liquipedia
  * et changent rarement : servis du cache, rafraîchis en arrière-plan.
+ *
+ * Les scripts du réseau Orbit (header et écran de chargement) sont mis en
+ * cache dès l'installation : hors connexion, sans eux, l'écran de chargement
+ * resterait une page vide pendant 8 s avant de s'effacer.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const PAGES = `clutch-pages-${VERSION}`;
 const ASSETS = `clutch-assets-${VERSION}`;
 const LOGOS = `clutch-logos-${VERSION}`;
+const ORBIT = `clutch-orbit-${VERSION}`;
+const ORBIT_FILES = ["/orbit-header.js", "/orbit-splash.js"];
 const NETWORK_TIMEOUT_MS = 4000;
 const MAX_LOGOS = 300;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(PAGES).then((c) => c.add("/")).then(() => self.skipWaiting()));
+  event.waitUntil(
+    Promise.all([caches.open(PAGES).then((c) => c.add("/")), caches.open(ORBIT).then((c) => c.addAll(ORBIT_FILES))]).then(() =>
+      self.skipWaiting(),
+    ),
+  );
 });
 
 self.addEventListener("activate", (event) => {
-  const keep = new Set([PAGES, ASSETS, LOGOS]);
+  const keep = new Set([PAGES, ASSETS, LOGOS, ORBIT]);
   event.waitUntil(
     caches
       .keys()
@@ -41,6 +51,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(networkFirst(request));
   } else if (url.origin === self.location.origin && url.pathname.startsWith("/_next/static/")) {
     event.respondWith(cacheFirst(request, ASSETS));
+  } else if (url.origin === self.location.origin && ORBIT_FILES.includes(url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request, ORBIT));
   } else if (url.hostname === "liquipedia.net" && url.pathname.startsWith("/commons/images/")) {
     event.respondWith(staleWhileRevalidate(request, LOGOS));
   }

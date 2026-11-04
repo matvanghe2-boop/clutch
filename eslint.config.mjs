@@ -18,6 +18,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Copies des scripts du réseau Orbit : ils se corrigent dans le dépôt Orbit.
+      "public/orbit-*.js",
     ],
   },
 ];
