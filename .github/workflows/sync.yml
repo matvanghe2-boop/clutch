@@ -13,6 +13,13 @@ on:
   schedule:
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
+    inputs:
+      force_publish:
+        description: >-
+          Publier l'instantané même si les données n'ont pas changé (après une
+          évolution du format, ou pour vérifier le secret Blob).
+        type: boolean
+        default: false
 
 # Deux passes simultanées doubleraient le rythme des appels à Liquipedia
 # (leur règle : une page toutes les 30 s).
@@ -81,7 +88,7 @@ jobs:
       - name: Publier si les données ont changé
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: node_modules/.bin/tsx scripts/ci.ts publish
+        run: node_modules/.bin/tsx scripts/ci.ts publish ${{ inputs.force_publish && '--force' || '' }}
 
       # Dans un dépôt public, GitHub désactive les tâches planifiées après
       # 60 jours sans activité, sans prévenir. Comme la synchro ne committe

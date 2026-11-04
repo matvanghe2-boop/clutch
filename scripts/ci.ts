@@ -4,6 +4,7 @@
  *   tsx scripts/ci.ts restore <fichier>   repart de l'état le plus récent : celui mis en
  *                                         cache par la passe précédente, ou la version publiée
  *   tsx scripts/ci.ts publish             publie l'instantané dans Vercel Blob s'il diffère
+ *                                         (--force : publie même sans changement)
  *                                         de la version en ligne
  *
  * Le site lit l'instantané dans Blob : publier ne crée ni commit ni
@@ -74,7 +75,7 @@ async function main() {
     const current = readFile(SNAPSHOT_PATH);
     if (!current) throw new Error("Aucun instantané à publier");
     const published = await readPublished();
-    if (published && stable(published) === stable(current)) {
+    if (published && stable(published) === stable(current) && !process.argv.includes("--force")) {
       console.log("Données inchangées : rien à publier.");
       return;
     }
