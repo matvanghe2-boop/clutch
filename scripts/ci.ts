@@ -4,8 +4,8 @@
  *   tsx scripts/ci.ts restore <fichier>   repart de l'état le plus récent : celui mis en
  *                                         cache par la passe précédente, ou la version publiée
  *   tsx scripts/ci.ts publish             publie l'instantané dans Vercel Blob s'il diffère
- *                                         (--force : publie même sans changement)
  *                                         de la version en ligne
+ *                                         (--force : publie même sans changement)
  *
  * Le site lit l'instantané dans Blob : publier ne crée ni commit ni
  * redéploiement. On ne publie pourtant que si les données ont changé, car le
