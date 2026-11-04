@@ -47,3 +47,6 @@ next-env.d.ts
 /data/.ratelimit.json
 /data/*.tmp
 /.sync-cache/
+
+.vercel
+.env*
