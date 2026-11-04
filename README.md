@@ -132,14 +132,34 @@ compétitions. Deux vues :
 - **Tout le circuit** : aussi les autres grandes compétitions de chaque jeu et
   tous les matchs des compétitions suivies.
 
-Pour savoir à l'avance où jouent mes équipes, la synchro lit toutes les 6 h la
-liste des compétitions de chaque jeu (`Liquipedia:Tournaments`, une requête
-légère), puis la page de chaque compétition à venir ou en cours : dates, lieu,
-cashprize et **participants**. Une compétition où une équipe suivie est
-inscrite devient suivie avant même que ses matchs soient programmés ; les
-autres ne gardent que leurs dates, relues une fois par jour. Le wiki Call of
-Duty mêle plusieurs jeux : `OTHER_TITLES` (dans `src/config/follow.ts`)
-écarte Call of Duty Mobile et Warzone.
+Pour savoir à l'avance où jouent mes équipes, la synchro lit :
+
+- toutes les 6 h, la liste des compétitions de chaque jeu
+  (`Liquipedia:Tournaments`, une requête légère) : les prochaines semaines ;
+- chaque jour, les listes par niveau (`TIER_LISTS` : S-Tier, et A-Tier pour la
+  CDL) : les grandes compétitions, des mois à l'avance ;
+- la page de chaque compétition à venir ou en cours : dates, lieu, cashprize et
+  **participants**.
+
+Une compétition prend l'un de trois niveaux :
+
+| Niveau | Quand | Affichage |
+|---|---|---|
+| confirmée | une équipe suivie est inscrite ou y joue | bande pleine |
+| à surveiller | la règle `watch` de l'équipe la retient, inscription inconnue | bande hachurée, « à confirmer » |
+| reste du circuit | le reste | vue « Tout le circuit » seulement |
+
+Les règles `watch` (dans `src/config/follow.ts`) : tout le circuit RLCS sauf
+les étapes des autres régions pour Gentle Mates, le S-Tier pour Vitality,
+toute la CDL pour Paris Gentle Mates. Une compétition surveillée dont la liste
+de participants est close sans l'équipe repasse dans le reste du circuit. Le
+wiki Call of Duty mêle plusieurs jeux : `OTHER_TITLES` écarte Call of Duty
+Mobile et Warzone.
+
+**Matchs sans heure.** Quand Liquipedia ne donne que le jour, le match
+s'affiche ce jour-là, « heure à confirmer ». Un match à l'affiche connue mais
+sans date du tout est listé dans « Matchs à programmer », avec la période de
+sa compétition.
 
 **Abonnement agenda** : `/calendrier.ics` publie les matchs de mes équipes et
 leurs compétitions au format iCalendar. Le bouton « S'abonner » de la page
