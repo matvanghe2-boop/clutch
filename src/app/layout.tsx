@@ -10,6 +10,9 @@ const barlow = Barlow_Condensed({
   weight: ["500", "600", "700"],
 });
 
+/** La passe de secours tourne après l'envoi de la page (voir SiteHeader) : elle a besoin de temps. */
+export const maxDuration = 300;
+
 export const metadata: Metadata = {
   title: { default: "Clutch", template: "%s · Clutch" },
   description: "Mes équipes esport : prochains matchs, résultats, poules et brackets.",

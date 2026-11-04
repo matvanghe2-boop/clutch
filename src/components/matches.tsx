@@ -156,6 +156,10 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
           <GameTag game={m.wiki} />
           <TournamentLine o={o} />
           {m.bestOf && <span className="shrink-0 text-faint">Bo{m.bestOf}</span>}
+          {/* Sur mobile, la colonne des streams disparaît : le stream principal passe ici. */}
+          <span className="ml-auto shrink-0 sm:hidden">
+            <StreamLinks streams={m.streams} compact max={1} />
+          </span>
         </div>
         {h2h && h2h.meetings.length > 0 && (
           <div className="mt-1 text-[11px] sm:hidden">

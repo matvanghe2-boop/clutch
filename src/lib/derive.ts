@@ -1,15 +1,23 @@
-import { FOLLOWED, type FollowedTeam, OTHER_TITLES } from "@/config/follow";
+import { DEFAULT_TEAMS, type FollowedTeam, OTHER_TITLES, toFollowed } from "@/config/follow";
 import { dayKey } from "./format";
 import { tournamentMatches } from "./tournament";
-import type { GameId, Match, Snapshot, StandingRow, TeamRef, Tournament, TournamentRef } from "./types";
+import type { GameId, Match, RecentMatch, Snapshot, StandingRow, TeamRef, Tournament, TournamentRef } from "./types";
 
 export function norm(s?: string): string {
   return (s ?? "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/\p{M}/gu, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/**
+ * Les équipes suivies : celles de la dernière passe de synchro (réglées depuis
+ * le site), sinon celles par défaut de la configuration.
+ */
+export function teamsOf(snap: Snapshot): FollowedTeam[] {
+  return (snap.followed?.length ? snap.followed : DEFAULT_TEAMS).map(toFollowed);
 }
 
 export function isTeam(ref: TeamRef | null | undefined, team: FollowedTeam): boolean {
@@ -24,7 +32,7 @@ export function sameTeam(a: TeamRef | null | undefined, b: TeamRef | null | unde
   return norm(a.name) === norm(b.name) || norm(a.page) === norm(b.name) || norm(a.name) === norm(b.page);
 }
 
-export const teamById = (id: string) => FOLLOWED.find((t) => t.id === id);
+export const teamById = (snap: Snapshot, id: string) => teamsOf(snap).find((t) => t.id === id);
 
 export type MatchStatus = "upcoming" | "live" | "done" | "stale";
 
@@ -45,13 +53,27 @@ export function isOtherTitle(wiki: GameId, ...labels: (string | undefined)[]): b
 }
 
 /** L'équipe suivie qui dispute d'habitude cette compétition, d'après sa règle de surveillance. */
-export function watchingTeam(wiki: GameId, page: string, tier?: string): FollowedTeam | undefined {
-  return FOLLOWED.find((f) => {
+export function watchingTeam(teams: FollowedTeam[], wiki: GameId, page: string, tier?: string): FollowedTeam | undefined {
+  return teams.find((f) => {
     const w = f.watch;
     if (f.game !== wiki || !w) return false;
     if (w.exclude?.some((r) => r.test(page))) return false;
     return Boolean(w.pages?.some((r) => r.test(page)) || (tier && w.tiers?.includes(tier)));
   });
+}
+
+/**
+ * L'équipe suivie concernée par une compétition : celle qui y figure
+ * (participants, matchs, classements), sinon la première de ce jeu.
+ */
+export function teamIn(teams: FollowedTeam[], t: Tournament): FollowedTeam | undefined {
+  const ofGame = teams.filter((f) => f.game === t.wiki);
+  if (ofGame.length <= 1) return ofGame[0];
+  const present = (f: FollowedTeam) =>
+    (t.participants ?? []).some((p) => isTeam(p, f)) ||
+    tournamentMatches(t).some((m) => m.opponents.some((o) => isTeam(o, f))) ||
+    t.stages.some((s) => s.blocks.some((b) => b.kind === "group" && b.table.rows.some((r) => isTeam(r.team, f))));
+  return ofGame.find(present) ?? ofGame[0];
 }
 
 /** Un match vu du côté de l'équipe suivie : elle est toujours à gauche. */
@@ -116,6 +138,7 @@ function enrich(snap: Snapshot, m: Match): Match {
     ...m,
     opponents,
     timestamp: twin.timestamp ?? m.timestamp,
+    timeTbd: twin.timestamp !== undefined ? twin.timeTbd : m.timeTbd,
     finished: twin.finished || m.finished,
     scores: twin.scores,
     winner: twin.winner,
@@ -128,9 +151,10 @@ function enrich(snap: Snapshot, m: Match): Match {
 }
 
 export function upcomingFeed(snap: Snapshot, game?: GameId): Oriented[] {
+  const teams = teamsOf(snap);
   const out: Oriented[] = [];
   const seen = new Set<string>();
-  for (const team of FOLLOWED) {
+  for (const team of teams) {
     if (game && team.game !== game) continue;
     for (const m of snap.teams[team.id]?.upcoming ?? []) {
       if (seen.has(m.id) || m.finished) continue;
@@ -142,10 +166,9 @@ export function upcomingFeed(snap: Snapshot, game?: GameId): Oriented[] {
   // connaissent souvent la suite du programme.
   for (const t of Object.values(snap.tournaments)) {
     if (t.participating === false || (game && t.wiki !== game)) continue;
-    const team = FOLLOWED.find((f) => f.game === t.wiki);
-    if (!team) continue;
     for (const m of tournamentMatches(t)) {
-      if (m.finished || seen.has(m.id) || !m.opponents.some((o) => isTeam(o, team))) continue;
+      const team = teams.find((f) => f.game === t.wiki && m.opponents.some((o) => isTeam(o, f)));
+      if (!team || m.finished || seen.has(m.id)) continue;
       // Sans date, on ne garde que les affiches connues (pas « M8 contre le vainqueur de… »).
       if (m.timestamp === undefined && !m.opponents.every(Boolean)) continue;
       if (out.some((o) => sameMatch(o.match, m))) continue;
@@ -166,20 +189,32 @@ export interface PastMatch {
   tournament: TournamentRef;
 }
 
+const toPast = (team: FollowedTeam, r: RecentMatch): PastMatch => ({
+  team,
+  timestamp: r.timestamp,
+  opponent: r.opponent,
+  usScore: r.score[0],
+  themScore: r.score[1],
+  result: r.result,
+  tournament: r.tournament,
+});
+
 export function recentFeed(snap: Snapshot, game?: GameId): PastMatch[] {
   const out: PastMatch[] = [];
-  for (const team of FOLLOWED) {
+  for (const team of teamsOf(snap)) {
     if (game && team.game !== game) continue;
-    for (const r of snap.teams[team.id]?.recent ?? [])
-      out.push({
-        team,
-        timestamp: r.timestamp,
-        opponent: r.opponent,
-        usScore: r.score[0],
-        themScore: r.score[1],
-        result: r.result,
-        tournament: r.tournament,
-      });
+    for (const r of snap.teams[team.id]?.recent ?? []) out.push(toPast(team, r));
+  }
+  return out.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/** Tous les résultats connus d'une équipe : historique accumulé et derniers résultats, sans doublon. */
+export function historyOf(snap: Snapshot, team: FollowedTeam): PastMatch[] {
+  const all = [...(snap.teams[team.id]?.recent ?? []), ...(snap.history?.[team.id] ?? [])];
+  const out: PastMatch[] = [];
+  for (const r of all) {
+    if (out.some((x) => Math.abs(x.timestamp - r.timestamp) < 3 * 3600 && sameTeam(x.opponent, r.opponent))) continue;
+    out.push(toPast(team, r));
   }
   return out.sort((a, b) => b.timestamp - a.timestamp);
 }
@@ -191,12 +226,11 @@ export interface HeadToHead {
   meetings: PastMatch[];
 }
 
-/** Toutes les rencontres connues : résultats récents de l'équipe et matchs des compétitions suivies. */
+/** Toutes les rencontres connues : historique de l'équipe et matchs des compétitions suivies. */
 export function headToHead(snap: Snapshot, team: FollowedTeam, opponent: TeamRef | null): HeadToHead {
   const meetings: PastMatch[] = [];
   if (opponent) {
-    for (const r of recentFeed(snap, team.game))
-      if (r.team.id === team.id && sameTeam(r.opponent, opponent)) meetings.push(r);
+    for (const r of historyOf(snap, team)) if (sameTeam(r.opponent, opponent)) meetings.push(r);
     for (const t of Object.values(snap.tournaments)) {
       if (t.wiki !== team.game) continue;
       for (const m of tournamentMatches(t)) {
@@ -228,12 +262,14 @@ export function headToHead(snap: Snapshot, team: FollowedTeam, opponent: TeamRef
 /** Bilan contre chaque adversaire rencontré, pour la page équipe. */
 export function opponentsRecord(snap: Snapshot, team: FollowedTeam) {
   const byOpp = new Map<string, { opponent: TeamRef; h2h: HeadToHead }>();
-  for (const r of recentFeed(snap, team.game)) {
-    if (r.team.id !== team.id || !r.opponent) continue;
+  for (const r of historyOf(snap, team)) {
+    if (!r.opponent) continue;
     const key = norm(r.opponent.page ?? r.opponent.name);
     if (!byOpp.has(key)) byOpp.set(key, { opponent: r.opponent, h2h: headToHead(snap, team, r.opponent) });
   }
-  return [...byOpp.values()].sort((a, b) => b.h2h.meetings.length - a.h2h.meetings.length);
+  return [...byOpp.values()].sort(
+    (a, b) => b.h2h.meetings.length - a.h2h.meetings.length || b.h2h.meetings[0].timestamp - a.h2h.meetings[0].timestamp,
+  );
 }
 
 export interface Tracked {
@@ -247,17 +283,18 @@ export interface Tracked {
 }
 
 export function trackedTournaments(snap: Snapshot, now: number, game?: GameId): Tracked[] {
+  const teams = teamsOf(snap);
   const out: Tracked[] = [];
   const today = new Date(now * 1000).toISOString().slice(0, 10);
   for (const t of Object.values(snap.tournaments)) {
     if (game && t.wiki !== game) continue;
     // Connue par la liste du jeu, sans équipe suivie : elle n'a sa place qu'au calendrier.
     if (t.participating === false) continue;
-    const team = FOLLOWED.find((f) => f.game === t.wiki);
+    const team = teamIn(teams, t);
     if (!team) continue;
     const all = tournamentMatches(t);
     const ours = all.filter((m) => m.opponents.some((o) => isTeam(o, team))).map((m) => orient(m, team));
-    const fromTeamPage = upcomingFeed(snap, t.wiki).filter((o) => o.match.tournament?.page === t.page);
+    const fromTeamPage = upcomingFeed(snap, t.wiki).filter((o) => o.team.id === team.id && o.match.tournament?.page === t.page);
 
     const unplayed = ours.filter((o) => !o.match.finished);
     const pending = [...unplayed, ...fromTeamPage.filter((o) => !unplayed.some((u) => sameMatch(u.match, o.match)))]
@@ -295,6 +332,15 @@ export function trackedTournaments(snap: Snapshot, now: number, game?: GameId): 
       (a.next?.match.timestamp ?? Infinity) - (b.next?.match.timestamp ?? Infinity) ||
       (a.tournament.startDate ?? "").localeCompare(b.tournament.startDate ?? "") ||
       (b.last?.match.timestamp ?? 0) - (a.last?.match.timestamp ?? 0),
+  );
+}
+
+/** Un match de mes équipes est en cours ou commence dans les dix minutes : le site se rafraîchit seul. */
+export function liveSoon(snap: Snapshot, now: number): boolean {
+  return upcomingFeed(snap).some(
+    (o) =>
+      statusOf(o.match, now) === "live" ||
+      (!o.match.timeTbd && o.match.timestamp !== undefined && o.match.timestamp - now < 10 * 60 && o.match.timestamp > now),
   );
 }
 

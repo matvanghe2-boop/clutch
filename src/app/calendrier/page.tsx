@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { GAME_IDS, GAMES } from "@/config/follow";
-import { AgendaMatch, competitionLink, MonthGrid, RELEVANCE_LABEL } from "@/components/calendar";
+import { AgendaMatch, competitionLink, MonthGrid, RELEVANCE_LABEL, WeekView } from "@/components/calendar";
 import { cn, Empty, GameTag, Logo, SectionTitle } from "@/components/ui";
-import { calendarData, type CalCompetition, type CalMatch, monthGrid, type Scope, shiftMonth } from "@/lib/calendar";
+import { addDays, calendarData, type CalCompetition, type CalMatch, monthGrid, type Scope, shiftMonth } from "@/lib/calendar";
 import { dayKey, dayLabel, infoDate } from "@/lib/format";
+import { hideCompetition } from "@/app/actions";
+import { readHidden } from "@/lib/hidden";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import type { GameId } from "@/lib/types";
 
@@ -27,6 +29,19 @@ const monthName = (month: string) => {
 };
 const noon = (day: string) => Date.parse(`${day}T12:00:00Z`) / 1000;
 
+type Display = "mois" | "semaine";
+
+/** Le lundi de la semaine d'un jour (AAAA-MM-JJ). */
+const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7));
+
+const dayMonthFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
+function weekTitle(monday: string): string {
+  const sunday = addDays(monday, 6);
+  const a = dayMonthFmt.format(new Date(`${monday}T12:00:00Z`));
+  const b = dayMonthFmt.format(new Date(`${sunday}T12:00:00Z`));
+  return `Du ${monday.slice(5, 7) === sunday.slice(5, 7) ? a.split(" ")[0] : a} au ${b}`;
+}
+
 export default async function CalendarPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const now = Date.now() / 1000;
@@ -35,13 +50,22 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   const month = mois && /^\d{4}-\d{2}$/.test(mois) ? mois : today.slice(0, 7);
   const game = parseGame(first(sp.jeu));
   const scope: Scope = first(sp.vue) === "tout" ? "tout" : "mes";
+  const display: Display = first(sp.affichage) === "semaine" ? "semaine" : "mois";
+  const semaine = first(sp.semaine);
+  const week = mondayOf(semaine && /^\d{4}-\d{2}-\d{2}$/.test(semaine) ? semaine : today);
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(week, i));
 
-  const href = (patch: { mois?: string; jeu?: GameId | null; vue?: Scope }) => {
+  const href = (patch: { mois?: string; jeu?: GameId | null; vue?: Scope; affichage?: Display; semaine?: string }) => {
     const q = new URLSearchParams();
     const m = patch.mois ?? month;
     const g = patch.jeu === null ? undefined : (patch.jeu ?? game);
     const v = patch.vue ?? scope;
-    if (m !== today.slice(0, 7)) q.set("mois", m);
+    const a = patch.affichage ?? display;
+    const w = patch.semaine ?? week;
+    if (a === "semaine") {
+      q.set("affichage", "semaine");
+      if (w !== mondayOf(today)) q.set("semaine", w);
+    } else if (m !== today.slice(0, 7)) q.set("mois", m);
     if (g) q.set("jeu", GAMES[g].short.toLowerCase());
     if (v === "tout") q.set("vue", "tout");
     const s = q.toString();
@@ -49,7 +73,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   };
 
   const snap = await loadSnapshot();
-  const { matches, competitions, unscheduled } = calendarData(snap, now, scope, game);
+  const { matches, competitions, unscheduled } = calendarData(snap, now, scope, game, await readHidden());
   const days = monthGrid(month);
   const visible = competitions.filter((c) => c.end >= days[0] && c.start <= days.at(-1)!);
 
@@ -70,6 +94,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   const coming = agenda.filter((d) => d.day >= today);
 
   const monthMatches = matches.filter((m) => m.day.startsWith(month) && m.ours).length;
+  const weekMatches = matches.filter((m) => m.ours && m.day >= week && m.day <= weekDays[6]).length;
+  const weekComps = competitions.filter((c) => c.end >= week && c.start <= weekDays[6]).length;
   // Les miennes d'abord : les compétitions surveillées peuvent être nombreuses (tout le S-Tier en CS2).
   const relevanceRank = { confirmed: 0, watched: 1, other: 2 };
   const upcomingComps = competitions
@@ -85,12 +111,26 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold sm:text-4xl">{monthName(month)}</h1>
+          <h1 className="font-display text-3xl font-bold sm:text-4xl">{display === "semaine" ? weekTitle(week) : monthName(month)}</h1>
           <p className="mt-1 text-sm text-dim">
-            {monthMatches} match{monthMatches > 1 ? "s" : ""} de mes équipes · {visible.length} compétition
-            {visible.length > 1 ? "s" : ""}
+            {display === "semaine" ? weekMatches : monthMatches} match{(display === "semaine" ? weekMatches : monthMatches) > 1 ? "s" : ""} de
+            mes équipes · {display === "semaine" ? weekComps : visible.length} compétition
+            {(display === "semaine" ? weekComps : visible.length) > 1 ? "s" : ""}
           </p>
         </div>
+        {display === "semaine" ? (
+          <nav className="flex items-center gap-1.5" aria-label="Changer de semaine">
+            <Link href={href({ semaine: addDays(week, -7) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Semaine précédente">
+              ←
+            </Link>
+            <Link href={href({ semaine: mondayOf(today) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink">
+              Cette semaine
+            </Link>
+            <Link href={href({ semaine: addDays(week, 7) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Semaine suivante">
+              →
+            </Link>
+          </nav>
+        ) : (
         <nav className="flex items-center gap-1.5" aria-label="Changer de mois">
           <Link href={href({ mois: shiftMonth(month, -1) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Mois précédent">
             ←
@@ -102,6 +142,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
             →
           </Link>
         </nav>
+        )}
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -124,6 +165,23 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
             </Link>
           ))}
         </nav>
+        <div className="flex flex-wrap gap-2">
+        <div className="flex rounded-full border border-line p-0.5 text-sm">
+          {(
+            [
+              ["mois", "Mois"],
+              ["semaine", "Semaine"],
+            ] as const
+          ).map(([a, label]) => (
+            <Link
+              key={a}
+              href={href({ affichage: a })}
+              className={cn("rounded-full px-3 py-1 transition-colors", display === a ? "bg-panel-2 text-ink" : "text-faint hover:text-dim")}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
         <div className="flex rounded-full border border-line p-0.5 text-sm">
           {(
             [
@@ -140,12 +198,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
             </Link>
           ))}
         </div>
+        </div>
       </div>
 
-      <MonthGrid month={month} days={days} today={today} matchesByDay={byDay} competitions={visible} />
+      {display === "semaine" ? (
+        <WeekView days={weekDays} today={today} matchesByDay={byDay} competitions={competitions} />
+      ) : (
+        <MonthGrid month={month} days={days} today={today} matchesByDay={byDay} competitions={visible} />
+      )}
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <section>
+        <section className={display === "semaine" ? "hidden" : undefined}>
           <SectionTitle>Agenda</SectionTitle>
           {agenda.length === 0 ? (
             <Empty>Rien de prévu ce mois-ci{game ? ` en ${GAMES[game].label}` : ""} pour l&apos;instant.</Empty>
@@ -300,39 +363,63 @@ function CompetitionPill({ c, label }: { c: CalCompetition; label: string }) {
 
 function UpcomingCompetition({ c, today, now }: { c: CalCompetition; today: string; now: number }) {
   const { href, external } = competitionLink(c);
+  return (
+    <li data-game={c.game} className="group relative">
+      <UpcomingCompetitionLink c={c} today={today} now={now} href={href} external={external} />
+      <form action={hideCompetition} className="absolute bottom-2 right-3 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        <input type="hidden" name="key" value={`${c.game}:${c.page}`} />
+        <button className="rounded border border-line bg-panel px-2 py-0.5 text-[11px] text-faint hover:text-ink" title="Masquer cette compétition">
+          Masquer
+        </button>
+      </form>
+    </li>
+  );
+}
+
+function UpcomingCompetitionLink({
+  c,
+  today,
+  now,
+  href,
+  external,
+}: {
+  c: CalCompetition;
+  today: string;
+  now: number;
+  href: string;
+  external: boolean;
+}) {
   const running = c.start <= today;
   const inDays = Math.round((noon(c.start) - noon(today)) / 86400);
   const start = infoDate(c.start, now);
   const end = infoDate(c.end, now);
   return (
-    <li data-game={c.game}>
-      <a
-        href={href}
-        {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-        className={cn("block px-4 py-3 transition-colors hover:bg-panel-2", c.relevance === "other" && "opacity-75")}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <GameTag game={c.game} />
-          <span className={cn("text-[11px]", running ? "font-medium text-[var(--accent)]" : "text-faint")}>
-            {running
-              ? "En cours"
-              : inDays === 1
-                ? "Demain"
-                : inDays > 60
-                  ? `Dans ${Math.round(inDays / 30)} mois`
-                  : `Dans ${inDays} j`}
-          </span>
+    <a
+      href={href}
+      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      className={cn("block px-4 py-3 transition-colors hover:bg-panel-2", c.relevance === "other" && "opacity-75")}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <GameTag game={c.game} />
+        <span className={cn("text-[11px]", running ? "font-medium text-[var(--accent)]" : "text-faint")}>
+          {running
+            ? "En cours"
+            : inDays === 1
+              ? "Demain"
+              : inDays > 60
+                ? `Dans ${Math.round(inDays / 30)} mois`
+                : `Dans ${inDays} j`}
+        </span>
+      </div>
+      <div className="mt-1.5 font-medium leading-snug">{c.name}</div>
+      <div className="mt-0.5 text-xs text-faint">
+        {[start === end ? start : `${start} → ${end}`, c.location, c.prize].filter(Boolean).join(" · ")}
+      </div>
+      {c.relevance !== "other" && (
+        <div className={cn("mt-1 text-xs", c.relevance === "confirmed" ? "text-[var(--accent)]" : "text-dim")}>
+          {RELEVANCE_LABEL[c.relevance]}
         </div>
-        <div className="mt-1.5 font-medium leading-snug">{c.name}</div>
-        <div className="mt-0.5 text-xs text-faint">
-          {[start === end ? start : `${start} → ${end}`, c.location, c.prize].filter(Boolean).join(" · ")}
-        </div>
-        {c.relevance !== "other" && (
-          <div className={cn("mt-1 text-xs", c.relevance === "confirmed" ? "text-[var(--accent)]" : "text-dim")}>
-            {RELEVANCE_LABEL[c.relevance]}
-          </div>
-        )}
-      </a>
-    </li>
+      )}
+    </a>
   );
 }

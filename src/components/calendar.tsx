@@ -218,11 +218,118 @@ export function AgendaMatch({ m, now }: { m: CalMatch; now: number }) {
             <span className="truncate">{t?.name}</span>
           )}
           {m.bestOf && <span className="shrink-0 text-faint">Bo{m.bestOf}</span>}
+          {/* Sur mobile, la colonne des streams disparaît : le stream principal passe ici. */}
+          <span className="ml-auto shrink-0 sm:hidden">
+            {m.status !== "done" && <StreamLinks streams={m.streams} compact max={1} />}
+          </span>
         </div>
       </div>
       <div className="hidden sm:block">
         {m.status !== "done" ? <StreamLinks streams={m.streams} compact max={2} /> : <span className="text-xs text-faint">{shortDate(m.timestamp, now)}</span>}
       </div>
+    </div>
+  );
+}
+
+const weekdayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", timeZone: "UTC" });
+
+function WeekMatch({ m }: { m: CalMatch }) {
+  const [a, b] = m.teams;
+  return (
+    <li data-game={m.game} className={cn("rounded-lg border border-line bg-panel-2 p-2 text-xs", !m.ours && "opacity-75")}>
+      <div className="flex items-center justify-between gap-1">
+        {m.status === "live" ? (
+          <LiveBadge />
+        ) : m.status === "done" && m.result ? (
+          <span className={cn("font-display text-sm font-bold", m.result === "win" ? "text-win" : m.result === "loss" ? "text-loss" : "text-dim")}>
+            {m.result === "win" ? "V" : m.result === "loss" ? "D" : "N"} {m.scores[0]}-{m.scores[1]}
+          </span>
+        ) : m.timeTbd ? (
+          <span className="text-[11px] text-faint">heure à conf.</span>
+        ) : (
+          <span className="font-display text-sm font-semibold tabular-nums">{clock(m.timestamp)}</span>
+        )}
+        <span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-1.5">
+        <Logo team={a} size={14} />
+        <span className={cn("truncate", m.ours && "font-medium")}>{a?.short ?? a?.name ?? "À déterminer"}</span>
+      </div>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Logo team={b} size={14} />
+        <span className="truncate">{b?.short ?? b?.name ?? "À déterminer"}</span>
+      </div>
+      {m.tournament?.page ? (
+        <Link href={competitionHref(m.game, m.tournament.page, m.tournament.anchor)} className="mt-1 block truncate text-[10px] text-faint hover:text-dim">
+          {m.tournament.name}
+        </Link>
+      ) : null}
+      {m.status !== "done" && m.streams.length > 0 && (
+        <div className="mt-1">
+          <StreamLinks streams={m.streams} compact max={2} />
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Une semaine, jour par jour : sept colonnes sur grand écran, les jours empilés sur téléphone. */
+export function WeekView({
+  days,
+  today,
+  matchesByDay,
+  competitions,
+}: {
+  days: string[];
+  today: string;
+  matchesByDay: Map<string, CalMatch[]>;
+  competitions: CalCompetition[];
+}) {
+  const rank = { confirmed: 0, watched: 1, other: 2 };
+  return (
+    <div className="grid gap-2 lg:grid-cols-7">
+      {days.map((day) => {
+        const all = matchesByDay.get(day) ?? [];
+        const matches = [...all.filter((m) => m.ours), ...all.filter((m) => !m.ours)];
+        const comps = competitions
+          .filter((c) => c.start <= day && day <= c.end)
+          .sort((x, y) => rank[x.relevance] - rank[y.relevance]);
+        return (
+          <section
+            key={day}
+            id={`j-${day}`}
+            className={cn("min-w-0 scroll-mt-20 rounded-xl border bg-panel p-2.5", day === today ? "border-ink/40" : "border-line")}
+          >
+            <h3 className="mb-2 flex items-baseline justify-between gap-2 text-sm">
+              <span className={cn("font-medium", day === today ? "text-ink" : "text-dim")}>{weekdayFmt.format(new Date(`${day}T12:00:00Z`))}</span>
+              {day === today && <span className="text-[10px] uppercase tracking-wider text-faint">Aujourd&apos;hui</span>}
+            </h3>
+            {comps.length > 0 && (
+              <div className="space-y-1">
+                {comps.map((c) => (
+                  <div
+                    key={c.key}
+                    data-game={c.game}
+                    title={`${c.name}${c.relevance === "watched" ? " · inscription à confirmer" : ""}`}
+                    className={cn("truncate rounded px-1.5 py-0.5 text-[10px] font-medium", RELEVANCE_STYLE[c.relevance])}
+                  >
+                    {c.name}
+                  </div>
+                ))}
+              </div>
+            )}
+            {matches.length > 0 ? (
+              <ul className="mt-2 space-y-1.5">
+                {matches.map((m) => (
+                  <WeekMatch key={m.id} m={m} />
+                ))}
+              </ul>
+            ) : (
+              !comps.length && <p className="text-xs text-faint">Rien de prévu</p>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

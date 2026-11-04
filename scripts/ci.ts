@@ -14,14 +14,9 @@
  * les appels à Liquipedia : elles voyagent dans le cache d'Actions.
  */
 import fs from "node:fs";
-import { put } from "@vercel/blob";
+import { publishIfNeeded } from "../src/lib/sync/publish";
 import { SNAPSHOT_PATH } from "../src/lib/snapshot";
 import type { Snapshot } from "../src/lib/types";
-
-/** Champs qui changent à chaque lecture sans que les données changent. */
-const VOLATILE = new Set(["fetchedAt", "updatedAt", "failures"]);
-
-const stable = (s: Snapshot) => JSON.stringify(s, (k, v) => (VOLATILE.has(k) ? undefined : v));
 
 function readFile(file: string): Snapshot | null {
   try {
@@ -65,28 +60,17 @@ async function main() {
   }
 
   if (command === "publish") {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      // Avertissement visible dans le résumé de la passe, sans faire échouer
-      // chaque passe (et envoyer un e-mail toutes les 15 min) tant que le
-      // secret n'est pas posé.
-      console.log("::warning::Secret BLOB_READ_WRITE_TOKEN absent : instantané non publié.");
-      return;
-    }
     const current = readFile(SNAPSHOT_PATH);
     if (!current) throw new Error("Aucun instantané à publier");
-    const published = await readPublished();
-    if (published && stable(published) === stable(current) && !process.argv.includes("--force")) {
-      console.log("Données inchangées : rien à publier.");
-      return;
-    }
-    const blob = await put("snapshot.json", JSON.stringify(current), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-      cacheControlMaxAge: 60,
-    });
-    console.log(`Publié : ${blob.url}`);
+    const outcome = await publishIfNeeded(current, process.argv.includes("--force"));
+    console.log(
+      {
+        published: "Publié : les données ont changé.",
+        heartbeat: "Publié : signal de vie (rien de nouveau depuis deux heures).",
+        unchanged: "Données inchangées : rien à publier.",
+        "no-token": "::warning::Secret BLOB_READ_WRITE_TOKEN absent : instantané non publié.",
+      }[outcome],
+    );
     return;
   }
 

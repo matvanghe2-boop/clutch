@@ -1,12 +1,22 @@
 import Link from "next/link";
-import { FOLLOWED, GAMES } from "@/config/follow";
+import { after } from "next/server";
+import { GAMES } from "@/config/follow";
+import { liveSoon, teamsOf } from "@/lib/derive";
 import { clock, dayKey, relative, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { autoRefresh, STALE_MS } from "@/lib/sync/auto";
+import { LiveRefresher } from "./LiveRefresher";
 import { InstallButton } from "./Pwa";
 import { Logo } from "./ui";
 
+const navLink = "flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-dim transition-colors hover:bg-panel-2 hover:text-ink";
+
 export async function SiteHeader() {
   const snap = await loadSnapshot();
+  const now = Date.now() / 1000;
+  const live = liveSoon(snap, now);
+  // Après l'envoi de la page : synchro de secours ou mode « match en cours », si besoin.
+  after(() => autoRefresh(snap).catch((e) => console.error("[clutch] passe de secours :", e)));
   return (
     // Installée sur iPhone, l'appli s'étend sous la barre d'état : l'en-tête la laisse libre.
     <header className="sticky top-0 z-20 border-b border-line/70 bg-bg/80 pt-[env(safe-area-inset-top)] backdrop-blur-md">
@@ -16,11 +26,7 @@ export async function SiteHeader() {
           <span className="font-display text-xl font-bold tracking-[0.14em]">CLUTCH</span>
         </Link>
         <nav className="scrollbar-thin -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
-          <Link
-            href="/calendrier"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-dim transition-colors hover:bg-panel-2 hover:text-ink"
-            title="Calendrier"
-          >
+          <Link href="/calendrier" className={navLink} title="Calendrier">
             <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
               <path d="M3.5 10h17M8 3v4M16 3v4" strokeLinecap="round" />
@@ -28,16 +34,10 @@ export async function SiteHeader() {
             <span className="hidden lg:inline">Calendrier</span>
           </Link>
           <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden />
-          {FOLLOWED.map((t) => {
+          {teamsOf(snap).map((t) => {
             const data = snap.teams[t.id];
             return (
-              <Link
-                key={t.id}
-                href={`/equipe/${t.id}`}
-                data-game={t.game}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-dim transition-colors hover:bg-panel-2 hover:text-ink"
-                title={`${t.page} · ${GAMES[t.game].label}`}
-              >
+              <Link key={t.id} href={`/equipe/${t.id}`} data-game={t.game} className={navLink} title={`${t.page} · ${GAMES[t.game].label}`}>
                 <Logo team={{ name: t.page, logo: data?.logo }} size={18} />
                 <span className="hidden md:inline">{t.page}</span>
                 <span className="font-display text-[11px] font-bold tracking-wider text-[var(--accent)]">
@@ -47,9 +47,20 @@ export async function SiteHeader() {
             );
           })}
         </nav>
-        <Freshness updatedAt={snap.updatedAt} />
+        <Freshness checkedAt={snap.checkedAt ?? snap.updatedAt} />
         <InstallButton />
+        <Link href="/reglages" className="shrink-0 rounded-lg p-1.5 text-faint transition-colors hover:bg-panel-2 hover:text-ink" title="Réglages">
+          <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Link>
       </div>
+      <StaleBanner checkedAt={snap.checkedAt ?? snap.updatedAt} now={now} />
+      <LiveRefresher active={live} />
     </header>
   );
 }
@@ -75,19 +86,31 @@ function Mark({ className }: { className?: string }) {
   );
 }
 
-/**
- * En production, l'instantané n'est publié que quand les données changent :
- * son heure est celle du dernier changement, pas de la dernière vérification.
- * On l'affiche donc sans jugement de fraîcheur.
- */
-function Freshness({ updatedAt }: { updatedAt: string | null }) {
-  if (!updatedAt) return <span className="shrink-0 text-xs text-faint">jamais synchronisé</span>;
-  const ts = Date.parse(updatedAt) / 1000;
+/** Heure de la dernière vérification par la synchro (signal de vie publié au moins toutes les 2 h). */
+function Freshness({ checkedAt }: { checkedAt?: string | null }) {
+  if (!checkedAt) return <span className="shrink-0 text-xs text-faint">jamais synchronisé</span>;
+  const ts = Date.parse(checkedAt) / 1000;
   const now = Date.now() / 1000;
   return (
-    <span className="hidden shrink-0 text-xs text-faint sm:block" title={`Données modifiées ${relative(ts, now)}`}>
+    <span className="hidden shrink-0 text-xs text-faint sm:block" title={`Données vérifiées ${relative(ts, now)}`}>
       {dayKey(ts) === dayKey(now) ? clock(ts) : shortDate(ts, now)}
     </span>
+  );
+}
+
+/**
+ * La synchro publie au moins toutes les deux heures : au-delà de 2 h 30 sans
+ * nouvelles, elle est en retard. La visite a déjà lancé une passe de secours.
+ */
+function StaleBanner({ checkedAt, now }: { checkedAt?: string | null; now: number }) {
+  if (!checkedAt) return null;
+  const ts = Date.parse(checkedAt) / 1000;
+  if ((now - ts) * 1000 < STALE_MS) return null;
+  return (
+    <div className="border-t border-cs/30 bg-cs/10 px-4 py-1.5 text-center text-xs text-cs">
+      Données vérifiées {relative(ts, now)} : la synchronisation automatique a pris du retard. Une mise à jour vient
+      d&apos;être lancée, recharge la page dans une minute.
+    </div>
   );
 }
 

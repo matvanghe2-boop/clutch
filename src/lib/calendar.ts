@@ -1,5 +1,5 @@
-import { FOLLOWED } from "@/config/follow";
-import { isOtherTitle, isTeam, orient, recentFeed, sameTeam, statusOf, upcomingFeed, watchingTeam, type MatchStatus } from "./derive";
+import type { FollowedTeam } from "@/config/follow";
+import { isOtherTitle, isTeam, orient, recentFeed, sameTeam, statusOf, teamsOf, upcomingFeed, watchingTeam, type MatchStatus } from "./derive";
 import { dayKey } from "./format";
 import { tournamentMatches } from "./tournament";
 import type { GameId, Match, PortalEntry, Snapshot, Stream, TeamRef, Tournament, TournamentRef } from "./types";
@@ -66,9 +66,9 @@ export interface CalendarData {
 
 const isoDay = (ts: number) => new Date(ts * 1000).toISOString().slice(0, 10);
 
-function fromMatch(m: Match, now: number): CalMatch | null {
+function fromMatch(m: Match, now: number, teams: FollowedTeam[]): CalMatch | null {
   if (m.timestamp === undefined) return null;
-  const team = FOLLOWED.find((f) => f.game === m.wiki && m.opponents.some((o) => isTeam(o, f)));
+  const team = teams.find((f) => f.game === m.wiki && m.opponents.some((o) => isTeam(o, f)));
   const o = team ? orient(m, team) : null;
   return {
     id: m.id,
@@ -117,16 +117,22 @@ function twins(a: CalMatch, b: CalMatch): boolean {
   );
 }
 
-export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: GameId): CalendarData {
+/**
+ * `hidden` : compétitions masquées depuis ce navigateur (clés « wiki:page ») ;
+ * leurs bandes et leurs matchs disparaissent.
+ */
+export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: GameId, hidden = new Set<string>()): CalendarData {
+  const teams = teamsOf(snap);
   const matches: CalMatch[] = [];
+  const isHidden = (wiki: GameId, page?: string) => Boolean(page && hidden.has(`${wiki}:${page}`));
   const add = (c: CalMatch | null) => {
-    if (!c || (game && c.game !== game)) return;
+    if (!c || (game && c.game !== game) || isHidden(c.game, c.tournament?.page)) return;
     if (matches.some((x) => x.id === c.id || twins(x, c))) return;
     matches.push(c);
   };
 
   // Mes matchs à venir (page d'équipe, complétée par la compétition), puis mes résultats.
-  for (const o of upcomingFeed(snap, game)) add(fromMatch(o.match, now));
+  for (const o of upcomingFeed(snap, game)) add(fromMatch(o.match, now, teams));
   for (const r of recentFeed(snap, game)) {
     add({
       id: `${r.team.id}:${r.timestamp}`,
@@ -148,7 +154,7 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
   for (const t of Object.values(snap.tournaments)) {
     if (t.participating === false || (game && t.wiki !== game)) continue;
     for (const m of tournamentMatches(t)) {
-      const c = fromMatch(m, now);
+      const c = fromMatch(m, now, teams);
       if (c && (c.ours || scope === "tout")) add(c);
     }
   }
@@ -156,7 +162,7 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
   const entries = listEntries(snap);
   const competitions: CalCompetition[] = [];
   const keep = (c: CalCompetition) => {
-    if (game && c.game !== game) return;
+    if ((game && c.game !== game) || isHidden(c.game, c.page)) return;
     if (scope === "mes" && c.relevance === "other") return;
     if (competitions.some((x) => x.game === c.game && x.page === c.page)) return;
     competitions.push(c);
@@ -180,7 +186,7 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
       page: t.page,
       ...s,
       relevance:
-        t.participating !== false ? "confirmed" : !closed && watchingTeam(t.wiki, t.page, tier) ? "watched" : "other",
+        t.participating !== false ? "confirmed" : !closed && watchingTeam(teams, t.wiki, t.page, tier) ? "watched" : "other",
       location: t.info["Location"],
       prize: t.info["Prize Pool"],
     });
@@ -198,7 +204,7 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
       page: e.page,
       start: e.startDate,
       end: e.endDate ?? e.startDate,
-      relevance: watchingTeam(e.wiki, e.page, e.tier) ? "watched" : "other",
+      relevance: watchingTeam(teams, e.wiki, e.page, e.tier) ? "watched" : "other",
       location: e.location,
       prize: e.prize,
     });
@@ -208,10 +214,9 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
   const unscheduled: Unscheduled[] = [];
   for (const t of Object.values(snap.tournaments)) {
     if (t.participating === false || (game && t.wiki !== game)) continue;
-    const team = FOLLOWED.find((f) => f.game === t.wiki);
-    if (!team) continue;
     for (const m of tournamentMatches(t)) {
-      if (m.finished || m.timestamp !== undefined || !m.opponents.every(Boolean) || !m.opponents.some((o) => isTeam(o, team))) continue;
+      const team = teams.find((f) => f.game === t.wiki && m.opponents.some((o) => isTeam(o, f)));
+      if (!team || m.finished || m.timestamp !== undefined || !m.opponents.every(Boolean) || isHidden(t.wiki, t.page)) continue;
       const o = orient(m, team);
       unscheduled.push({
         id: m.id,

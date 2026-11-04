@@ -13,6 +13,7 @@ import type {
   TeamRef,
   TournamentRef,
 } from "../types";
+import { labelRounds } from "../bracket";
 import { type El, makeMatch, popupInfo, scoreWinner, teamFrom, text } from "./html";
 
 export interface ParsedTournament {
@@ -192,46 +193,70 @@ function parseMatchlist($: cheerio.CheerioAPI, $ml: El, wiki: GameId, ctx: Tourn
   return { title: title || ctx.stage || "Matchs", matches };
 }
 
+const headersOf = ($: cheerio.CheerioAPI, $row: El) =>
+  $row
+    .children(".brkts-header")
+    .toArray()
+    .map((h) => text($(h).find(".brkts-header-option").first()) || text($(h)));
+
 /**
  * Un bracket est une suite de sections : une ligne d'en-têtes, puis un ou
  * plusieurs arbres (« round-body ») jusqu'à la ligne d'en-têtes suivante.
+ * En double élimination, le bracket perdant a sa propre ligne d'en-têtes,
+ * nichée dans l'arbre sous la grande finale : il devient une section à part,
+ * placée juste après celle du bracket gagnant.
  */
 function parseBracket($: cheerio.CheerioAPI, $b: El, wiki: GameId, ctx: TournamentRef): Bracket {
   const sections: BracketSection[] = [];
+  const nested: BracketSection[] = [];
+  let current: BracketSection | undefined;
   $b.children(".brkts-round-header, .brkts-round-body").each((_, el) => {
     const $el = $(el);
     if ($el.hasClass("brkts-round-header")) {
-      const headers = $el
-        .children(".brkts-header")
-        .toArray()
-        .map((h) => text($(h).find(".brkts-header-option").first()) || text($(h)));
-      sections.push({ headers, roots: [] });
+      sections.push(...nested.splice(0));
+      current = { headers: headersOf($, $el), roots: [] };
+      sections.push(current);
       return;
     }
-    if (!sections.length) sections.push({ headers: [], roots: [] });
-    sections.at(-1)!.roots.push(parseRoundBody($, $el, wiki, ctx));
+    if (!current) sections.push((current = { headers: [], roots: [] }));
+    current.roots.push(parseRoundBody($, $el, wiki, ctx, nested));
   });
+  sections.push(...nested);
   for (const section of sections) labelRounds(section);
   return { sections: sections.filter((s) => s.roots.length) };
 }
 
-function parseRoundBody($: cheerio.CheerioAPI, $body: El, wiki: GameId, ctx: TournamentRef): BracketNode {
+function parseRoundBody($: cheerio.CheerioAPI, $body: El, wiki: GameId, ctx: TournamentRef, nested: BracketSection[]): BracketNode {
   const children: BracketNode[] = [];
-  $body
-    .children(".brkts-round-upper, .brkts-round-lower")
-    .children(".brkts-round-body")
-    .each((_, inner) => {
-      children.push(parseRoundBody($, $(inner), wiki, ctx));
-    });
+  $body.children(".brkts-round-upper, .brkts-round-lower").each((_, side) => {
+    // Après une ligne d'en-têtes nichée, les arbres appartiennent à une nouvelle section.
+    let section: BracketSection | undefined;
+    $(side)
+      .children(".brkts-round-header, .brkts-round-body")
+      .each((_, el) => {
+        const $el = $(el);
+        if ($el.hasClass("brkts-round-header")) {
+          section = { headers: headersOf($, $el), roots: [] };
+          nested.push(section);
+          return;
+        }
+        const node = parseRoundBody($, $el, wiki, ctx, nested);
+        if (section) {
+          delete node.skip;
+          section.roots.push(node);
+        } else children.push(node);
+      });
+  });
+  const skip = Number($body.attr("style")?.match(/--skip-round:\s*(\d+)/)?.[1] ?? 0);
   const $center = $body.children(".brkts-round-center").first();
   const $match = $center.find(".brkts-match").first();
-  if ($match.length) return { match: parseBracketMatch($, $match, wiki, ctx), children };
+  if ($match.length) return { match: parseBracketMatch($, $match, wiki, ctx), children, ...(skip ? { skip } : {}) };
   const qualified = $center
     .find(".brkts-opponent-entry")
     .toArray()
     .map((e) => teamFrom($, $(e).find(".block-team").first(), $(e).attr("aria-label")))
     .filter((t): t is TeamRef => t !== null);
-  return { match: null, qualified: qualified.length ? qualified : undefined, children };
+  return { match: null, qualified: qualified.length ? qualified : undefined, children, ...(skip ? { skip } : {}) };
 }
 
 function parseBracketMatch($: cheerio.CheerioAPI, $m: El, wiki: GameId, ctx: TournamentRef): Match {
@@ -252,29 +277,6 @@ function parseBracketMatch($: cheerio.CheerioAPI, $m: El, wiki: GameId, ctx: Tou
     winner: winIdx >= 0 ? ((winIdx + 1) as 1 | 2) : undefined,
     tournament: ctx,
   });
-}
-
-/**
- * Colonne d'un nœud = profondeur maximale − sa profondeur. Juste pour un arbre
- * régulier ; sur un arbre irrégulier on ne nomme pas les tours.
- */
-export function labelRounds(section: BracketSection) {
-  const { headers, roots } = section;
-  const depths: number[] = [];
-  const walk = (n: BracketNode, d: number) => {
-    if (!n.children.length) depths.push(d);
-    n.children.forEach((c) => walk(c, d + 1));
-  };
-  roots.forEach((r) => walk(r, 0));
-  if (!depths.length) return;
-  const max = Math.max(...depths);
-  // Une colonne finale « Qualified » n'est pas un nœud : elle montre le vainqueur de la racine.
-  if (depths.some((d) => d !== max) || (headers.length !== max + 1 && headers.length !== max + 2)) return;
-  const label = (n: BracketNode, d: number) => {
-    if (n.match) n.match.round = headers[max - d];
-    n.children.forEach((c) => label(c, d + 1));
-  };
-  roots.forEach((r) => label(r, 0));
 }
 
 const STATUSES = new Set(["up", "down", "stay", "stayup", "staydown", "draw"]);

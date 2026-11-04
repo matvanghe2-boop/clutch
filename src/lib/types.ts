@@ -1,3 +1,5 @@
+import type { TeamConfig } from "../config/follow";
+
 /** Les trois wikis Liquipedia suivis. Le nom est celui du sous-domaine de l'API. */
 export type GameId = "rocketleague" | "counterstrike" | "callofduty";
 
@@ -85,6 +87,8 @@ export interface BracketNode {
   match: Match | null;
   /** Équipes qualifiées affichées dans la dernière colonne, sans match. */
   qualified?: TeamRef[];
+  /** Colonnes laissées vides entre ce match et son parent (`--skip-round` de Liquipedia). */
+  skip?: number;
   children: BracketNode[];
 }
 
@@ -167,18 +171,48 @@ export interface RecentMatch {
   opponent: TeamRef | null;
 }
 
+export interface RosterEntry {
+  /** Pseudo. */
+  id: string;
+  name?: string;
+  /** Rôle ou statut (« RFA », « Coach »…), quand Liquipedia le précise. */
+  role?: string;
+  /** Date d'arrivée, AAAA-MM-JJ. */
+  joined?: string;
+  country?: string;
+  captain?: boolean;
+}
+
 export interface TeamSnapshot {
   id: string;
   name: string;
   logo?: string;
   upcoming: Match[];
   recent: RecentMatch[];
+  /** Effectif actif. */
+  roster?: RosterEntry[];
+  /** Derniers mouvements de la chronologie (« 28 octobre – X rejoint l'équipe »), du plus récent au plus ancien. */
+  timeline?: string[];
   fetchedAt: string;
 }
 
 export interface Snapshot {
   version: 1;
   updatedAt: string | null;
+  /**
+   * Fin de la dernière passe de synchro, qu'elle ait trouvé du nouveau ou non.
+   * Publiée au moins toutes les deux heures : c'est le signal de vie de la synchro.
+   */
+  checkedAt?: string;
+  /** Les équipes suivies lors de la dernière passe (réglages du site, sinon valeurs par défaut). */
+  followed?: TeamConfig[];
+  /**
+   * Historique des matchs de chaque équipe suivie : page « /Matches » quand elle
+   * existe, plus tous les résultats vus depuis. Sert aux face-à-face.
+   */
+  history?: Record<string, RecentMatch[]>;
+  /** Dernière lecture de la page « /Matches » de chaque équipe. */
+  historyFetchedAt?: Record<string, string>;
   teams: Record<string, TeamSnapshot>;
   tournaments: Record<string, Tournament>;
   /** Liste des compétitions à venir, en cours et terminées de chaque jeu. */

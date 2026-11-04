@@ -4,6 +4,7 @@ import { MatchRow, NextMatch, ResultRow, TournamentCard } from "@/components/mat
 import { cn, Empty, SectionTitle } from "@/components/ui";
 import { headToHead, recentFeed, statusOf, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { dayKey, dayLabel } from "@/lib/format";
+import { readHidden } from "@/lib/hidden";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import type { GameId } from "@/lib/types";
 
@@ -32,7 +33,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const upcoming = upcomingFeed(snap, game).filter((o) => statusOf(o.match, now) !== "stale");
   const [hero, ...rest] = upcoming;
   const results = recentFeed(snap, game).slice(0, 10);
-  const tracked = trackedTournaments(snap, now, game);
+  const hidden = await readHidden();
+  const tracked = trackedTournaments(snap, now, game).filter((tr) => !hidden.has(tr.tournament.key));
 
   const days = new Map<string, typeof rest>();
   for (const o of rest) {

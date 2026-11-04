@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FOLLOWED, GAME_IDS } from "@/config/follow";
+import { GAME_IDS } from "@/config/follow";
 import { BracketSectionView, GroupTableView, MatchlistView } from "@/components/competition";
 import { cn, Empty, GameTag } from "@/components/ui";
-import { competitionHref, isTeam, sameMatch, upcomingFeed } from "@/lib/derive";
+import { competitionHref, isTeam, sameMatch, teamIn, teamsOf, upcomingFeed } from "@/lib/derive";
 import { infoDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
@@ -60,7 +60,8 @@ export default async function CompetitionPage({
     );
   }
 
-  const team = FOLLOWED.find((f) => f.game === game)!;
+  const team = teamIn(teamsOf(snap), t);
+  if (!team) return <Empty>Plus aucune équipe suivie dans ce jeu : cette compétition n&apos;est plus synchronisée.</Empty>;
   const now = Date.now() / 1000;
 
   // Parcours de l'équipe : matchs de la page de compétition, complétés par ceux annoncés sur sa page.

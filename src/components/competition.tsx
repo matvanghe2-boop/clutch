@@ -1,6 +1,7 @@
 import type { FollowedTeam } from "@/config/follow";
 import { isTeam, statusOf } from "@/lib/derive";
 import { clock, shortDate, shortDay } from "@/lib/format";
+import { bracketLayout } from "@/lib/bracket";
 import type { BracketNode, BracketSection, Match, Matchlist, StandingRow, StandingTable, SwissRound, TeamRef } from "@/lib/types";
 import { cn, LiveBadge, Logo, StreamLinks } from "./ui";
 
@@ -140,14 +141,16 @@ export function BracketMatch({ m, team, now }: { m: Match; team: FollowedTeam; n
   );
 }
 
-function maxDepth(n: BracketNode, d = 0): number {
-  return n.children.length ? Math.max(...n.children.map((c) => maxDepth(c, d + 1))) : d;
-}
-function regular(roots: BracketNode[]) {
-  const leaves: number[] = [];
-  const walk = (n: BracketNode, d: number) => (n.children.length ? n.children.forEach((c) => walk(c, d + 1)) : leaves.push(d));
-  roots.forEach((r) => walk(r, 0));
-  return leaves.every((d) => d === leaves[0]);
+/** Largeur d'une colonne de bracket : un match (w-52) et son raccord (w-6). */
+const COLUMN_REM = 13 + 1.5;
+
+/** Colonnes sautées entre un match et son parent : le trait les traverse. */
+function Gap({ columns }: { columns: number }) {
+  return (
+    <div className="relative shrink-0 self-stretch" style={{ width: `${columns * COLUMN_REM}rem` }} aria-hidden>
+      <span className="absolute inset-x-0 top-1/2 border-t border-line" />
+    </div>
+  );
 }
 
 /** Relie les enfants (centrés dans des lignes de même hauteur) au match parent. */
@@ -168,8 +171,10 @@ function NodeView({ node, team, now }: { node: BracketNode; team: FollowedTeam; 
         <>
           <div className="grid auto-rows-fr">
             {node.children.map((c, i) => (
-              <div key={i} className="flex items-center py-1.5">
+              // Un sous-arbre plus court se range contre le match parent : les colonnes restent alignées sur les tours.
+              <div key={i} className="flex items-center justify-end py-1.5">
                 <NodeView node={c} team={team} now={now} />
+                {c.skip ? <Gap columns={c.skip} /> : null}
               </div>
             ))}
           </div>
@@ -207,17 +212,16 @@ function winnerOf(m: Match | null): TeamRef | null {
 }
 
 export function BracketSectionView({ section, team, now }: { section: BracketSection; team: FollowedTeam; now: number }) {
-  const depth = Math.max(0, ...section.roots.map((r) => maxDepth(r)));
-  const showHeaders = regular(section.roots) && (section.headers.length === depth + 1 || section.headers.length === depth + 2);
+  const { width, rootWidths, columns, trailing } = bracketLayout(section);
   // Colonne finale « Qualified » : pas un nœud de l'arbre, on y montre le vainqueur de chaque racine.
-  const trailing = showHeaders && section.headers.length === depth + 2;
+  const headers = columns ? [...columns, ...(trailing ? [trailing] : [])] : [];
   return (
     <div className="scrollbar-thin overflow-x-auto pb-2">
       <div className="inline-block min-w-full">
-        {showHeaders && (
+        {headers.length > 0 && (
           <div className="mb-2 flex">
-            {section.headers.map((h, i) => (
-              <div key={i} className={cn("shrink-0 truncate text-[11px] font-medium uppercase tracking-wider text-faint", i === 0 ? "w-52" : "ml-6 w-52")} title={h}>
+            {headers.map((h, i) => (
+              <div key={i} className={cn("shrink-0 truncate text-[11px] font-medium uppercase tracking-wider text-faint", i === 0 ? "w-52" : "ml-6 w-52")} title={h ?? undefined}>
                 {h}
               </div>
             ))}
@@ -225,7 +229,8 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
         )}
         <div className="space-y-4">
           {section.roots.map((root, i) => (
-            <div key={i} className="flex items-center">
+            // Un arbre plus court que ses voisins se cale à droite, sous les bons en-têtes.
+            <div key={i} className="flex items-center" style={{ marginLeft: `${(width - rootWidths[i]) * COLUMN_REM}rem` }}>
               <NodeView node={root} team={team} now={now} />
               {trailing && (
                 <>
@@ -287,7 +292,7 @@ function ListMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number
       </span>
       <span className="flex min-w-0 items-center justify-between gap-2">
         {side(1)}
-        {st !== "done" && <span className="hidden shrink-0 sm:block"><StreamLinks streams={m.streams} compact max={1} /></span>}
+        {st !== "done" && <span className="shrink-0"><StreamLinks streams={m.streams} compact max={1} /></span>}
       </span>
     </div>
   );

@@ -14,7 +14,10 @@ import type { GameId } from "../types";
 
 const GAP_ANY = 2_100;
 const GAP_PARSE = 31_000;
-const STATE_FILE = path.join(process.cwd(), "data", ".ratelimit.json");
+// Sur Vercel, seul /tmp est inscriptible ; une instance n'y garde son état que le temps de sa vie.
+const STATE_FILE = process.env.VERCEL
+  ? "/tmp/clutch-ratelimit.json"
+  : path.join(process.cwd(), "data", ".ratelimit.json");
 
 function userAgent(): string {
   const contact = process.env.LIQUIPEDIA_CONTACT || "https://github.com/matvanghe2-boop";
@@ -103,6 +106,57 @@ export function queryWikitext(wiki: GameId, title: string, onWait?: (ms: number)
     },
     onWait,
   );
+}
+
+async function apiQuery(wiki: GameId, params: Record<string, string>, onWait?: (ms: number) => void): Promise<unknown> {
+  const url = new URL(`https://liquipedia.net/${wiki}/api.php`);
+  url.search = new URLSearchParams({ action: "query", format: "json", formatversion: "2", ...params }).toString();
+  return scheduled(
+    false,
+    async () => {
+      const res = await fetch(url, { headers: { "User-Agent": userAgent(), "Accept-Encoding": "gzip" } });
+      if (!res.ok) throw new LiquipediaError(`http-${res.status}`, `HTTP ${res.status} sur ${wiki} (query)`);
+      return res.json();
+    },
+    onWait,
+  );
+}
+
+/** Titres des pages qui commencent par `prefix` (requête légère). */
+export async function listPages(wiki: GameId, prefix: string, descending = false, onWait?: (ms: number) => void): Promise<string[]> {
+  const json = (await apiQuery(
+    wiki,
+    { list: "allpages", apprefix: prefix, aplimit: "500", apnamespace: "0", ...(descending ? { apdir: "descending" } : {}) },
+    onWait,
+  )) as { query?: { allpages?: { title: string }[] } };
+  return (json.query?.allpages ?? []).map((p) => p.title);
+}
+
+/**
+ * Le début du wikitexte (section 0, où vit l'infobox) de plusieurs pages en une
+ * requête légère : de quoi lire nom et dates de dizaines de compétitions sans
+ * les rendre une à une (une page rendue toutes les 30 s).
+ */
+export async function leadSections(wiki: GameId, titles: string[], onWait?: (ms: number) => void): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (let i = 0; i < titles.length; i += 50) {
+    const json = (await apiQuery(
+      wiki,
+      { titles: titles.slice(i, i + 50).join("|"), prop: "revisions", rvprop: "content", rvslots: "main", rvsection: "0" },
+      onWait,
+    )) as { query?: { pages?: { title: string; revisions?: { slots: { main: { content: string } } }[] }[] } };
+    for (const p of json.query?.pages ?? []) out.set(p.title, p.revisions?.[0]?.slots.main.content ?? "");
+  }
+  return out;
+}
+
+/** La page existe-t-elle ? Renvoie son titre exact (redirections suivies), ou rien. */
+export async function pageExists(wiki: GameId, title: string, onWait?: (ms: number) => void): Promise<string | undefined> {
+  const json = (await apiQuery(wiki, { titles: title, redirects: "1" }, onWait)) as {
+    query?: { pages?: { title: string; missing?: boolean }[] };
+  };
+  const page = json.query?.pages?.[0];
+  return page && !page.missing ? page.title : undefined;
 }
 
 export interface ParsedPage {

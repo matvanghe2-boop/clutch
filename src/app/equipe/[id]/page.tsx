@@ -4,7 +4,7 @@ import { GAMES } from "@/config/follow";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { headToHead, opponentsRecord, recentFeed, statusOf, teamById, trackedTournaments, upcomingFeed } from "@/lib/derive";
-import { shortDate } from "@/lib/format";
+import { infoDate, shortDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
 
@@ -13,14 +13,14 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ id: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const team = teamById((await params).id);
+  const team = teamById(await loadSnapshot(), (await params).id);
   return { title: team ? `${team.page} · ${GAMES[team.game].short}` : "Équipe" };
 }
 
 export default async function TeamPage({ params }: { params: Params }) {
-  const team = teamById((await params).id);
-  if (!team) notFound();
   const snap = await loadSnapshot();
+  const team = teamById(snap, (await params).id);
+  if (!team) notFound();
   const data = snap.teams[team.id];
   const now = Date.now() / 1000;
 
@@ -70,6 +70,50 @@ export default async function TeamPage({ params }: { params: Params }) {
           <Empty>Aucun match annoncé{team.game === "callofduty" ? " : la CDL est peut-être à l'intersaison" : ""}.</Empty>
         )}
       </section>
+
+      {(data?.roster?.length || data?.timeline?.length) && (
+        <div className="grid gap-10 lg:grid-cols-2">
+          {data?.roster?.length ? (
+            <section>
+              <SectionTitle>Effectif</SectionTitle>
+              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+                {data.roster.map((p) => (
+                  <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                    <span className="min-w-0 flex-1">
+                      <span className="font-medium">{p.id}</span>
+                      {p.captain && (
+                        <span className="ml-1.5 text-[var(--accent)]" title="Capitaine">
+                          ©
+                        </span>
+                      )}
+                      {p.name && <span className="ml-2 text-faint">{p.name}</span>}
+                    </span>
+                    {p.role && <span className="shrink-0 rounded bg-panel-2 px-1.5 py-0.5 text-[11px] text-dim">{p.role}</span>}
+                    <span className="hidden w-28 shrink-0 text-right text-xs text-faint sm:block">{p.country}</span>
+                    {p.joined && (
+                      <span className="w-24 shrink-0 text-right text-xs text-faint" title="Arrivée dans l'équipe">
+                        {infoDate(p.joined, now)}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {data?.timeline?.length ? (
+            <section>
+              <SectionTitle>Derniers mouvements</SectionTitle>
+              <ul className="space-y-2 rounded-xl border border-line bg-panel p-4 text-sm text-dim">
+                {data.timeline.map((line, i) => (
+                  <li key={i} className="border-l-2 border-[color-mix(in_srgb,var(--accent)_50%,transparent)] pl-3 leading-snug">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      )}
 
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
