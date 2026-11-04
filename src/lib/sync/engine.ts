@@ -34,6 +34,8 @@ export interface PassOptions {
   log?: (...args: unknown[]) => void;
   /** Appelé après chaque tâche (écrire l'instantané sur disque, par exemple). */
   afterTask?: (snap: Snapshot) => void;
+  /** Heure (ms) après laquelle ne plus commencer de page : une fonction Vercel doit garder le temps de publier. */
+  deadline?: number;
 }
 
 const MIN = 60_000;
@@ -413,8 +415,9 @@ export async function runPass(snap: Snapshot, opts: PassOptions): Promise<PassRe
     const tasks = plan(snap, teams, opts, done);
     const [task] = tasks;
     if (!task) break;
-    if (pages >= max) {
-      log(`Limite de ${max} pages atteinte ; ${tasks.length} restent pour la prochaine passe.`);
+    const late = opts.deadline !== undefined && Date.now() > opts.deadline;
+    if (pages >= max || late) {
+      log(`${late ? "Plus le temps" : `Limite de ${max} pages atteinte`} ; ${tasks.length} restent pour la prochaine passe.`);
       snap.checkedAt = new Date().toISOString();
       return { pages, remaining: tasks.length, refused: false };
     }

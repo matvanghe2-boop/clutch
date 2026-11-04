@@ -14,6 +14,10 @@ import type { GameId } from "../types";
 
 const GAP_ANY = 2_100;
 const GAP_PARSE = 31_000;
+/** Une réponse qui traîne au-delà est abandonnée : la passe continue avec la page suivante. */
+const TIMEOUT = 30_000;
+const request = (url: URL) =>
+  fetch(url, { headers: { "User-Agent": userAgent(), "Accept-Encoding": "gzip" }, signal: AbortSignal.timeout(TIMEOUT) });
 // Sur Vercel, seul /tmp est inscriptible ; une instance n'y garde son état que le temps de sa vie.
 const STATE_FILE = process.env.VERCEL
   ? "/tmp/clutch-ratelimit.json"
@@ -93,9 +97,7 @@ export function queryWikitext(wiki: GameId, title: string, onWait?: (ms: number)
   return scheduled(
     false,
     async () => {
-      const res = await fetch(url, {
-        headers: { "User-Agent": userAgent(), "Accept-Encoding": "gzip" },
-      });
+      const res = await request(url);
       if (!res.ok) throw new LiquipediaError(`http-${res.status}`, `HTTP ${res.status} sur ${wiki}:${title}`);
       const json = (await res.json()) as {
         query?: { pages?: { missing?: boolean; revisions?: { slots: { main: { content: string } } }[] }[] };
@@ -114,7 +116,7 @@ async function apiQuery(wiki: GameId, params: Record<string, string>, onWait?: (
   return scheduled(
     false,
     async () => {
-      const res = await fetch(url, { headers: { "User-Agent": userAgent(), "Accept-Encoding": "gzip" } });
+      const res = await request(url);
       if (!res.ok) throw new LiquipediaError(`http-${res.status}`, `HTTP ${res.status} sur ${wiki} (query)`);
       return res.json();
     },
@@ -181,9 +183,7 @@ export function parsePage(wiki: GameId, page: string, onWait?: (ms: number) => v
   return scheduled(
     true,
     async () => {
-      const res = await fetch(url, {
-        headers: { "User-Agent": userAgent(), "Accept-Encoding": "gzip" },
-      });
+      const res = await request(url);
       if (!res.ok) throw new LiquipediaError(`http-${res.status}`, `HTTP ${res.status} sur ${wiki}:${page}`);
       const json = (await res.json()) as {
         parse?: { title: string; text: string };

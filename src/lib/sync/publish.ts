@@ -26,8 +26,10 @@ export function siblingUrl(name: string): string | undefined {
 export async function readPublished(): Promise<Snapshot | null> {
   const url = process.env.SNAPSHOT_URL;
   if (!url) return null;
-  // Le paramètre contourne le CDN de Blob, qui garde le fichier 60 s.
-  const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+  // À travers le CDN : juste après une publication, il peut encore servir la
+  // précédente une minute ou deux. Le verrou de la synchro de secours (4 min au
+  // moins entre deux passes) et l'écart de 15 min des passes planifiées couvrent ce délai.
+  const res = await fetch(url, { cache: "no-store" });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Lecture de la version publiée : HTTP ${res.status}`);
   return (await res.json()) as Snapshot;

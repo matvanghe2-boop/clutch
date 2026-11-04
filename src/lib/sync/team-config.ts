@@ -25,15 +25,26 @@ function valid(list: unknown): list is TeamConfig[] {
   );
 }
 
+/** Une liste d'équipes reçue sous forme de texte (cookie), si elle est valide. */
+export function parseTeamConfig(raw: string | undefined): TeamConfig[] | null {
+  try {
+    const list = raw ? JSON.parse(raw) : null;
+    return valid(list) && list.length ? list : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * `fresh` : contourner le CDN de Blob (60 s de cache). Utile à la synchro et
- * aux réglages ; à chaque visite du site, la version en cache suffit.
+ * Lue à travers le CDN de Blob : après une modification, l'ancienne version
+ * peut encore être servie une minute ou deux (un paramètre d'URL n'y change
+ * rien, le CDN l'ignore). La page Réglages s'en accommode avec un cookie.
  */
-export async function loadTeamConfig(fresh = true): Promise<TeamConfig[]> {
+export async function loadTeamConfig(): Promise<TeamConfig[]> {
   try {
     const url = siblingUrl("config.json");
     if (url) {
-      const res = await fetch(fresh ? `${url}?t=${Date.now()}` : url, { cache: "no-store" });
+      const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
         const list = await res.json();
         if (valid(list) && list.length) return list;

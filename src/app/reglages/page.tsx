@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import { GAME_IDS, GAMES, toFollowed, WATCH_PRESETS, type WatchPreset } from "@/config/follow";
 import { addTeam, lock, removeTeam, setTeamWatch, showCompetition, unlock } from "@/app/actions";
 import { cn, Empty, GameTag, Logo, SectionTitle } from "@/components/ui";
-import { isAdmin } from "@/lib/admin";
+import { currentTeams, isAdmin } from "@/lib/admin";
 import { readHidden } from "@/lib/hidden";
 import { loadSnapshot } from "@/lib/load-snapshot";
-import { loadTeamConfig } from "@/lib/sync/team-config";
 import type { GameId } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Réglages" };
@@ -30,7 +29,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const sp = await searchParams;
   const ok = typeof sp.ok === "string" ? sp.ok : undefined;
   const error = typeof sp.erreur === "string" ? sp.erreur : undefined;
-  const [teams, snap, hidden, admin] = await Promise.all([loadTeamConfig(true), loadSnapshot(), readHidden(), isAdmin()]);
+  const [teams, snap, hidden, admin] = await Promise.all([currentTeams(), loadSnapshot(), readHidden(), isAdmin()]);
   const pinSet = Boolean(process.env.CLUTCH_ADMIN_PIN);
 
   // Noms lisibles des compétitions masquées, d'après l'instantané et les listes.
