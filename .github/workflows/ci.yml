@@ -1,13 +1,8 @@
 name: CI
 
-# Les commits de données de la synchro horaire ne touchent pas au code :
-# inutile de dépenser des minutes à le revérifier. Vercel les construit de
-# toute façon pour les déployer.
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "data/**"
   pull_request:
 
 jobs:

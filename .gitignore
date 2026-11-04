@@ -41,11 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Pages brutes de mise au point et état du limiteur. data/snapshot.json, lui,
-# est versionné : c'est ce que le site déployé affiche.
-/data/raw/
-/data/.ratelimit.json
-/data/*.tmp
+# Données locales de la synchro. En production, l'instantané vit dans Vercel
+# Blob, pas dans le dépôt : la synchro ne committe jamais.
+/data/
 /.sync-cache/
 
 # Liaison locale au projet Vercel (créée par `vercel link`).

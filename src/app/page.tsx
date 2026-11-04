@@ -4,7 +4,7 @@ import { MatchRow, NextMatch, ResultRow, TournamentCard } from "@/components/mat
 import { cn, Empty, SectionTitle } from "@/components/ui";
 import { headToHead, recentFeed, statusOf, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { dayKey, dayLabel } from "@/lib/format";
-import { readSnapshot } from "@/lib/snapshot";
+import { loadSnapshot } from "@/lib/load-snapshot";
 import type { GameId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ function parseGame(v: string | string[] | undefined): GameId | undefined {
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const game = parseGame((await searchParams).jeu);
-  const snap = readSnapshot();
+  const snap = await loadSnapshot();
   const now = Date.now() / 1000;
 
   if (!snap.updatedAt) {

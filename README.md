@@ -38,10 +38,10 @@ La toute première synchronisation prend quelques minutes : voir plus bas.
 Liquipedia (API MediaWiki, action=parse)
         │   une page toutes les 31 s, au plus
         ▼
-scripts/refresh.ts ──► data/snapshot.json ──► le site (lecture seule)
+scripts/refresh.ts ──► instantané (fichier en local, Vercel Blob en ligne) ──► le site
 ```
 
-Le site **n'appelle jamais Liquipedia** : il lit `data/snapshot.json`, que la
+Le site **n'appelle jamais Liquipedia** : il lit un instantané que la
 synchronisation est seule à écrire. Les pages s'affichent donc instantanément,
 et le rythme des appels ne dépend pas du nombre de visites.
 
@@ -86,28 +86,40 @@ demande. Elle n'est pas nécessaire : tout passe par l'API MediaWiki, libre.
 Le site est déployé sur Vercel, relié au dépôt GitHub : **un push sur `main`
 déploie**. Pour déployer à la main : `npx vercel --prod --yes`.
 
-Vercel ne fait que servir le site ; la synchronisation tourne dans **GitHub
-Actions** ([`.github/workflows/sync.yml`](.github/workflows/sync.yml)), toutes
-les heures :
+```
+GitHub Actions, toutes les 15 min ──► Vercel Blob (snapshot.json) ──► le site
+```
 
-1. elle reprend l'état de la passe précédente (heure de lecture de chaque page),
-   conservé dans le cache d'Actions ;
-2. elle lit au plus 5 pages, les plus urgentes (`refresh.ts --ci`) ;
-3. elle commite `data/snapshot.json` **seulement si les données ont changé**
-   (`scripts/ci.ts changed`) — ce commit déclenche le redéploiement.
+Vercel sert le site ; la synchronisation tourne dans **GitHub Actions**
+([`.github/workflows/sync.yml`](.github/workflows/sync.yml)), toutes les
+15 minutes, et **ne committe jamais rien** :
+
+1. elle reprend l'état le plus récent (heure de lecture de chaque page) : celui
+   de la passe précédente, gardé dans le cache d'Actions, ou à défaut la
+   version publiée (`scripts/ci.ts restore`) ;
+2. elle lit au plus 6 pages, les plus urgentes (`refresh.ts --ci`) : une
+   compétition où une équipe suivie joue à chaque passe, les équipes une passe
+   sur deux, les autres compétitions en cours toutes les 3 h ;
+3. elle publie l'instantané dans **Vercel Blob** seulement si les données ont
+   changé (`scripts/ci.ts publish`) — le plan Hobby limite les écritures à
+   2 000 par mois.
+
+Le site lit l'instantané à l'adresse `SNAPSHOT_URL` (variable Vercel et
+variable du dépôt GitHub). Le CDN de Blob le garde 60 s : une donnée publiée
+est visible au plus une minute après. Sans `SNAPSHOT_URL`, en local, le site lit
+`data/snapshot.json`.
 
 Pourquoi pas un cron Vercel : sur le plan Hobby, il ne tourne qu'une fois par
-jour. Pourquoi pas plus souvent qu'une heure : le dépôt est privé, ses minutes
-d'Actions sont limitées à 2 000 par mois, et chaque page coûte 31 s d'attente.
-En mode CI, une équipe est relue toutes les ~3 h, une compétition en cours
-toutes les 6 h, et celle où une équipe suivie joue à chaque passe.
+jour. Le dépôt est public, donc les minutes d'Actions sont illimitées ; en
+contrepartie, GitHub désactive les tâches planifiées d'un dépôt public après
+60 jours sans activité. Comme la synchro ne committe rien, elle réactive
+elle-même son workflow par l'API une fois par jour.
+
+Le secret `BLOB_READ_WRITE_TOKEN` du dépôt donne à la synchro le droit d'écrire
+dans Blob ; il vient de la page du store `clutch-data` sur Vercel.
 
 Lancer une passe tout de suite : `gh workflow run sync.yml`, ou le bouton
 « Run workflow » de l'onglet Actions.
-
-En local, `npm run dev` écrit aussi dans `data/snapshot.json` : le fichier
-apparaît modifié dans git, c'est normal. Le commiter ne pose pas de problème —
-la passe suivante repart de l'état le plus récent.
 
 ## Ajouter une équipe
 

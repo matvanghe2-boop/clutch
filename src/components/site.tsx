@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { FOLLOWED, GAMES } from "@/config/follow";
 import { clock, dayKey, relative, shortDate } from "@/lib/format";
-import { readSnapshot } from "@/lib/snapshot";
+import { loadSnapshot } from "@/lib/load-snapshot";
 import { Logo } from "./ui";
 
-export function SiteHeader() {
-  const snap = readSnapshot();
+export async function SiteHeader() {
+  const snap = await loadSnapshot();
   return (
     <header className="sticky top-0 z-20 border-b border-line/70 bg-bg/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">

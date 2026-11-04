@@ -6,7 +6,8 @@ import { cn, Empty, GameTag } from "@/components/ui";
 import { competitionHref, isTeam, sameMatch, upcomingFeed } from "@/lib/derive";
 import { infoDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
-import { readSnapshot, tournamentKey } from "@/lib/snapshot";
+import { loadSnapshot } from "@/lib/load-snapshot";
+import { tournamentKey } from "@/lib/snapshot";
 import { tournamentMatches } from "@/lib/tournament";
 import type { GameId, Match, StageBlock } from "@/lib/types";
 
@@ -30,7 +31,7 @@ function resolve(wiki: string, segments: string[]) {
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { wiki, page } = await params;
   const r = resolve(wiki, page);
-  const t = r.game ? readSnapshot().tournaments[tournamentKey(r.game, r.page)] : undefined;
+  const t = r.game ? (await loadSnapshot()).tournaments[tournamentKey(r.game, r.page)] : undefined;
   return { title: t?.name ?? r.page };
 }
 
@@ -44,7 +45,7 @@ export default async function CompetitionPage({
   const { wiki, page: segments } = await params;
   const onlyOurs = (await searchParams).mes === "1";
   const { game, page } = resolve(wiki, segments);
-  const snap = readSnapshot();
+  const snap = await loadSnapshot();
   const t = game ? snap.tournaments[tournamentKey(game, page)] : undefined;
   const source = `https://liquipedia.net/${wiki}/${pageToPath(page)}`;
 

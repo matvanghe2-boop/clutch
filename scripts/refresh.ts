@@ -4,7 +4,7 @@
  *   npm run sync          une passe : tout ce qui est périmé, puis s'arrête
  *   npm run sync:watch    tourne en continu (lancé aussi par npm run dev)
  *   npm run sync -- --force   recharge tout une fois, même ce qui est à jour
- *   tsx scripts/refresh.ts --ci   la passe horaire de GitHub Actions (voir plus bas)
+ *   tsx scripts/refresh.ts --ci   la passe planifiée de GitHub Actions (voir plus bas)
  *
  * Une tâche à la fois, la plus urgente d'abord. Le rythme des appels est tenu
  * par le client ; ici on décide seulement quoi rafraîchir et quand.
@@ -26,19 +26,19 @@ try {
 const watch = process.argv.includes("--watch");
 const force = process.argv.includes("--force");
 /**
- * Passe planifiée de GitHub Actions, une fois par heure. Le dépôt est privé :
- * ses minutes d'Actions sont comptées (2 000 par mois), et chaque page coûte
- * 31 s d'attente. On espace donc les pages qui bougent peu et on borne la
- * passe ; une compétition où une équipe suivie joue reste relue à chaque heure.
+ * Passe planifiée de GitHub Actions, toutes les 15 minutes. Une compétition où
+ * une équipe suivie joue est relue à chaque passe, les pages d'équipe une passe
+ * sur deux. La passe est bornée : chaque page coûte 31 s d'attente, et une
+ * passe doit finir bien avant la suivante.
  */
 const ci = process.argv.includes("--ci");
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
-const TEAM_TTL = ci ? 170 * MIN : 30 * MIN;
-const LIVE_TTL = ci ? 20 * MIN : 10 * MIN;
-const ACTIVE_TTL = ci ? 6 * HOUR : 3 * HOUR;
-const MAX_PAGES = ci ? 5 : Infinity;
+const TEAM_TTL = ci ? 28 * MIN : 30 * MIN;
+const LIVE_TTL = ci ? 12 * MIN : 10 * MIN;
+const ACTIVE_TTL = 3 * HOUR;
+const MAX_PAGES = ci ? 6 : Infinity;
 /** Une compétition jouée par une équipe suivie reste suivie trois semaines. */
 const RECENT_WINDOW_S = 21 * 24 * 3600;
 const FAILURE_BACKOFF = 15 * MIN;

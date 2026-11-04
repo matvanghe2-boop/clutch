@@ -6,7 +6,7 @@ import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui
 import { headToHead, opponentsRecord, recentFeed, statusOf, teamById, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { shortDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
-import { readSnapshot } from "@/lib/snapshot";
+import { loadSnapshot } from "@/lib/load-snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function TeamPage({ params }: { params: Params }) {
   const team = teamById((await params).id);
   if (!team) notFound();
-  const snap = readSnapshot();
+  const snap = await loadSnapshot();
   const data = snap.teams[team.id];
   const now = Date.now() / 1000;
 
