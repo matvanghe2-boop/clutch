@@ -117,7 +117,34 @@ export interface Tournament {
   name: string;
   /** Champs de l'infobox : Start Date, End Date, Prize Pool, Location… */
   info: Record<string, string>;
+  /** Dates de l'infobox, AAAA-MM-JJ, quand elles sont complètes. */
+  startDate?: string;
+  endDate?: string;
+  /** Équipes annoncées dans la section Participants. */
+  participants?: TeamRef[];
+  /**
+   * Une équipe suivie y joue (participants, matchs ou poules). Faux pour une
+   * compétition connue par la liste du jeu seulement : ses phases ne sont pas
+   * gardées, elle ne sert qu'à la vue d'ensemble du calendrier.
+   */
+  participating?: boolean;
   stages: Stage[];
+  fetchedAt: string;
+}
+
+/** Une ligne de la liste des compétitions d'un jeu (Liquipedia:Tournaments). */
+export interface PortalEntry {
+  wiki: GameId;
+  page: string;
+  name: string;
+  status: "upcoming" | "ongoing" | "completed";
+  /** AAAA-MM-JJ ; l'année, absente de la liste, est déduite. */
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface Portal {
+  entries: PortalEntry[];
   fetchedAt: string;
 }
 
@@ -145,6 +172,8 @@ export interface Snapshot {
   updatedAt: string | null;
   teams: Record<string, TeamSnapshot>;
   tournaments: Record<string, Tournament>;
+  /** Liste des compétitions à venir, en cours et terminées de chaque jeu. */
+  portals?: Partial<Record<GameId, Portal>>;
   /** Échecs récents par clé de tâche, pour espacer les nouvelles tentatives. */
   failures: Record<string, { at: string; message: string }>;
 }

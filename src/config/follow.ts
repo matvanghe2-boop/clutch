@@ -32,3 +32,12 @@ export const TIMEZONE = "Europe/Paris";
  * testées sur le titre de la page et sur le nom affiché.
  */
 export const IGNORE_TOURNAMENTS: RegExp[] = [];
+
+/**
+ * Un wiki Liquipedia couvre parfois plusieurs jeux : celui de Call of Duty
+ * mêle la CDL à Call of Duty Mobile et Warzone. Une compétition dont le champ
+ * « Game » de l'infobox correspond est écartée du calendrier.
+ */
+export const OTHER_TITLES: Partial<Record<GameId, RegExp>> = {
+  callofduty: /mobile|warzone/i,
+};

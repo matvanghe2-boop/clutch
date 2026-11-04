@@ -9,8 +9,10 @@
  * Une tâche à la fois, la plus urgente d'abord. Le rythme des appels est tenu
  * par le client ; ici on décide seulement quoi rafraîchir et quand.
  */
-import { FOLLOWED, IGNORE_TOURNAMENTS } from "../src/config/follow";
-import { LiquipediaError, parsePage } from "../src/lib/liquipedia/client";
+import { FOLLOWED, GAME_IDS, IGNORE_TOURNAMENTS } from "../src/config/follow";
+import { isTeam } from "../src/lib/derive";
+import { LiquipediaError, parsePage, queryWikitext } from "../src/lib/liquipedia/client";
+import { parsePortal } from "../src/lib/liquipedia/portal";
 import { parseTeamPage } from "../src/lib/liquipedia/team-page";
 import { parseTournamentPage } from "../src/lib/liquipedia/tournament-page";
 import { readSnapshot, tournamentKey, writeSnapshot } from "../src/lib/snapshot";
@@ -38,12 +40,18 @@ const HOUR = 60 * MIN;
 const TEAM_TTL = ci ? 28 * MIN : 30 * MIN;
 const LIVE_TTL = ci ? 12 * MIN : 10 * MIN;
 const ACTIVE_TTL = 3 * HOUR;
+/** Compétition pas encore commencée où une équipe suivie est inscrite. */
+const PLANNED_TTL = 12 * HOUR;
+/** Compétition sans équipe suivie : seules ses dates servent, au calendrier. */
+const OUTSIDER_TTL = 24 * HOUR;
+/** Liste des compétitions d'un jeu (Liquipedia:Tournaments), requête légère. */
+const PORTAL_TTL = 6 * HOUR;
 const MAX_PAGES = ci ? 6 : Infinity;
 /** Une compétition jouée par une équipe suivie reste suivie trois semaines. */
 const RECENT_WINDOW_S = 21 * 24 * 3600;
 const FAILURE_BACKOFF = 15 * MIN;
 const MISSING_BACKOFF = 24 * HOUR;
-const MAX_TOURNAMENTS = 14;
+const MAX_TOURNAMENTS = 30;
 const IDLE_POLL = MIN;
 
 /** Avec --force, chaque page est rechargée une fois pendant cette exécution. */
@@ -65,23 +73,41 @@ function onWait(ms: number) {
   if (ms > 3000) log(`⏳ ${Math.ceil(ms / 1000)} s avant l'appel suivant (Liquipedia : 1 page toutes les 30 s)`);
 }
 
-/** Compétitions où jouent les équipes suivies : matchs à venir d'abord, puis résultats récents. */
-function discover(snap: Snapshot): Map<string, { wiki: GameId; page: string }> {
-  const out = new Map<string, { wiki: GameId; page: string }>();
-  const add = (wiki: GameId, page?: string, name?: string) => {
+interface Discovered {
+  wiki: GameId;
+  page: string;
+  /** « team » : la page d'une équipe suivie y renvoie ; « portal » : la liste du jeu seulement. */
+  origin: "team" | "portal";
+}
+
+/**
+ * Compétitions à lire : celles où jouent les équipes suivies (matchs à venir,
+ * puis résultats récents), puis celles à venir ou en cours de la liste de
+ * chaque jeu — c'est ainsi qu'on apprend qu'une équipe est inscrite à une
+ * compétition avant que ses matchs soient programmés.
+ */
+function discover(snap: Snapshot): Map<string, Discovered> {
+  const out = new Map<string, Discovered>();
+  const add = (wiki: GameId, origin: Discovered["origin"], page?: string, name?: string) => {
     if (!page || out.size >= MAX_TOURNAMENTS) return;
     if (IGNORE_TOURNAMENTS.some((r) => r.test(page) || (name !== undefined && r.test(name)))) return;
-    out.set(tournamentKey(wiki, page), { wiki, page });
+    const key = tournamentKey(wiki, page);
+    if (!out.has(key)) out.set(key, { wiki, page, origin });
   };
   for (const team of FOLLOWED)
-    for (const m of snap.teams[team.id]?.upcoming ?? []) add(team.game, m.tournament?.page, m.tournament?.name);
+    for (const m of snap.teams[team.id]?.upcoming ?? []) add(team.game, "team", m.tournament?.page, m.tournament?.name);
   for (const team of FOLLOWED)
     for (const r of snap.teams[team.id]?.recent ?? [])
-      if (nowS() - r.timestamp < RECENT_WINDOW_S) add(team.game, r.tournament.page, r.tournament.name);
+      if (nowS() - r.timestamp < RECENT_WINDOW_S) add(team.game, "team", r.tournament.page, r.tournament.name);
+  for (const wiki of GAME_IDS)
+    for (const e of snap.portals?.[wiki]?.entries ?? [])
+      if (e.status !== "completed") add(wiki, "portal", e.page, e.name);
   return out;
 }
 
-function tournamentState(t: Tournament, snap: Snapshot): "live" | "active" | "done" {
+const today = () => new Date().toISOString().slice(0, 10);
+
+function tournamentState(t: Tournament, snap: Snapshot): "live" | "active" | "planned" | "done" {
   const now = nowS();
   const followed = FOLLOWED.flatMap((f) => snap.teams[f.id]?.upcoming ?? []).filter((m) => m.tournament?.page === t.page);
   const soon = (m: Match) => m.timestamp !== undefined && m.timestamp - now < 3 * 3600 && now - m.timestamp < 6 * 3600;
@@ -89,7 +115,23 @@ function tournamentState(t: Tournament, snap: Snapshot): "live" | "active" | "do
   if (followed.some(soon) || matches.some((m) => !m.finished && soon(m))) return "live";
   if (followed.length || matches.some((m) => !m.finished)) return "active";
   if (matches.some((m) => m.timestamp !== undefined && now - m.timestamp < 2 * 86400)) return "active";
+  // Pas encore commencée (ou sans matchs programmés) : à relire de temps en temps.
+  if ((t.endDate ?? t.startDate ?? "") >= today()) return "planned";
   return "done";
+}
+
+/** Une équipe suivie y joue : inscrite, présente dans un match ou un classement, ou annoncée par sa propre page. */
+function involvesFollowed(t: Tournament, origin: Discovered["origin"]): boolean {
+  if (origin === "team") return true;
+  const teams = FOLLOWED.filter((f) => f.game === t.wiki);
+  const inStandings = t.stages.some((s) =>
+    s.blocks.some((b) => b.kind === "group" && b.table.rows.some((r) => teams.some((f) => isTeam(r.team, f)))),
+  );
+  return (
+    inStandings ||
+    (t.participants ?? []).some((p) => teams.some((f) => isTeam(p, f))) ||
+    tournamentMatches(t).some((m) => m.opponents.some((o) => teams.some((f) => isTeam(o, f))))
+  );
 }
 
 function plan(snap: Snapshot): Task[] {
@@ -121,25 +163,58 @@ function plan(snap: Snapshot): Task[] {
     });
   }
 
+  for (const wiki of GAME_IDS) {
+    const key = `portal:${wiki}`;
+    const age = ageOf(snap.portals?.[wiki]?.fetchedAt);
+    const forced = force && !doneThisRun.has(key);
+    if ((!forced && age < PORTAL_TTL) || failedRecently(key)) continue;
+    tasks.push({
+      key,
+      label: `liste des compétitions (${wiki})`,
+      priority: 2.5,
+      staleness: age,
+      run: async (s) => {
+        const entries = parsePortal(await queryWikitext(wiki, "Liquipedia:Tournaments", onWait), wiki);
+        s.portals = { ...s.portals, [wiki]: { entries, fetchedAt: new Date().toISOString() } };
+        return `${entries.filter((e) => e.status !== "completed").length} à venir ou en cours`;
+      },
+    });
+  }
+
   for (const [key, ref] of discover(snap)) {
     const current = snap.tournaments[key];
     const state = current ? tournamentState(current, snap) : undefined;
     const forced = force && !doneThisRun.has(key);
     if ((!forced && state === "done") || failedRecently(key)) continue;
-    const ttl = state === "live" ? LIVE_TTL : ACTIVE_TTL;
+    const ttl =
+      current?.participating === false
+        ? OUTSIDER_TTL
+        : state === "live"
+          ? LIVE_TTL
+          : state === "planned"
+            ? PLANNED_TTL
+            : ACTIVE_TTL;
     const age = ageOf(current?.fetchedAt);
     if (!forced && current && age < ttl) continue;
     tasks.push({
       key,
       label: `compétition ${ref.page} (${ref.wiki})${state === "live" ? " · en direct" : ""}`,
-      priority: !current ? 1 : state === "live" ? 1.5 : 3,
+      // Une compétition découverte par la liste du jeu passe après les équipes
+      // et les matchs en cours : elle ne doit jamais retarder un score.
+      priority: !current ? (ref.origin === "team" ? 1 : 2.8) : state === "live" ? 1.5 : 3,
       staleness: age,
       run: async (s) => {
         const page = await parsePage(ref.wiki, ref.page, onWait);
         const parsed = parseTournamentPage(page.html, ref.wiki, ref.page);
         const t: Tournament = { key, wiki: ref.wiki, page: ref.page, ...parsed, fetchedAt: new Date().toISOString() };
+        t.participating = involvesFollowed(t, ref.origin);
+        // Sans équipe suivie, seules les dates servent : inutile de garder les phases.
+        if (!t.participating) t.stages = [];
         s.tournaments[key] = t;
-        return `${parsed.stages.length} phases, ${tournamentMatches(t).length} matchs`;
+        const dates = t.startDate ? ` · ${t.startDate} → ${t.endDate ?? "?"}` : "";
+        return t.participating
+          ? `${parsed.stages.length} phases, ${tournamentMatches(t).length} matchs, ${parsed.participants.length} participants${dates}`
+          : `aucune équipe suivie (${parsed.participants.length} participants)${dates}`;
       },
     });
   }

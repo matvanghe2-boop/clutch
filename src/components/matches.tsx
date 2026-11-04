@@ -187,6 +187,7 @@ export function ResultRow({ r, now, showGame }: { r: PastMatch; now: number; sho
 const STATE = {
   live: { label: "En direct", cls: "text-live bg-live/10" },
   running: { label: "En cours", cls: "text-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]" },
+  upcoming: { label: "À venir", cls: "text-dim bg-panel-2" },
   finished: { label: "Terminée", cls: "text-faint bg-panel-2" },
 } as const;
 
@@ -240,6 +241,10 @@ export function TournamentCard({ tr, now }: { tr: Tracked; now: number }) {
             <span className="ml-auto shrink-0 font-display font-semibold text-ink">
               {tr.last.usScore}–{tr.last.themScore}
             </span>
+          </div>
+        ) : tr.state === "upcoming" && start ? (
+          <div className="text-dim">
+            <span className="text-faint">Début</span> {start} · équipe inscrite, matchs à programmer
           </div>
         ) : null}
       </div>

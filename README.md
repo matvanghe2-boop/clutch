@@ -121,6 +121,31 @@ dans Blob ; il vient de la page du store `clutch-data` sur Vercel.
 Lancer une passe tout de suite : `gh workflow run sync.yml`, ou le bouton
 « Run workflow » de l'onglet Actions.
 
+## Calendrier
+
+L'onglet **Calendrier** (`/calendrier`) montre le mois : la durée de chaque
+compétition en bandes continues, les matchs de mes équipes (heure, ou résultat
+une fois joués), puis un agenda jour par jour et la liste des prochaines
+compétitions. Deux vues :
+
+- **Mes équipes** : seulement les compétitions où elles jouent ;
+- **Tout le circuit** : aussi les autres grandes compétitions de chaque jeu et
+  tous les matchs des compétitions suivies.
+
+Pour savoir à l'avance où jouent mes équipes, la synchro lit toutes les 6 h la
+liste des compétitions de chaque jeu (`Liquipedia:Tournaments`, une requête
+légère), puis la page de chaque compétition à venir ou en cours : dates, lieu,
+cashprize et **participants**. Une compétition où une équipe suivie est
+inscrite devient suivie avant même que ses matchs soient programmés ; les
+autres ne gardent que leurs dates, relues une fois par jour. Le wiki Call of
+Duty mêle plusieurs jeux : `OTHER_TITLES` (dans `src/config/follow.ts`)
+écarte Call of Duty Mobile et Warzone.
+
+**Abonnement agenda** : `/calendrier.ics` publie les matchs de mes équipes et
+leurs compétitions au format iCalendar. Le bouton « S'abonner » de la page
+l'ajoute à l'agenda du téléphone, qui le relit tout seul ; dans Google Agenda,
+« Autres agendas » → « À partir de l'URL ».
+
 ## Sur le téléphone
 
 Clutch s'installe comme une appli (PWA) :

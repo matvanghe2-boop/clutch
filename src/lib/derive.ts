@@ -118,6 +118,19 @@ export function upcomingFeed(snap: Snapshot, game?: GameId): Oriented[] {
       out.push(orient(enrich(snap, m), team));
     }
   }
+  // La page d'équipe n'affiche que cinq matchs : les compétitions suivies
+  // connaissent souvent la suite du programme.
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.participating === false || (game && t.wiki !== game)) continue;
+    const team = FOLLOWED.find((f) => f.game === t.wiki);
+    if (!team) continue;
+    for (const m of tournamentMatches(t)) {
+      if (m.finished || m.timestamp === undefined || seen.has(m.id) || !m.opponents.some((o) => isTeam(o, team))) continue;
+      if (out.some((o) => sameMatch(o.match, m))) continue;
+      seen.add(m.id);
+      out.push(orient(m, team));
+    }
+  }
   return out.sort((a, b) => (a.match.timestamp ?? Infinity) - (b.match.timestamp ?? Infinity));
 }
 
@@ -204,7 +217,8 @@ export function opponentsRecord(snap: Snapshot, team: FollowedTeam) {
 export interface Tracked {
   tournament: Tournament;
   team: FollowedTeam;
-  state: "live" | "running" | "finished";
+  /** « upcoming » : inscrite, pas encore commencée et sans match programmé. */
+  state: "live" | "running" | "upcoming" | "finished";
   next?: Oriented;
   last?: Oriented;
   standing?: { table: string; row: StandingRow; size: number };
@@ -212,8 +226,11 @@ export interface Tracked {
 
 export function trackedTournaments(snap: Snapshot, now: number, game?: GameId): Tracked[] {
   const out: Tracked[] = [];
+  const today = new Date(now * 1000).toISOString().slice(0, 10);
   for (const t of Object.values(snap.tournaments)) {
     if (game && t.wiki !== game) continue;
+    // Connue par la liste du jeu, sans équipe suivie : elle n'a sa place qu'au calendrier.
+    if (t.participating === false) continue;
     const team = FOLLOWED.find((f) => f.game === t.wiki);
     if (!team) continue;
     const all = tournamentMatches(t);
@@ -239,20 +256,22 @@ export function trackedTournaments(snap: Snapshot, now: number, game?: GameId): 
 
     const live = all.some((m) => statusOf(m, now) === "live") || pending.some((o) => statusOf(o.match, now) === "live");
     const running = pending.length > 0 || all.some((m) => !m.finished && statusOf(m, now) !== "stale");
+    const upcoming = !done.length && (t.startDate ?? "") > today;
     out.push({
       tournament: t,
       team,
-      state: live ? "live" : running ? "running" : "finished",
+      state: live ? "live" : upcoming ? "upcoming" : running ? "running" : "finished",
       next: pending[0],
       last: done[0],
       standing,
     });
   }
-  const rank = { live: 0, running: 1, finished: 2 };
+  const rank = { live: 0, running: 1, upcoming: 2, finished: 3 };
   return out.sort(
     (a, b) =>
       rank[a.state] - rank[b.state] ||
       (a.next?.match.timestamp ?? Infinity) - (b.next?.match.timestamp ?? Infinity) ||
+      (a.tournament.startDate ?? "").localeCompare(b.tournament.startDate ?? "") ||
       (b.last?.match.timestamp ?? 0) - (a.last?.match.timestamp ?? 0),
   );
 }

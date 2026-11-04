@@ -18,7 +18,33 @@ import { type El, makeMatch, popupInfo, scoreWinner, teamFrom, text } from "./ht
 export interface ParsedTournament {
   name: string;
   info: Record<string, string>;
+  startDate?: string;
+  endDate?: string;
+  participants: TeamRef[];
   stages: Stage[];
+}
+
+/** « 2026-11-13 » → tel quel ; une date incomplète (« 2026-11-?? ») ne sert pas au calendrier. */
+function isoDate(value?: string): string | undefined {
+  return value?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+}
+
+/**
+ * Section Participants : une carte par équipe (`.team-participant-card`), ou
+ * l'ancien tableau (`.participantTable-entry`) sur les pages plus vieilles.
+ * Les places encore à attribuer (« TBD ») ne donnent pas d'équipe.
+ */
+function parseParticipants($: cheerio.CheerioAPI): TeamRef[] {
+  const out: TeamRef[] = [];
+  const seen = new Set<string>();
+  $(".team-participant-card__opponent, .participantTable-entry").each((_, el) => {
+    const team = teamFrom($, $(el));
+    const key = team && (team.page ?? team.name).toLowerCase();
+    if (!team || !key || seen.has(key)) return;
+    seen.add(key);
+    out.push(team);
+  });
+  return out;
 }
 
 /**
@@ -79,7 +105,14 @@ export function parseTournamentPage(html: string, wiki: GameId, page: string): P
   });
 
   for (const stage of stages) dropBracketDuplicates(stage);
-  return { name, info, stages: stages.filter((s) => s.blocks.length) };
+  return {
+    name,
+    info,
+    startDate: isoDate(info["Start Date"]),
+    endDate: isoDate(info["End Date"]) ?? isoDate(info["Start Date"]),
+    participants: parseParticipants($),
+    stages: stages.filter((s) => s.blocks.length),
+  };
 }
 
 /** Liquipedia double souvent un bracket d'une liste des mêmes matchs : on garde le bracket. */
@@ -150,7 +183,8 @@ function parseMatchlist($: cheerio.CheerioAPI, $ml: El, wiki: GameId, ctx: Tourn
         scores,
         winner: winIdx >= 0 ? ((winIdx + 1) as 1 | 2) : scoreWinner(scores),
         tournament: ctx,
-        round,
+        // Sans intertitre, le titre de la liste (« Day 6 ») situe le match mieux que la phase.
+        round: round ?? (title || undefined),
       }),
     );
   });

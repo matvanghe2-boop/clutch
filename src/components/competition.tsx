@@ -315,7 +315,7 @@ export function MatchlistView({ list, team, now, onlyOurs }: { list: Matchlist; 
       <div className="border-t border-line">
         {rounds.map(([round, ms], i) => (
           <div key={i}>
-            {round && <div className="px-4 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wider text-faint">{round}</div>}
+            {round && round !== list.title && <div className="px-4 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wider text-faint">{round}</div>}
             <div className="divide-y divide-line/50">
               {ms.map((m) => (
                 <ListMatch key={m.id} m={m} team={team} now={now} />

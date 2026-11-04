@@ -16,6 +16,18 @@ export async function SiteHeader() {
           <span className="font-display text-xl font-bold tracking-[0.14em]">CLUTCH</span>
         </Link>
         <nav className="scrollbar-thin -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+          <Link
+            href="/calendrier"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-dim transition-colors hover:bg-panel-2 hover:text-ink"
+            title="Calendrier"
+          >
+            <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+              <path d="M3.5 10h17M8 3v4M16 3v4" strokeLinecap="round" />
+            </svg>
+            <span className="hidden lg:inline">Calendrier</span>
+          </Link>
+          <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden />
           {FOLLOWED.map((t) => {
             const data = snap.teams[t.id];
             return (

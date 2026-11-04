@@ -70,6 +70,41 @@ function scheduled<T>(isParse: boolean, run: () => Promise<T>, onWait?: (ms: num
   return next;
 }
 
+/**
+ * Le wikitexte brut d'une page, sans rendu : une requête légère, soumise au
+ * seul écart général de 2 s. Sert aux listes tenues à la main, comme
+ * Liquipedia:Tournaments.
+ */
+export function queryWikitext(wiki: GameId, title: string, onWait?: (ms: number) => void): Promise<string> {
+  const url = new URL(`https://liquipedia.net/${wiki}/api.php`);
+  url.search = new URLSearchParams({
+    action: "query",
+    titles: title,
+    prop: "revisions",
+    rvprop: "content",
+    rvslots: "main",
+    format: "json",
+    formatversion: "2",
+  }).toString();
+
+  return scheduled(
+    false,
+    async () => {
+      const res = await fetch(url, {
+        headers: { "User-Agent": userAgent(), "Accept-Encoding": "gzip" },
+      });
+      if (!res.ok) throw new LiquipediaError(`http-${res.status}`, `HTTP ${res.status} sur ${wiki}:${title}`);
+      const json = (await res.json()) as {
+        query?: { pages?: { missing?: boolean; revisions?: { slots: { main: { content: string } } }[] }[] };
+      };
+      const page = json.query?.pages?.[0];
+      if (!page || page.missing) throw new LiquipediaError("missingtitle", `Page absente : ${wiki}:${title}`);
+      return page.revisions?.[0]?.slots.main.content ?? "";
+    },
+    onWait,
+  );
+}
+
 export interface ParsedPage {
   title: string;
   html: string;

@@ -70,7 +70,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
       {rest.length > 0 && (
         <section>
-          <SectionTitle>Au programme</SectionTitle>
+          <SectionTitle
+            aside={
+              <Link href="/calendrier" className="text-xs text-faint hover:text-dim">
+                Tout le calendrier →
+              </Link>
+            }
+          >
+            Au programme
+          </SectionTitle>
           <div className="space-y-6">
             {[...days.entries()].map(([key, list]) => (
               <div key={key}>
