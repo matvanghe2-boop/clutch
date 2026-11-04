@@ -64,6 +64,13 @@ async function main() {
   }
 
   if (command === "publish") {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      // Avertissement visible dans le résumé de la passe, sans faire échouer
+      // chaque passe (et envoyer un e-mail toutes les 15 min) tant que le
+      // secret n'est pas posé.
+      console.log("::warning::Secret BLOB_READ_WRITE_TOKEN absent : instantané non publié.");
+      return;
+    }
     const current = readFile(SNAPSHOT_PATH);
     if (!current) throw new Error("Aucun instantané à publier");
     const published = await readPublished();
