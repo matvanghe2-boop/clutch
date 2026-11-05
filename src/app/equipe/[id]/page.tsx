@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
+import { RankingCard } from "@/components/ranking";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { formOf, headToHead, historyOf, opponentsRecord, recentFeed, statusOf, teamById, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { infoDate, shortDate } from "@/lib/format";
@@ -72,6 +73,13 @@ export default async function TeamPage({ params }: { params: Params }) {
           <Empty>Aucun match annoncé{team.game === "callofduty" ? " : la CDL est peut-être à l'intersaison" : ""}.</Empty>
         )}
       </section>
+
+      {snap.rankings?.[team.game] && (
+        <section>
+          <SectionTitle>Classement</SectionTitle>
+          <RankingCard ranking={snap.rankings[team.game]!} team={team} now={now} />
+        </section>
+      )}
 
       {(data?.roster?.length || data?.timeline?.length) && (
         <div className="grid gap-10 lg:grid-cols-2">

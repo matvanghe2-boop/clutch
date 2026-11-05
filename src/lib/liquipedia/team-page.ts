@@ -183,9 +183,10 @@ function parseRecent($: cheerio.CheerioAPI): RecentMatch[] {
     }
     if (!timestamp || !Number.isFinite(timestamp)) return;
 
-    const score = text(cell(iScore))
-      .split(":")
-      .map((x) => x.trim());
+    // « 2:1 » en général, « 13 - 4 » pour un Bo1 de CS2 (le score de la carte).
+    const rawScore = text(cell(iScore));
+    const pair = rawScore.match(/^\s*(\S+?)\s*[:\-–]\s*(\S+)\s*$/);
+    const score = pair ? [pair[1], pair[2]] : rawScore.split(":").map((x) => x.trim());
     const label =
       ($tr.attr("class") ?? "").match(/recent-matches-bg-(win|lose|loss|draw|tie)/)?.[1] ??
       $tr.find("[data-label-type^='result-']").first().attr("data-label-type")?.replace("result-", "");

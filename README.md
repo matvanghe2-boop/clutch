@@ -55,17 +55,22 @@ La synchronisation lit plusieurs sortes de pages :
    semaines ou à venir : classements, poules, brackets, tous les matchs ;
 3. **la page `Équipe/Matches`**, une fois par semaine : tout l'historique, pour
    les face-à-face sur plusieurs saisons ;
-4. les listes de compétitions et les saisons (voir [Calendrier](#calendrier)).
+4. **la page de chaque adversaire** des 7 prochains jours, une fois par jour :
+   son effectif et sa forme, pour la [page de match](#page-de-match) ;
+5. les classements de saison (voir [Classements et forme](#classements-et-forme)) ;
+6. les listes de compétitions et les saisons (voir [Calendrier](#calendrier)).
 
 Elle choisit à chaque tour la page la plus urgente :
 
 | Page | Rechargée |
 |---|---|
-| équipe | toutes les 30 min (12 min de 3 h avant à 5 h après un de ses matchs) |
-| compétition avec un match en cours ou imminent | toutes les 10 min |
+| équipe | toutes les 30 min ; de 3 h avant à 5 h après un de ses matchs, à chaque passe de la synchro régulière (5 min) |
+| compétition avec un match en cours ou imminent | à chaque passe de la synchro régulière (5 min) |
 | compétition en cours | toutes les 3 h |
 | compétition terminée | jamais |
 | historique complet | chaque semaine |
+| adversaire de la semaine | chaque jour |
+| classement de saison | chaque jour |
 
 **Pendant un match**, la page se recharge seule chaque minute (tant qu'elle
 est visible) pour suivre le score.
@@ -96,58 +101,64 @@ Le site est déployé sur Vercel, relié au dépôt GitHub : **un push sur `main
 déploie**. Pour déployer à la main : `npx vercel --prod --yes`.
 
 ```
-GitHub Actions, toutes les 15 min ──► Vercel Blob (snapshot.json) ──► le site
+cron-job.org, toutes les 5 min ──► /api/sync (Vercel) ──► Vercel Blob (snapshot.json) ──► le site
 ```
 
-Vercel sert le site ; la synchronisation tourne dans **GitHub Actions**
-([`.github/workflows/sync.yml`](.github/workflows/sync.yml)), toutes les
-15 minutes, et **ne committe jamais rien** :
+La synchronisation **ne committe jamais rien** : elle publie l'instantané dans
+**Vercel Blob**, où le site le lit (`SNAPSHOT_URL`). Sans `SNAPSHOT_URL`, en
+local, le site lit `data/snapshot.json`.
 
-1. elle reprend l'état le plus récent (heure de lecture de chaque page) : celui
-   de la passe précédente, gardé dans le cache d'Actions, ou à défaut la
-   version publiée (`scripts/ci.ts restore`) ;
-2. elle lit au plus 6 pages, les plus urgentes (`refresh.ts --ci`) : une
-   compétition où une équipe suivie joue à chaque passe, les équipes une passe
-   sur deux, les autres compétitions en cours toutes les 3 h ;
-3. elle publie l'instantané dans **Vercel Blob** seulement si les données ont
-   changé (`scripts/ci.ts publish`) — le plan Hobby limite les écritures à
-   2 000 par mois.
+### La synchro régulière : un cron externe
 
-Le site lit l'instantané à l'adresse `SNAPSHOT_URL` (variable Vercel et
-variable du dépôt GitHub). Le CDN de Blob le garde 60 s : une donnée publiée
-est visible au plus une minute après. Sans `SNAPSHOT_URL`, en local, le site lit
-`data/snapshot.json`.
+Un service de cron gratuit, [cron-job.org](https://cron-job.org), appelle
+`/api/sync` toutes les 5 minutes. La réponse part aussitôt, la passe continue
+ensuite sur Vercel ([`src/lib/sync/auto.ts`](src/lib/sync/auto.ts)) : elle lit
+les pages dues (6 au plus, en moins de 3 minutes), et pendant un match relit le
+score à chaque passe. Elle ne publie que si les données ont changé.
 
-Pourquoi pas un cron Vercel : sur le plan Hobby, il ne tourne qu'une fois par
-jour. Le dépôt est public, donc les minutes d'Actions sont illimitées ; en
-contrepartie, GitHub désactive les tâches planifiées d'un dépôt public après
-60 jours sans activité. Comme la synchro ne committe rien, elle réactive
-elle-même son workflow par l'API une fois par jour.
+Mise en place, une fois :
 
-Le secret `BLOB_READ_WRITE_TOKEN` du dépôt donne à la synchro le droit d'écrire
-dans Blob ; il vient de la page du store `clutch-data` sur Vercel.
+1. Vercel → projet `clutch` → Settings → Environment Variables : ajouter
+   `CRON_SECRET`, une longue chaîne aléatoire, puis redéployer ;
+2. sur cron-job.org, créer une tâche : adresse
+   `https://clutch-ochre.vercel.app/api/sync`, toutes les 5 minutes, et dans
+   « Advanced » un en-tête `Authorization` qui vaut `Bearer ` suivi du secret.
 
-Lancer une passe tout de suite : `gh workflow run sync.yml`, ou le bouton
-« Run workflow » de l'onglet Actions.
+Le cron quotidien de Vercel ([`vercel.json`](vercel.json), 5 h 15 UTC) appelle la
+même adresse avec le même secret, que Vercel ajoute de lui-même.
 
-### Si GitHub ne lance pas la synchro
+**Le quota de Blob.** Le plan Hobby compte 2 000 écritures et 10 000 lectures
+hors cache par mois, et coupe l'accès à Blob 30 jours au-delà : le site
+s'arrêterait. D'où trois règles :
 
-GitHub ne garantit pas ses tâches planifiées (elles peuvent tarder, voire ne
-jamais démarrer sur un dépôt récent). Le site a donc deux secours, qui
-utilisent le même moteur et le même rythme d'appels :
+- la synchro régulière n'écrit rien tant que rien ne change, pas même un verrou ;
+- le CDN garde l'instantané une heure (`CDN_MAX_AGE`) : les lectures sont
+  servies par le cache et ne comptent pas, et une publication s'y voit quand
+  même en moins d'une minute ;
+- même sans changement, l'instantané est republié toutes les 2 h : c'est le
+  signal de vie de la synchro.
 
-- **à la visite** : si l'instantané a plus de 2 h 30, si un match est en cours
-  ou imminent, ou si les équipes ont changé, la page s'affiche tout de suite
-  puis, une fois la réponse envoyée, le serveur lit au plus 4 pages et publie
-  ([`src/lib/sync/auto.ts`](src/lib/sync/auto.ts)). Un verrou dans Blob évite
-  deux passes en même temps ;
-- **chaque jour à 5 h 15 UTC**, un cron Vercel appelle `/api/sync`
-  ([`vercel.json`](vercel.json)). Si la variable `CRON_SECRET` est définie,
-  seul le cron peut l'appeler.
+### Les secours
 
-Même sans changement, la synchro republie l'instantané toutes les 2 h : c'est
-son signal de vie. Au-delà de 2 h 30 sans nouvelles, un bandeau le signale en
-haut du site.
+Si la synchro régulière se tait plus de 2 h 30, un bandeau le signale en haut
+du site, et deux secours prennent le relais, sous un verrou dans Blob :
+
+- **à la visite** : la page s'affiche tout de suite puis, la réponse envoyée,
+  le serveur lit au plus 4 pages et publie ;
+- **GitHub Actions** ([`.github/workflows/sync.yml`](.github/workflows/sync.yml)) :
+  toutes les 15 minutes en théorie, mais GitHub lance ses tâches planifiées très
+  irrégulièrement, et ses machines partagent leurs adresses avec beaucoup
+  d'autres projets (Liquipedia leur répond parfois 429). Le workflow vérifie
+  donc d'abord la fraîcheur des données (`scripts/ci.ts fresh`) et ne
+  synchronise que si elles ont plus de 2 h 30. Il garde l'état de passe en
+  passe dans son cache, et se réactive lui-même une fois par jour (GitHub
+  désactive les tâches planifiées d'un dépôt public sans activité).
+
+Sans `CRON_SECRET`, c'est l'ancien fonctionnement : les visites déclenchent la
+synchro quand un match est en cours ou que les équipes ont changé.
+
+Le secret `BLOB_READ_WRITE_TOKEN` du dépôt GitHub donne au workflow le droit
+d'écrire dans Blob. Lancer une passe GitHub à la main : `gh workflow run sync.yml`.
 
 ## Calendrier
 
@@ -199,6 +210,56 @@ sa compétition.
 leurs compétitions au format iCalendar. Le bouton « S'abonner » de la page
 l'ajoute à l'agenda du téléphone, qui le relit tout seul ; dans Google Agenda,
 « Autres agendas » → « À partir de l'URL ».
+
+## Page de match
+
+Chaque match de mes équipes a sa page (`/match/…`), ouverte depuis « Détails du
+match » sur l'accueil ou depuis le nom de l'adversaire dans les listes :
+
+- le score, en direct pendant le match (la page se recharge seule), ou l'heure
+  et le compte à rebours ;
+- **Regarder** : le stream dans la page, une heure avant le début et pendant le
+  match, avec un onglet par chaîne. Twitch et Kick s'intègrent ; YouTube reste
+  un lien, Liquipedia ne donnant pas l'identifiant de chaîne que son lecteur
+  réclame. Pendant un match, le bouton « Regarder » de l'accueil y mène ;
+- les **manches** : arène et buts en Rocket League, carte et rounds en CS2 ;
+- la **forme du moment** des deux équipes (10 derniers matchs, série en cours) ;
+- le **face-à-face** complet et les **effectifs**.
+
+L'effectif et la forme de l'adversaire viennent de sa page Liquipedia, que la
+synchro lit une fois par jour pour les adversaires des 7 prochains jours
+(8 au plus). La forme de mes équipes s'affiche aussi sur leur page.
+
+## Classements et forme
+
+La page de chaque équipe montre sa **forme du moment** (10 derniers matchs,
+bilan, série en cours) et son **classement de saison**, lu une fois par jour :
+
+- **CS2** : le classement régional de Valve (VRS), recalculé chaque semaine :
+  rang mondial, rang dans sa région, points, et les 10 premiers ;
+- **CDL** : le classement de la saison régulière, dès que Liquipedia publie sa
+  page (`Call of Duty League/Season N/Regular Season`), en général au début de
+  la saison ;
+- **Rocket League** : rien pour l'instant. Le circuit RLCS 2027 (Club
+  Championship) n'a pas de classement à points sur Liquipedia : sa page
+  « Qualification » ne liste que les équipes qualifiées.
+
+Le haut du classement et les places de mes équipes et de leurs adversaires sont
+gardés ; la page de match affiche le rang des deux équipes.
+
+## Pronostics
+
+Sur la page d'un match à venir, on choisit un score parmi ceux que permet le
+format (en Bo5 : 3-0, 3-1, 3-2, 2-3, 1-3, 0-3), modifiable jusqu'au coup
+d'envoi. Score exact : 3 points, bon vainqueur : 1 point. La page
+**Pronostics** (`/pronostics`) tient le bilan : points, scores exacts, taux de
+bons vainqueurs, par jeu.
+
+Le site étant public, pronostiquer demande le même code que les réglages
+(navigateur déverrouillé). Les pronostics sont enregistrés dans Blob
+(`predictions.json`), pour les retrouver sur tous les appareils. Chacun garde
+l'équipe, l'adversaire et l'heure du match : le résultat se retrouve même si
+Liquipedia corrige l'horaire.
 
 ## Sur le téléphone
 

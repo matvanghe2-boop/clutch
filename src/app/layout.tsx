@@ -42,8 +42,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           page avant de la couvrir.
         */}
         <Script src="/orbit-splash.js" strategy="beforeInteractive" />
-        {/* Le script pose ses couleurs sur l'élément avant l'hydratation : écart attendu. */}
-        <orbit-splash app-name="Clutch" theme="esport" suppressHydrationWarning />
+        {/*
+          L'élément est servi tel quel mais React n'en vérifie pas le contenu :
+          dès le deuxième chargement dans un onglet, le script le retire avant
+          l'hydratation (une seule mise en scène par onglet). Rendu par React,
+          il manquerait alors à l'appel et React reconstruirait toute la page.
+        */}
+        <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: '<orbit-splash app-name="Clutch" theme="esport"></orbit-splash>' }} />
         <Script src="/orbit-header.js" strategy="afterInteractive" />
         {/* Sur iPhone, en appli, la barre d'état chevauche le haut de page : le header Orbit s'en écarte. */}
         <div className="pt-[env(safe-area-inset-top)]">

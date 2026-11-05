@@ -101,4 +101,9 @@ describe("historique complet (page Équipe/Matches)", () => {
   it("donne à chaque match un adversaire et un résultat cohérent", () => {
     history.forEach(expectConsistent);
   });
+
+  it("découpe aussi le score d'un Bo1 (« 13 - 4 », le score de la carte)", () => {
+    for (const m of history) expect(m.score[1]).not.toBe("");
+    expect(history.some((m) => Number(m.score[0]) >= 13 || Number(m.score[1]) >= 13)).toBe(true);
+  });
 });

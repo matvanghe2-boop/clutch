@@ -2,7 +2,7 @@ import { DEFAULT_TEAMS, type FollowedTeam, OTHER_TITLES, toFollowed } from "@/co
 import { dayKey } from "./format";
 import { tournamentMatches } from "./tournament";
 import type { Prediction } from "./predictions";
-import type { GameId, Match, RecentMatch, Snapshot, StandingRow, TeamRef, Tournament, TournamentRef } from "./types";
+import type { GameId, Match, RankingRow, RecentMatch, Snapshot, StandingRow, TeamRef, Tournament, TournamentRef } from "./types";
 
 export function norm(s?: string): string {
   return (s ?? "")
@@ -504,3 +504,12 @@ export function predictionResult(snap: Snapshot, id: string, p: Prediction): { u
     .sort((a, b) => Math.abs(a.timestamp - p.timestamp!) - Math.abs(b.timestamp - p.timestamp!))[0];
   return near ? toScore(near.usScore, near.themScore) : undefined;
 }
+
+/** La place d'une équipe dans le classement de saison de son jeu, s'il y en a un. */
+export function rankOf(snap: Snapshot, wiki: GameId, team: TeamRef | null | undefined): RankingRow | undefined {
+  if (!team) return undefined;
+  return snap.rankings?.[wiki]?.rows.find((r) => sameTeam(r.team, team));
+}
+
+/** « 2e », « 1er » : un rang à la française. */
+export const ordinal = (n: number) => `${n}${n === 1 ? "er" : "e"}`;

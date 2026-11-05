@@ -8,13 +8,13 @@ import { StreamPlayer } from "@/components/StreamPlayer";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle, StreamLinks } from "@/components/ui";
 import { predict } from "@/app/actions";
 import { isAdmin } from "@/lib/admin";
-import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, type MatchStatus, opponentKey, predictionResult, statusOf } from "@/lib/derive";
+import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, type MatchStatus, opponentKey, ordinal, predictionResult, rankOf, statusOf } from "@/lib/derive";
 import { clock, dayLabel, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { loadPredictions } from "@/lib/prediction-store";
 import { judge, possibleScores, type Prediction } from "@/lib/predictions";
 import { embeddable } from "@/lib/streams";
-import type { RosterEntry, TeamRef } from "@/lib/types";
+import type { RankingRow, RosterEntry, TeamRef } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +71,15 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   const usRoster = snap.teams[o.team.id]?.roster ?? [];
   const themRoster = opp?.roster ?? [];
   const t = m.tournament;
+  // Pourquoi la fiche de l'adversaire manque : il n'est pas encore connu, le match est passé, ou Liquipedia n'a pas de page pour lui.
+  const noPage = o.them?.page && /missingtitle|doesn.t exist/.test(snap.failures[`opponent:${opponentKey(m.wiki, o.them.page)}`]?.message ?? "");
+  const opponentNote = !o.them
+    ? "Adversaire à déterminer."
+    : noPage
+      ? "Pas de page Liquipedia pour cette équipe."
+      : st === "done"
+        ? "Seuls les adversaires des 7 prochains jours sont suivis."
+        : "Sa fiche arrive avec la prochaine synchro.";
 
   return (
     <div data-game={m.wiki} className="space-y-10">
@@ -206,8 +215,8 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         <section>
           <SectionTitle>Forme du moment</SectionTitle>
           <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
-            <FormRow team={o.us} form={usForm} />
-            <FormRow team={o.them} form={themForm} missing={o.them ? "Sa fiche arrive avec la prochaine synchro (adversaires des 7 prochains jours)." : "Adversaire à déterminer."} />
+            <FormRow team={o.us} form={usForm} rank={rankOf(snap, m.wiki, o.us)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} />
+            <FormRow team={o.them} form={themForm} rank={rankOf(snap, m.wiki, o.them)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} missing={opponentNote} />
           </div>
         </section>
 
@@ -259,12 +268,17 @@ function Side({ team, align }: { team: TeamRef | null; align: "start" | "end" })
   );
 }
 
-function FormRow({ team, form, missing }: { team: TeamRef | null; form?: Form; missing?: string }) {
+function FormRow({ team, form, missing, rank, rankLabel }: { team: TeamRef | null; form?: Form; missing?: string; rank?: RankingRow; rankLabel: string }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
       <span className="flex min-w-36 flex-1 items-center gap-2">
         <Logo team={team} size={22} />
         <span className="truncate font-medium">{team?.name ?? "À déterminer"}</span>
+        {rank && (
+          <span className="shrink-0 rounded bg-panel-2 px-1.5 py-0.5 text-[11px] text-dim" title={rank.points ? `${rank.points} points` : undefined}>
+            {ordinal(rank.rank)} {rankLabel}
+          </span>
+        )}
       </span>
       {form?.last.length ? (
         <span className="flex flex-col items-end gap-1">
@@ -362,41 +376,43 @@ function PredictionPanel({
         )}
         {open &&
           (admin ? (
-            <form action={predict} className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="id" value={id} />
-              {scores ? (
-                scores.map(([a, b]) => {
+            scores ? (
+              // Un formulaire par score : le score voyage dans un champ caché, sans dépendre du bouton cliqué.
+              <div className="flex flex-wrap items-center gap-2">
+                {scores.map(([a, b]) => {
                   const picked = prediction?.us === a && prediction?.them === b;
                   return (
-                    <button
-                      key={`${a}-${b}`}
-                      name="score"
-                      value={`${a}-${b}`}
-                      className={cn(
-                        "rounded-lg border px-3 py-1.5 font-display text-base font-semibold tabular-nums transition-colors",
-                        picked
-                          ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]"
-                          : a > b
-                            ? "border-line text-ink hover:border-win/60"
-                            : a < b
-                              ? "border-line text-dim hover:border-loss/60"
-                              : "border-line text-dim hover:border-faint",
-                      )}
-                      title={a > b ? `Victoire de ${usName}` : a < b ? `Victoire de ${themName}` : "Match nul"}
-                    >
-                      {a}–{b}
-                    </button>
+                    <form key={`${a}-${b}`} action={predict}>
+                      <input type="hidden" name="id" value={id} />
+                      <input type="hidden" name="score" value={`${a}-${b}`} />
+                      <button
+                        className={cn(
+                          "rounded-lg border px-3 py-1.5 font-display text-base font-semibold tabular-nums transition-colors",
+                          picked
+                            ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]"
+                            : a > b
+                              ? "border-line text-ink hover:border-win/60"
+                              : a < b
+                                ? "border-line text-dim hover:border-loss/60"
+                                : "border-line text-dim hover:border-faint",
+                        )}
+                        title={a > b ? `Victoire de ${usName}` : a < b ? `Victoire de ${themName}` : "Match nul"}
+                      >
+                        {a}–{b}
+                      </button>
+                    </form>
                   );
-                })
-              ) : (
-                <>
-                  <input name="us" type="number" min={0} max={20} required defaultValue={prediction?.us} aria-label={usName} className="w-16 rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-center" />
-                  <span className="text-faint">–</span>
-                  <input name="them" type="number" min={0} max={20} required defaultValue={prediction?.them} aria-label={themName} className="w-16 rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-center" />
-                  <button className="rounded-lg bg-ink px-4 py-1.5 text-sm font-medium text-bg hover:opacity-90">Valider</button>
-                </>
-              )}
-            </form>
+                })}
+              </div>
+            ) : (
+              <form action={predict} className="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="id" value={id} />
+                <input name="us" type="number" min={0} max={20} required defaultValue={prediction?.us} aria-label={usName} className="w-16 rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-center" />
+                <span className="text-faint">–</span>
+                <input name="them" type="number" min={0} max={20} required defaultValue={prediction?.them} aria-label={themName} className="w-16 rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-center" />
+                <button className="rounded-lg bg-ink px-4 py-1.5 text-sm font-medium text-bg hover:opacity-90">Valider</button>
+              </form>
+            )
           ) : (
             <p className="text-xs text-faint">
               Pour pronostiquer, <Link href="/reglages" className="underline hover:text-dim">déverrouille les réglages</Link> avec ton code.

@@ -227,8 +227,35 @@ export interface Snapshot {
    * résultats lus sur leur page Liquipedia, une fois par jour.
    */
   opponents?: Record<string, OpponentSnapshot>;
+  /** Classements de saison par jeu (clé : le wiki). */
+  rankings?: Partial<Record<GameId, Ranking>>;
   /** Échecs récents par clé de tâche, pour espacer les nouvelles tentatives. */
   failures: Record<string, { at: string; message: string }>;
+}
+
+export interface RankingRow {
+  rank: number;
+  team: TeamRef;
+  points?: string;
+  /** Région de l'équipe (VRS : EU, AM, AS) et son rang dans sa région. */
+  region?: string;
+  regionRank?: number;
+  regionName?: string;
+  /** Cellules du tableau, dans l'ordre de `columns` (classement CDL : matchs, manches, points…). */
+  cells?: string[];
+}
+
+/** Un classement de saison (VRS de Valve, saison régulière CDL). */
+export interface Ranking {
+  wiki: GameId;
+  page: string;
+  title: string;
+  /** Date de mise à jour annoncée par la page, AAAA-MM-JJ. */
+  updated?: string;
+  columns: string[];
+  /** Les premiers du classement, plus mes équipes et leurs adversaires où qu'ils soient. */
+  rows: RankingRow[];
+  fetchedAt: string;
 }
 
 export interface OpponentSnapshot {

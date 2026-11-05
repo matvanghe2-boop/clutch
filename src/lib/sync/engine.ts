@@ -13,11 +13,12 @@ import { isTeam, opponentKey, upcomingOpponents, watchingTeam } from "../derive"
 import { LiquipediaError, leadSections, listPages, pageExists, parsePage, queryWikitext } from "../liquipedia/client";
 import { parseListing } from "../liquipedia/listing";
 import { parsePortal } from "../liquipedia/portal";
+import { parseSeasonStandings, parseVrs } from "../liquipedia/rankings";
 import { parseMatchHistory, parseTeamPage } from "../liquipedia/team-page";
 import { parseTournamentPage } from "../liquipedia/tournament-page";
 import { tournamentKey } from "../snapshot";
 import { tournamentMatches } from "../tournament";
-import type { GameId, Match, PortalEntry, RecentMatch, Snapshot, Tournament } from "../types";
+import type { GameId, Match, PortalEntry, RecentMatch, Snapshot, TeamRef, Tournament } from "../types";
 import type { FollowedTeam } from "../../config/follow";
 
 export type Profile = "local" | "ci" | "visit" | "cron";
@@ -61,6 +62,7 @@ function ttls(profile: Profile) {
     season: DAY,
     history: 7 * DAY,
     opponent: DAY,
+    ranking: DAY,
     failure: 15 * MIN,
     missing: DAY,
   };
@@ -164,12 +166,15 @@ function mergeHistory(snap: Snapshot, teamId: string, rows: RecentMatch[]): numb
   let added = 0;
   for (const r of rows) {
     const key = (r.opponent?.page ?? r.opponent?.name ?? "").toLowerCase();
-    const dup = history.some(
+    const dup = history.findIndex(
       (h) => Math.abs(h.timestamp - r.timestamp) < 3 * 3600 && (h.opponent?.page ?? h.opponent?.name ?? "").toLowerCase() === key,
     );
-    if (dup) continue;
-    history.push(r);
-    added++;
+    // Déjà connu : la lecture la plus récente fait foi (score corrigé, parseur amélioré).
+    if (dup >= 0) history[dup] = r;
+    else {
+      history.push(r);
+      added++;
+    }
   }
   history.sort((a, b) => b.timestamp - a.timestamp);
   snap.history = { ...snap.history, [teamId]: history.slice(0, MAX_HISTORY) };
@@ -343,6 +348,34 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
       });
     }
 
+    // Classements de saison : VRS de Valve (CS2), saison régulière (CDL). Une fois par jour.
+    for (const wiki of games) {
+      const source = rankingSource(snap, wiki);
+      if (!source) continue;
+      const key = `ranking:${wiki}`;
+      const age = ageOf(snap.rankings?.[wiki]?.fetchedAt);
+      if ((!forced(key) && age < t.ranking) || failedRecently(key)) continue;
+      tasks.push({
+        key,
+        label: `classement ${source.page} (${wiki})`,
+        priority: 3.3,
+        staleness: age,
+        run: async (s) => {
+          if (wiki === "callofduty" && !(await pageExists(wiki, source.page, onWait)))
+            throw new LiquipediaError("missingtitle", `Pas encore de classement : ${source.page}`);
+          const html = (await parsePage(wiki, source.page, onWait)).html;
+          const parsed = wiki === "counterstrike" ? parseVrs(html, source.page) : parseSeasonStandings(html, source.page, source.title);
+          // On garde le haut du classement, et partout ailleurs mes équipes et leurs adversaires.
+          const watched = (team: TeamRef) =>
+            teams.some((f) => f.game === wiki && isTeam(team, f)) ||
+            Object.values(s.opponents ?? {}).some((o) => o.wiki === wiki && o.page === team.page);
+          const rows = parsed.rows.filter((r) => r.rank <= 20 || watched(r.team));
+          s.rankings = { ...s.rankings, [wiki]: { ...parsed, rows, fetchedAt: new Date().toISOString() } };
+          return `${parsed.rows.length} équipes classées, ${rows.length} gardées`;
+        },
+      });
+    }
+
     // Les adversaires de la semaine : leur effectif et leur forme, pour la page de chaque match.
     for (const opp of upcomingOpponents(snap)) {
       const key = `opponent:${opponentKey(opp.wiki, opp.page)}`;
@@ -423,6 +456,8 @@ function prune(snap: Snapshot, teams: FollowedTeam[]) {
   const ids = new Set(teams.map((t) => t.id));
   for (const id of Object.keys(snap.teams)) if (!ids.has(id)) delete snap.teams[id];
   if (snap.history) for (const id of Object.keys(snap.history)) if (!ids.has(id)) delete snap.history[id];
+  if (snap.rankings)
+    for (const game of Object.keys(snap.rankings) as GameId[]) if (!teams.some((t) => t.game === game)) delete snap.rankings[game];
   if (!teams.every((t) => snap.teams[t.id])) return;
   if (snap.opponents) {
     const wanted = new Set(upcomingOpponents(snap).map((o) => opponentKey(o.wiki, o.page)));
@@ -481,4 +516,21 @@ export async function runPass(snap: Snapshot, opts: PassOptions): Promise<PassRe
   snap.checkedAt = new Date().toISOString();
   opts.afterTask?.(snap);
   return { pages, remaining: 0, refused: false };
+}
+
+/**
+ * Où lire le classement de saison d'un jeu. CDL : la page « Regular Season »
+ * de la saison la plus récente connue (d'après les compétitions et la liste
+ * des saisons) ; elle n'existe qu'une fois la saison régulière lancée.
+ * Rocket League : aucun classement à points pour l'instant.
+ */
+function rankingSource(snap: Snapshot, wiki: GameId): { page: string; title: string } | undefined {
+  if (wiki === "counterstrike") return { page: "Valve Regional Standings", title: "Classement Valve (VRS)" };
+  if (wiki !== "callofduty") return undefined;
+  const pages = [
+    ...Object.values(snap.tournaments).map((t) => t.page),
+    ...(snap.listings?.["callofduty:saisons"]?.entries ?? []).map((e) => e.page),
+  ];
+  const season = Math.max(0, ...pages.map((p) => Number(p.match(/^Call of Duty League\/Season (\d+)\//)?.[1] ?? 0)));
+  return season ? { page: `Call of Duty League/Season ${season}/Regular Season`, title: `CDL saison ${season} · saison régulière` } : undefined;
 }

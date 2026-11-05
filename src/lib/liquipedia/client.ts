@@ -110,7 +110,7 @@ export function queryWikitext(wiki: GameId, title: string, onWait?: (ms: number)
   );
 }
 
-async function apiQuery(wiki: GameId, params: Record<string, string>, onWait?: (ms: number) => void): Promise<unknown> {
+export async function apiQuery(wiki: GameId, params: Record<string, string>, onWait?: (ms: number) => void): Promise<unknown> {
   const url = new URL(`https://liquipedia.net/${wiki}/api.php`);
   url.search = new URLSearchParams({ action: "query", format: "json", formatversion: "2", ...params }).toString();
   return scheduled(
