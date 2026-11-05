@@ -9,7 +9,9 @@ import { cn, GameTag, LiveBadge, Logo, ResultBadge, StreamLinks } from "./ui";
 function TournamentLine({ o }: { o: Oriented }) {
   const t = o.match.tournament;
   if (!t) return null;
-  const label = [t.name, t.stage && t.stage !== t.name ? t.stage : null].filter(Boolean).join(" · ");
+  // Le tour (« Day 6 », « Semifinals ») situe mieux le match que la phase (« League Play », « Playoffs »).
+  const detail = o.match.round ?? t.stage;
+  const label = [t.name, detail && detail !== t.name ? detail : null].filter(Boolean).join(" · ");
   return t.page ? (
     <Link href={competitionHref(o.match.wiki, t.page, t.anchor)} className="truncate hover:text-ink">
       {label}
@@ -107,7 +109,6 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
         <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-dim">
             {m.bestOf && <span className="font-display font-semibold text-ink">Bo{m.bestOf}</span>}
-            {m.round && <span>{m.round}</span>}
             <H2HLine h2h={h2h} />
           </div>
           <StreamLinks streams={m.streams} />

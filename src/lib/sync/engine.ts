@@ -20,7 +20,7 @@ import { tournamentMatches } from "../tournament";
 import type { GameId, Match, PortalEntry, RecentMatch, Snapshot, Tournament } from "../types";
 import type { FollowedTeam } from "../../config/follow";
 
-export type Profile = "local" | "ci" | "visit";
+export type Profile = "local" | "ci" | "visit" | "cron";
 
 export interface PassOptions {
   profile: Profile;
@@ -44,11 +44,13 @@ const DAY = 24 * HOUR;
 
 /** Délais avant de relire une page, selon le profil. */
 function ttls(profile: Profile) {
+  // Le cron externe et les visites repassent toutes les 4-5 minutes : pendant un match, chaque passe relit le score.
+  const frequent = profile === "visit" || profile === "cron";
   return {
     team: profile === "local" ? 30 * MIN : 28 * MIN,
     /** Page d'équipe quand elle joue dans les trois heures (ou joue) : on suit le score. */
-    teamLive: profile === "visit" ? 4 * MIN : 12 * MIN,
-    live: profile === "visit" ? 4 * MIN : profile === "ci" ? 12 * MIN : 10 * MIN,
+    teamLive: frequent ? 4 * MIN : 12 * MIN,
+    live: frequent ? 4 * MIN : profile === "ci" ? 12 * MIN : 10 * MIN,
     active: 3 * HOUR,
     /** Pas encore commencée, une équipe suivie inscrite. */
     planned: 12 * HOUR,

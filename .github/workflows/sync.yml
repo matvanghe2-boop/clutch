@@ -1,11 +1,14 @@
 name: Synchroniser Liquipedia
 
+# Synchro de SECOURS. La synchro régulière tourne sur Vercel : un cron externe
+# (cron-job.org) appelle /api/sync toutes les 5 minutes. Ce workflow ne
+# l'appelle plus que si les données publiées ont plus de 2 h 30, et à la main.
+# Deux raisons : GitHub lance ses tâches planifiées très irrégulièrement
+# (parfois une toutes les 5 ou 6 heures), et ses machines partagent leurs
+# adresses avec beaucoup d'autres projets : Liquipedia leur répond parfois 429.
+#
 # Toutes les 15 minutes, décalé de l'heure pile : GitHub retarde souvent les
 # tâches planifiées à :00, où tout le monde se bouscule.
-#
-# Pourquoi GitHub Actions et pas un cron Vercel : sur le plan Hobby, Vercel
-# n'exécute ses crons qu'une fois par jour. Le dépôt est public : les minutes
-# d'Actions y sont illimitées.
 #
 # La synchro ne committe rien : elle publie l'instantané dans Vercel Blob, où
 # le site le lit. Pas de commit, donc pas de redéploiement à chaque donnée.
@@ -56,10 +59,16 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/sync" --no-audit --no-fund cheerio@1.2.0 domhandler@5 tsx@4 @vercel/blob@2
           ln -s "$RUNNER_TEMP/sync/node_modules" node_modules
 
+      - name: La synchro régulière tourne-t-elle ?
+        id: fresh
+        if: github.event_name == 'schedule'
+        run: node_modules/.bin/tsx scripts/ci.ts fresh
+
       # L'heure de la dernière lecture de chaque page voyage de passe en passe
       # dans ce cache : elle change à chaque passe, la publier coûterait une
       # écriture Blob à chaque fois.
       - name: Reprendre l'état de la passe précédente
+        if: steps.fresh.outputs.skip != 'true'
         uses: actions/cache/restore@v6
         with:
           path: .sync-cache/snapshot.json
@@ -67,25 +76,28 @@ jobs:
           restore-keys: sync-state-
 
       - name: Appliquer l'état le plus récent
+        if: steps.fresh.outputs.skip != 'true'
         run: node_modules/.bin/tsx scripts/ci.ts restore .sync-cache/snapshot.json
 
       - name: Synchroniser
+        if: steps.fresh.outputs.skip != 'true'
         run: node_modules/.bin/tsx scripts/refresh.ts --ci
 
       - name: Mettre l'état en cache
-        if: always()
+        if: always() && steps.fresh.outputs.skip != 'true'
         run: |
           if [ -f data/snapshot.json ]; then
             mkdir -p .sync-cache && cp data/snapshot.json .sync-cache/snapshot.json
           fi
 
       - uses: actions/cache/save@v6
-        if: always()
+        if: always() && steps.fresh.outputs.skip != 'true'
         with:
           path: .sync-cache/snapshot.json
           key: sync-state-${{ github.run_id }}
 
       - name: Publier si les données ont changé
+        if: steps.fresh.outputs.skip != 'true'
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         run: node_modules/.bin/tsx scripts/ci.ts publish ${{ inputs.force_publish && '--force' || '' }}

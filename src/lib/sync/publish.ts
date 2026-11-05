@@ -12,6 +12,14 @@ import type { Snapshot } from "../types";
 
 export const HEARTBEAT_MS = 2 * 60 * 60 * 1000;
 
+/**
+ * Durée de cache CDN des fichiers lus par le site. Une réécriture se propage
+ * en moins d'une minute quelle que soit cette durée ; une durée longue fait
+ * des lectures des « HIT », que le plan Hobby ne compte pas (10 000 lectures
+ * hors cache par mois au plus, et l'accès à Blob coupé 30 jours au-delà).
+ */
+export const CDN_MAX_AGE = 3600;
+
 /** Champs qui changent à chaque lecture sans que les données changent. */
 const VOLATILE = new Set(["fetchedAt", "updatedAt", "checkedAt", "failures", "historyFetchedAt"]);
 
@@ -49,7 +57,7 @@ export async function publishIfNeeded(snap: Snapshot, force = false): Promise<Pu
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
-    cacheControlMaxAge: 60,
+    cacheControlMaxAge: CDN_MAX_AGE,
   });
   return changed || force ? "published" : "heartbeat";
 }

@@ -3,6 +3,7 @@
  *
  *   tsx scripts/ci.ts restore <fichier>   repart de l'état le plus récent : celui mis en
  *                                         cache par la passe précédente, ou la version publiée
+ *   tsx scripts/ci.ts fresh               dit si les données publiées sont fraîches (sortie skip=true|false)
  *   tsx scripts/ci.ts publish             publie l'instantané dans Vercel Blob s'il diffère
  *                                         de la version en ligne
  *                                         (--force : publie même sans changement)
@@ -33,15 +34,31 @@ async function readPublished(): Promise<Snapshot | null> {
     console.log("SNAPSHOT_URL absent : pas de version publiée à comparer.");
     return null;
   }
-  // Le paramètre contourne le CDN de Blob, qui garde le fichier 60 s.
-  const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+  // À travers le CDN de Blob : une publication y apparaît en moins d'une minute.
+  const res = await fetch(url, { cache: "no-store" });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Lecture de la version publiée : HTTP ${res.status}`);
   return (await res.json()) as Snapshot;
 }
 
+/** Comme STALE_MS dans src/lib/sync/auto.ts : au-delà, la synchro régulière est considérée comme arrêtée. */
+const STALE_MS = 150 * 60 * 1000;
+
 async function main() {
   const [command, arg] = process.argv.slice(2);
+
+  if (command === "fresh") {
+    // La synchro régulière tourne sur Vercel (cron externe) : GitHub n'est plus
+    // qu'un secours. Ses machines partagent leurs adresses avec beaucoup
+    // d'autres projets, et Liquipedia leur répond parfois 429 : on ne l'appelle
+    // pas d'ici tant que les données publiées sont fraîches.
+    const published = await readPublished();
+    const last = Date.parse(published?.checkedAt ?? published?.updatedAt ?? "") || 0;
+    const fresh = Date.now() - last < STALE_MS;
+    console.log(fresh ? `Données publiées fraîches (${published?.checkedAt ?? published?.updatedAt}) : rien à faire.` : "Données publiées anciennes : GitHub prend le relais.");
+    if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `skip=${fresh}\n`);
+    return;
+  }
 
   if (command === "restore") {
     const candidates = [
@@ -74,7 +91,7 @@ async function main() {
     return;
   }
 
-  console.error("Usage : tsx scripts/ci.ts restore <fichier> | publish");
+  console.error("Usage : tsx scripts/ci.ts fresh | restore <fichier> | publish");
   process.exit(2);
 }
 

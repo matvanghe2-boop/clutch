@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { put } from "@vercel/blob";
 import { DEFAULT_TEAMS, GAME_IDS, type TeamConfig, WATCH_PRESETS } from "../../config/follow";
-import { siblingUrl } from "./publish";
+import { CDN_MAX_AGE, siblingUrl } from "./publish";
 
 const LOCAL_PATH = path.join(process.cwd(), "data", "config.json");
 
@@ -67,7 +67,7 @@ export async function saveTeamConfig(list: TeamConfig[]): Promise<void> {
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
-      cacheControlMaxAge: 60,
+      cacheControlMaxAge: CDN_MAX_AGE,
     });
     return;
   }
