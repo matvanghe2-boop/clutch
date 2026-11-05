@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { GAMES } from "@/config/follow";
-import { competitionHref, type HeadToHead, type Oriented, type PastMatch, statusOf, type Tracked } from "@/lib/derive";
+import { competitionHref, type HeadToHead, matchHref, type Oriented, type PastMatch, statusOf, type Tracked } from "@/lib/derive";
 import { clock, dayLabel, infoDate, relative, shortDate, shortDay } from "@/lib/format";
 import type { TeamRef } from "@/lib/types";
 import { Countdown } from "./Countdown";
@@ -111,7 +111,20 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
             {m.bestOf && <span className="font-display font-semibold text-ink">Bo{m.bestOf}</span>}
             <H2HLine h2h={h2h} />
           </div>
-          <StreamLinks streams={m.streams} />
+          <div className="flex flex-wrap items-center gap-2">
+            <StreamLinks streams={m.streams} />
+            {live && m.streams.length > 0 && (
+              <Link
+                href={`${matchHref(m)}#regarder`}
+                className="rounded-md bg-live px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                ▶ Regarder
+              </Link>
+            )}
+            <Link href={matchHref(m)} className="rounded-md border border-line px-3 py-1.5 text-xs text-dim transition-colors hover:text-ink">
+              Détails du match →
+            </Link>
+          </div>
         </div>
       </div>
     </section>
@@ -146,13 +159,13 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
         </div>
       </div>
       <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
+        <Link href={matchHref(m)} className="flex min-w-0 items-center gap-2 hover:text-white">
           <Logo team={o.us} size={22} />
           <span className="shrink-0 font-medium">{o.us.short ?? o.us.name}</span>
           <span className="shrink-0 font-display text-xs text-faint">VS</span>
           <Logo team={o.them} size={22} />
           <span className="truncate font-medium">{o.them?.name ?? "À déterminer"}</span>
-        </div>
+        </Link>
         <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-dim">
           <GameTag game={m.wiki} />
           <TournamentLine o={o} />
@@ -188,9 +201,15 @@ export function ResultRow({ r, now, showGame }: { r: PastMatch; now: number; sho
         {showGame && <span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" title={GAMES[r.team.game].label} />}
         <span className="shrink-0 text-xs text-faint">vs</span>
         <Logo team={r.opponent} size={20} />
-        <span className="min-w-0 shrink-0 basis-auto truncate" style={{ maxWidth: "65%" }}>
-          {r.opponent?.name ?? "?"}
-        </span>
+        {r.matchId ? (
+          <Link href={`/match/${encodeURIComponent(r.matchId)}`} className="min-w-0 shrink-0 basis-auto truncate hover:text-white" style={{ maxWidth: "65%" }}>
+            {r.opponent?.name ?? "?"}
+          </Link>
+        ) : (
+          <span className="min-w-0 shrink-0 basis-auto truncate" style={{ maxWidth: "65%" }}>
+            {r.opponent?.name ?? "?"}
+          </span>
+        )}
         <span className="hidden min-w-0 flex-1 truncate text-xs text-faint sm:inline">· {r.tournament.name}</span>
       </div>
       <span className="font-display text-xl font-semibold tabular-nums">

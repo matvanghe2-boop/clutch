@@ -39,6 +39,14 @@ export async function SiteHeader() {
             </svg>
             <span className="hidden lg:inline">Calendrier</span>
           </Link>
+          <Link href="/pronostics" className={navLink} title="Pronostics">
+            <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <circle cx="12" cy="12" r="8.5" />
+              <circle cx="12" cy="12" r="4.5" />
+              <circle cx="12" cy="12" r="1" fill="currentColor" />
+            </svg>
+            <span className="hidden lg:inline">Pronos</span>
+          </Link>
           <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden />
           {teamsOf(snap).map((t) => {
             const data = snap.teams[t.id];

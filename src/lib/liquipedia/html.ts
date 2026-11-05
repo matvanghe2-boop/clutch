@@ -174,6 +174,28 @@ export function popupInfo($: CheerioAPI, $popup: El) {
     if (!map && !score1 && !score2) return;
     games.push({ map, score1, score2, winner });
   });
+  // Counter-Strike (et d'autres jeux) : une ligne par carte, le résultat de
+  // chaque équipe de part et d'autre, le score principal suivi des mi-temps.
+  // Une carte barrée n'a pas été jouée (décisive inutile) : on la passe.
+  if (!games.length)
+    $popup.find(".brkts-popup-body-grid-row").each((_, row) => {
+      const $row = $(row);
+      const cells = $row.children(".brkts-popup-body-grid-row-detail").children(".brkts-popup-spaced");
+      if (cells.length < 3) return;
+      const score = (i: number) => {
+        const $c = $(cells.get(i)!);
+        const main = $c.find(".brkts-popup-body-detailed-scores-main-score").first();
+        return (main.length ? text(main) : text($c)) || undefined;
+      };
+      const $map = $(cells.get(1)!);
+      const score1 = score(0);
+      const score2 = score(cells.length - 1);
+      if (!score1 && !score2) return;
+      const labels = $row.children(".generic-label");
+      const won = (el: El) => el.attr("data-label-type") === "result-win";
+      const winner = won(labels.first()) ? 1 : won(labels.last()) ? 2 : undefined;
+      games.push({ map: text($map) || undefined, score1, score2, winner });
+    });
   const bo = clean($popup.text()).match(/\(?\bBo(\d+)\)?/i);
   return {
     timestamp,

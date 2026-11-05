@@ -9,7 +9,7 @@
  * appels est tenu par le client ; ici on décide seulement quoi relire et quand.
  */
 import { GAME_IDS, IGNORE_TOURNAMENTS, SEASON_PREFIXES, TIER_LISTS, type TeamConfig, toFollowed } from "../../config/follow";
-import { isTeam, watchingTeam } from "../derive";
+import { isTeam, opponentKey, upcomingOpponents, watchingTeam } from "../derive";
 import { LiquipediaError, leadSections, listPages, pageExists, parsePage, queryWikitext } from "../liquipedia/client";
 import { parseListing } from "../liquipedia/listing";
 import { parsePortal } from "../liquipedia/portal";
@@ -60,6 +60,7 @@ function ttls(profile: Profile) {
     listing: DAY,
     season: DAY,
     history: 7 * DAY,
+    opponent: DAY,
     failure: 15 * MIN,
     missing: DAY,
   };
@@ -341,6 +342,36 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
         },
       });
     }
+
+    // Les adversaires de la semaine : leur effectif et leur forme, pour la page de chaque match.
+    for (const opp of upcomingOpponents(snap)) {
+      const key = `opponent:${opponentKey(opp.wiki, opp.page)}`;
+      const age = ageOf(snap.opponents?.[opponentKey(opp.wiki, opp.page)]?.fetchedAt);
+      if ((!forced(key) && age < t.opponent) || failedRecently(key)) continue;
+      tasks.push({
+        key,
+        label: `adversaire ${opp.page} (${opp.wiki})`,
+        priority: 3.2,
+        staleness: age,
+        run: async (s) => {
+          const page = await parsePage(opp.wiki, opp.page, onWait);
+          const parsed = parseTeamPage(page.html, toFollowed({ id: key, game: opp.wiki, page: opp.page }));
+          s.opponents = {
+            ...s.opponents,
+            [opponentKey(opp.wiki, opp.page)]: {
+              wiki: opp.wiki,
+              page: opp.page,
+              name: opp.name,
+              logo: parsed.logo,
+              roster: parsed.roster,
+              recent: parsed.recent,
+              fetchedAt: new Date().toISOString(),
+            },
+          };
+          return `${parsed.roster.length} joueurs, ${parsed.recent.length} résultats récents`;
+        },
+      });
+    }
   }
 
   for (const [key, ref] of discover(snap, teams)) {
@@ -393,6 +424,10 @@ function prune(snap: Snapshot, teams: FollowedTeam[]) {
   for (const id of Object.keys(snap.teams)) if (!ids.has(id)) delete snap.teams[id];
   if (snap.history) for (const id of Object.keys(snap.history)) if (!ids.has(id)) delete snap.history[id];
   if (!teams.every((t) => snap.teams[t.id])) return;
+  if (snap.opponents) {
+    const wanted = new Set(upcomingOpponents(snap).map((o) => opponentKey(o.wiki, o.page)));
+    for (const key of Object.keys(snap.opponents)) if (!wanted.has(key)) delete snap.opponents[key];
+  }
   const keep = discover(snap, teams);
   for (const key of Object.keys(snap.tournaments)) if (!keep.has(key)) delete snap.tournaments[key];
 }

@@ -82,6 +82,20 @@ describe("PGL Masters Bucharest 2026 (CS2)", () => {
     expect(titles).toContain("Round 5 Matches");
   });
 
+  it("lit les cartes de chaque match joué, avec leur score et leur vainqueur", () => {
+    const pool = ["Ancient", "Anubis", "Cache", "Dust II", "Inferno", "Mirage", "Nuke"];
+    const played = blocks(groups, "matchlist").flatMap((b) => b.list.matches).filter((m) => m.finished);
+    expect(played.length).toBeGreaterThan(20);
+    for (const m of played) {
+      expect(m.games.length).toBeGreaterThan(0);
+      for (const g of m.games) {
+        expect(pool).toContain(g.map);
+        const [a, b] = [Number(g.score1), Number(g.score2)];
+        expect(g.winner).toBe(a > b ? 1 : 2);
+      }
+    }
+  });
+
   it("nomme quarts, demies et finale", () => {
     const [bracket] = blocks(playoffs, "bracket").map((b) => b.bracket);
     const ms = bracketMatches(bracket);

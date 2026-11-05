@@ -1,6 +1,7 @@
 import { DEFAULT_TEAMS, type FollowedTeam, OTHER_TITLES, toFollowed } from "@/config/follow";
 import { dayKey } from "./format";
 import { tournamentMatches } from "./tournament";
+import type { Prediction } from "./predictions";
 import type { GameId, Match, RecentMatch, Snapshot, StandingRow, TeamRef, Tournament, TournamentRef } from "./types";
 
 export function norm(s?: string): string {
@@ -190,6 +191,8 @@ export interface PastMatch {
   themScore: string;
   result: "win" | "loss" | "draw";
   tournament: TournamentRef;
+  /** Le match tel que la compétition le décrit (manches, streams), quand on le connaît : il a sa page. */
+  matchId?: string;
 }
 
 const toPast = (team: FollowedTeam, r: RecentMatch): PastMatch => ({
@@ -229,6 +232,7 @@ function freshResults(snap: Snapshot, team: FollowedTeam): PastMatch[] {
         themScore: o.themScore,
         result: o.result,
         tournament: m.tournament ?? { name: t.name, page: t.page },
+        matchId: m.id,
       };
       if (out.some((x) => samePast(x, past)) || known.some((r) => samePast(toPast(team, r), past))) continue;
       out.push(past);
@@ -242,9 +246,24 @@ export function recentFeed(snap: Snapshot, game?: GameId): PastMatch[] {
   for (const team of teamsOf(snap)) {
     if (game && team.game !== game) continue;
     out.push(...freshResults(snap, team));
-    for (const r of snap.teams[team.id]?.recent ?? []) out.push(toPast(team, r));
+    for (const r of snap.teams[team.id]?.recent ?? []) {
+      const past = toPast(team, r);
+      out.push({ ...past, matchId: twinMatch(snap, past)?.id });
+    }
   }
   return out.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/** Le match de compétition qui correspond à un résultat de la page d'équipe (mêmes adversaires, à 3 h près). */
+function twinMatch(snap: Snapshot, past: PastMatch): Match | undefined {
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.wiki !== past.team.game || t.participating === false) continue;
+    for (const m of tournamentMatches(t)) {
+      if (!m.finished || m.timestamp === undefined || Math.abs(m.timestamp - past.timestamp) > 3 * 3600) continue;
+      if (m.opponents.some((o) => isTeam(o, past.team)) && m.opponents.some((o) => sameTeam(o, past.opponent))) return m;
+    }
+  }
+  return undefined;
 }
 
 /** Tous les résultats connus d'une équipe : historique accumulé et derniers résultats, sans doublon. */
@@ -389,4 +408,99 @@ export function competitionHref(wiki: GameId, page: string, anchor?: string): st
     .map((seg) => encodeURIComponent(seg.replace(/ /g, "_")))
     .join("/");
   return `/competition/${wiki}/${path}${anchor ? `#${encodeURIComponent(anchor.replace(/ /g, "_"))}` : ""}`;
+}
+
+/** Adresse de la page d'un match. */
+export const matchHref = (m: Match) => `/match/${encodeURIComponent(m.id)}`;
+
+/**
+ * Un match de mes équipes, retrouvé par son identifiant : à venir (page
+ * d'équipe complétée par la compétition), ou dans une compétition suivie,
+ * terminé ou non. Vu du côté de l'équipe suivie.
+ */
+export function findMatch(snap: Snapshot, id: string): { o: Oriented; tournament?: Tournament } | undefined {
+  const teams = teamsOf(snap);
+  for (const team of teams)
+    for (const m of snap.teams[team.id]?.upcoming ?? [])
+      if (m.id === id) {
+        const e = enrich(snap, m);
+        return { o: orient(e, team), tournament: findTournament(snap, e.wiki, e.tournament?.page) };
+      }
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.participating === false) continue;
+    for (const m of tournamentMatches(t)) {
+      if (m.id !== id) continue;
+      const team = teams.find((f) => f.game === t.wiki && m.opponents.some((o) => isTeam(o, f)));
+      if (team) return { o: orient(m, team), tournament: t };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Adversaires des matchs des 7 prochains jours (8 au plus), dont la page
+ * Liquipedia est connue : la synchro lit leur fiche une fois par jour pour
+ * leur effectif et leur forme. Une équipe suivie a déjà la sienne.
+ */
+export function upcomingOpponents(snap: Snapshot, now = Date.now() / 1000, days = 7, max = 8) {
+  const teams = teamsOf(snap);
+  const out = new Map<string, { wiki: GameId; page: string; name: string }>();
+  for (const o of upcomingFeed(snap)) {
+    const them = o.them;
+    if (!them?.page || o.match.timestamp === undefined || o.match.timestamp > now + days * 86400) continue;
+    if (teams.some((f) => f.game === o.match.wiki && isTeam(them, f))) continue;
+    out.set(`${o.match.wiki}:${them.page}`, { wiki: o.match.wiki, page: them.page, name: them.name });
+    if (out.size >= max) break;
+  }
+  return [...out.values()];
+}
+
+export const opponentKey = (wiki: GameId, page: string) => `${wiki}:${page}`;
+
+export type Outcome = "win" | "loss" | "draw";
+
+export interface Form {
+  /** Derniers résultats, du plus récent au plus ancien. */
+  last: Outcome[];
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Série en cours : le dernier résultat et combien de fois de suite. */
+  streak?: { result: Outcome; count: number };
+}
+
+/** Forme du moment sur les `n` derniers résultats (déjà triés du plus récent au plus ancien). */
+export function formOf(results: { result: Outcome }[], n = 10): Form {
+  const last = results.slice(0, n).map((r) => r.result);
+  let count = 0;
+  while (count < last.length && last[count] === last[0]) count++;
+  return {
+    last,
+    wins: last.filter((r) => r === "win").length,
+    losses: last.filter((r) => r === "loss").length,
+    draws: last.filter((r) => r === "draw").length,
+    streak: last.length ? { result: last[0], count } : undefined,
+  };
+}
+
+/**
+ * Le score final d'un match pronostiqué, vu de l'équipe suivie : par
+ * l'identifiant du match s'il est terminé, sinon dans les résultats de
+ * l'équipe (même adversaire, à deux jours près : un match reporté reste le
+ * même). Rien tant que le match n'est pas joué.
+ */
+export function predictionResult(snap: Snapshot, id: string, p: Prediction): { us: number; them: number } | undefined {
+  const toScore = (a: string | null | undefined, b: string | null | undefined) => {
+    const us = Number(a);
+    const them = Number(b);
+    return a && b && Number.isFinite(us) && Number.isFinite(them) ? { us, them } : undefined;
+  };
+  const found = findMatch(snap, id);
+  if (found?.o.match.finished) return toScore(found.o.usScore, found.o.themScore);
+  const team = teamById(snap, p.teamId);
+  if (!team || p.timestamp === undefined) return undefined;
+  const near = historyOf(snap, team)
+    .filter((r) => sameTeam(r.opponent, { name: p.opponent.name, page: p.opponent.page }) && Math.abs(r.timestamp - p.timestamp!) < 2 * 86400)
+    .sort((a, b) => Math.abs(a.timestamp - p.timestamp!) - Math.abs(b.timestamp - p.timestamp!))[0];
+  return near ? toScore(near.usScore, near.themScore) : undefined;
 }

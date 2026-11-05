@@ -222,6 +222,22 @@ export interface Snapshot {
    * annoncent les grandes compétitions des mois à l'avance.
    */
   listings?: Record<string, Portal>;
+  /**
+   * Adversaires des prochains matchs, clé « wiki:page » : effectif et derniers
+   * résultats lus sur leur page Liquipedia, une fois par jour.
+   */
+  opponents?: Record<string, OpponentSnapshot>;
   /** Échecs récents par clé de tâche, pour espacer les nouvelles tentatives. */
   failures: Record<string, { at: string; message: string }>;
+}
+
+export interface OpponentSnapshot {
+  wiki: GameId;
+  page: string;
+  name: string;
+  logo?: string;
+  roster: RosterEntry[];
+  /** Ses derniers résultats, de son point de vue, du plus récent au plus ancien. */
+  recent: RecentMatch[];
+  fetchedAt: string;
 }

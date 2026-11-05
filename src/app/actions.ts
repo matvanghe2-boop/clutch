@@ -8,6 +8,10 @@ import { ADMIN_COOKIE, currentTeams, isAdmin, pinDigest, rememberTeams } from "@
 import { HIDDEN_COOKIE, readHidden } from "@/lib/hidden";
 import { pageExists } from "@/lib/liquipedia/client";
 import { saveTeamConfig } from "@/lib/sync/team-config";
+import { findMatch, matchHref, statusOf } from "@/lib/derive";
+import { loadSnapshot } from "@/lib/load-snapshot";
+import { savePrediction } from "@/lib/prediction-store";
+import { validScore } from "@/lib/predictions";
 import type { GameId } from "@/lib/types";
 
 const MAX_TEAMS = 8;
@@ -128,4 +132,37 @@ export async function setTeamWatch(form: FormData) {
   const teams = await currentTeams();
   await store(teams.map((t) => (t.id === id ? { ...t, watch } : t)));
   back({ ok: "Règle de surveillance enregistrée." });
+}
+
+/**
+ * Pronostic sur un match à venir. Réservé au navigateur déverrouillé (le site
+ * est public) ; refusé dès que le match a commencé. Retour sur la page du
+ * match, avec un mot sur ce qui s'est passé.
+ */
+export async function predict(form: FormData) {
+  const id = String(form.get("id") ?? "");
+  const snap = await loadSnapshot();
+  const found = findMatch(snap, id);
+  if (!found) redirect("/pronostics?prono=introuvable");
+  const { o } = found!;
+  const m = o.match;
+  const page = matchHref(m);
+  const to = (status: string): never => redirect(`${page}?prono=${status}#pronostic`);
+  if (!(await isAdmin())) to("verrouille");
+  if (statusOf(m, Date.now() / 1000) !== "upcoming") to("commence");
+  const picked = String(form.get("score") ?? "");
+  const [us, them] = picked ? picked.split("-").map(Number) : [Number(form.get("us")), Number(form.get("them"))];
+  if (!validScore(us, them, m.bestOf)) to("invalide");
+  await savePrediction(id, {
+    us,
+    them,
+    at: new Date().toISOString(),
+    wiki: m.wiki,
+    teamId: o.team.id,
+    opponent: { name: o.them?.name ?? "À déterminer", page: o.them?.page },
+    timestamp: m.timestamp,
+    tournament: m.tournament?.name,
+    bestOf: m.bestOf,
+  });
+  to("enregistre");
 }

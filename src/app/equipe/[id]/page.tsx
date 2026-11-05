@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GAMES } from "@/config/follow";
+import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
-import { headToHead, opponentsRecord, recentFeed, statusOf, teamById, trackedTournaments, upcomingFeed } from "@/lib/derive";
+import { formOf, headToHead, historyOf, opponentsRecord, recentFeed, statusOf, teamById, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { infoDate, shortDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
@@ -28,7 +29,7 @@ export default async function TeamPage({ params }: { params: Params }) {
   const results = recentFeed(snap).filter((r) => r.team.id === team.id);
   const record = opponentsRecord(snap, team);
   const tracked = trackedTournaments(snap, now, team.game).filter((tr) => tr.team.id === team.id);
-  const wins = results.filter((r) => r.result === "win").length;
+  const form = formOf(historyOf(snap, team));
 
   return (
     <div data-game={team.game} className="space-y-10">
@@ -39,12 +40,13 @@ export default async function TeamPage({ params }: { params: Params }) {
           <div className="min-w-0">
             <GameTag game={team.game} long />
             <h1 className="mt-2 truncate font-display text-3xl font-bold sm:text-4xl">{team.page}</h1>
-            <p className="mt-1 text-sm text-dim">
-              {results.length > 0 && (
-                <>
-                  {wins} victoire{wins > 1 ? "s" : ""} sur les {results.length} derniers matchs ·{" "}
-                </>
-              )}
+            {form.last.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
+                <FormChips form={form} />
+                <FormSummary form={form} />
+              </div>
+            )}
+            <p className="mt-1.5 text-sm text-dim">
               <a
                 href={`https://liquipedia.net/${team.game}/${pageToPath(team.page)}`}
                 target="_blank"
