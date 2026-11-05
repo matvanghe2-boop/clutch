@@ -18,6 +18,8 @@ export interface Stream {
   platform: string;
   channel: string;
   url: string;
+  /** Chaîne française ajoutée par Clutch (co-stream, dirigeants du club), pas une diffusion officielle. */
+  fr?: boolean;
 }
 
 /** Une manche (map) d'un match. */

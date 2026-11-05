@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { put } from "@vercel/blob";
-import { DEFAULT_TEAMS, GAME_IDS, type TeamConfig, WATCH_PRESETS } from "../../config/follow";
+import { DEFAULT_TEAMS, GAME_IDS, type TeamConfig, TWITCH_LOGIN, WATCH_PRESETS } from "../../config/follow";
 import { CDN_MAX_AGE, siblingUrl } from "./publish";
 
 const LOCAL_PATH = path.join(process.cwd(), "data", "config.json");
@@ -20,7 +20,8 @@ function valid(list: unknown): list is TeamConfig[] {
         typeof t.id === "string" &&
         typeof t.page === "string" &&
         GAME_IDS.includes(t.game) &&
-        (t.watch === undefined || t.watch in WATCH_PRESETS),
+        (t.watch === undefined || t.watch in WATCH_PRESETS) &&
+        (t.streams === undefined || (Array.isArray(t.streams) && t.streams.every((c: unknown) => typeof c === "string" && TWITCH_LOGIN.test(c)))),
     )
   );
 }

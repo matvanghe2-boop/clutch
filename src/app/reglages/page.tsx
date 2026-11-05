@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { GAME_IDS, GAMES, toFollowed, WATCH_PRESETS, type WatchPreset } from "@/config/follow";
-import { addTeam, lock, removeTeam, setTeamWatch, showCompetition, unlock } from "@/app/actions";
+import { addTeam, lock, removeTeam, setTeamStreams, setTeamWatch, showCompetition, unlock } from "@/app/actions";
 import { cn, Empty, GameTag, Logo, SectionTitle } from "@/components/ui";
 import { currentTeams, isAdmin } from "@/lib/admin";
 import { readHidden } from "@/lib/hidden";
@@ -111,6 +111,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
                   <input type="hidden" name="id" value={cfg.id} />
                   <button className={cn(button, "border-loss/40 text-loss hover:bg-loss/10 hover:text-loss")} disabled={!admin}>
                     Retirer
+                  </button>
+                </form>
+                <form action={setTeamStreams} className="flex w-full flex-wrap items-center gap-2">
+                  <input type="hidden" name="id" value={cfg.id} />
+                  <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-faint">
+                    <span className="shrink-0">Chaînes françaises (Twitch)</span>
+                    <input
+                      name="streams"
+                      defaultValue={team.streams.join(", ")}
+                      placeholder="rocketbaguette, gotaga…"
+                      className={cn(field, "min-w-0 flex-1 py-1.5")}
+                      disabled={!admin}
+                    />
+                  </label>
+                  <button className={button} disabled={!admin}>
+                    Enregistrer
                   </button>
                 </form>
               </li>

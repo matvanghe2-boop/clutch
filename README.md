@@ -226,6 +226,23 @@ match » sur l'accueil ou depuis le nom de l'adversaire dans les listes :
 - la **forme du moment** des deux équipes (10 derniers matchs, série en cours) ;
 - le **face-à-face** complet et les **effectifs**.
 
+On l'ouvre aussi depuis la page d'une compétition : toute la ligne (ou la
+case de bracket) d'un match de mes équipes y mène, et le nom de chaque équipe
+ouvre sa page.
+
+**Chaînes françaises.** Chaque équipe suivie a ses chaînes Twitch
+francophones, proposées en premier pour tous ses matchs (onglets du lecteur,
+boutons marqués « FR ») avant les diffusions officielles : RocketBaguette pour
+la Rocket League, CroissantStrike et KRL_Stream pour CS2, et les cofondateurs
+de Gentle Mates (Gotaga, Squeezie, Brawks) pour les matchs du club. La liste se
+règle équipe par équipe dans les Réglages.
+
+**Fiches d'équipe.** Une équipe que je ne suis pas a sa fiche
+(`/equipes/<jeu>/<équipe>`) : prochains matchs contre mes équipes,
+face-à-face, classements et matchs dans les compétitions suivies, rang VRS ;
+et, pour les adversaires des 7 prochains jours, forme, derniers résultats et
+effectif lus sur sa page Liquipedia.
+
 L'effectif et la forme de l'adversaire viennent de sa page Liquipedia, que la
 synchro lit une fois par jour pour les adversaires des 7 prochains jours
 (8 au plus). La forme de mes équipes s'affiche aussi sur leur page.

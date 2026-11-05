@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { RankingCard } from "@/components/ranking";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
-import { formOf, headToHead, historyOf, opponentsRecord, recentFeed, statusOf, teamById, trackedTournaments, upcomingFeed } from "@/lib/derive";
+import { formOf, headToHead, historyOf, opponentsRecord, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { infoDate, shortDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
@@ -149,7 +150,13 @@ export default async function TeamPage({ params }: { params: Params }) {
                   <div key={opponent.page ?? opponent.name} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-2.5 sm:px-4">
                     <span className="flex min-w-0 items-center gap-2">
                       <Logo team={opponent} size={20} />
-                      <span className="truncate">{opponent.name}</span>
+                      {teamPath(snap, team.game, opponent) ? (
+                        <Link href={teamPath(snap, team.game, opponent)!} className="truncate hover:underline">
+                          {opponent.name}
+                        </Link>
+                      ) : (
+                        <span className="truncate">{opponent.name}</span>
+                      )}
                     </span>
                     <span className="font-display text-lg font-semibold tabular-nums">
                       <span className="text-win">{h2h.wins}</span>

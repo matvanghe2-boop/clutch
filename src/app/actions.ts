@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { GAME_IDS, GAMES, type TeamConfig, WATCH_PRESETS, type WatchPreset } from "@/config/follow";
+import { GAME_IDS, GAMES, type TeamConfig, TWITCH_LOGIN, WATCH_PRESETS, type WatchPreset } from "@/config/follow";
 import { ADMIN_COOKIE, currentTeams, isAdmin, pinDigest, rememberTeams } from "@/lib/admin";
 import { HIDDEN_COOKIE, readHidden } from "@/lib/hidden";
 import { pageExists } from "@/lib/liquipedia/client";
@@ -132,6 +132,27 @@ export async function setTeamWatch(form: FormData) {
   const teams = await currentTeams();
   await store(teams.map((t) => (t.id === id ? { ...t, watch } : t)));
   back({ ok: "Règle de surveillance enregistrée." });
+}
+
+/** Chaînes Twitch françaises d'une équipe : noms ou adresses twitch.tv, séparés par des virgules ou des espaces. */
+export async function setTeamStreams(form: FormData) {
+  const error = await checkPin();
+  if (error) back({ erreur: error });
+  const id = String(form.get("id") ?? "");
+  const streams = [
+    ...new Set(
+      String(form.get("streams") ?? "")
+        .split(/[\s,;]+/)
+        .map((s) => s.replace(/^(https?:\/\/)?(www\.)?twitch\.tv\//i, "").replace(/\/.*$/, "").trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+  const wrong = streams.filter((s) => !TWITCH_LOGIN.test(s));
+  if (wrong.length) back({ erreur: `Nom de chaîne Twitch invalide : ${wrong.join(", ")}.` });
+  if (streams.length > 8) back({ erreur: "Huit chaînes au plus par équipe." });
+  const teams = await currentTeams();
+  await store(teams.map((t) => (t.id === id ? { ...t, streams } : t)));
+  back({ ok: streams.length ? `Chaînes enregistrées : ${streams.join(", ")}.` : "Plus aucune chaîne française pour cette équipe." });
 }
 
 /**

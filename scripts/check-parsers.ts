@@ -3,7 +3,7 @@
  * Usage : tsx scripts/check-parsers.ts <team|tournament> <wiki> <page> <fichier.json|.html>
  */
 import fs from "node:fs";
-import { FOLLOWED } from "../src/config/follow";
+import { FOLLOWED, toFollowed } from "../src/config/follow";
 import { parseTeamPage } from "../src/lib/liquipedia/team-page";
 import { parseTournamentPage } from "../src/lib/liquipedia/tournament-page";
 import type { GameId } from "../src/lib/types";
@@ -14,7 +14,7 @@ const html = file.endsWith(".json") ? JSON.parse(raw).parse.text : raw;
 const when = (ts?: number) => (ts ? new Date(ts * 1000).toISOString().slice(0, 16).replace("T", " ") : "—");
 
 if (kind === "team") {
-  const team = FOLLOWED.find((t) => t.game === wiki && t.page === page) ?? { id: "x", game: wiki as GameId, page };
+  const team = FOLLOWED.find((t) => t.game === wiki && t.page === page) ?? toFollowed({ id: "x", game: wiki as GameId, page });
   const r = parseTeamPage(html, team);
   console.log("logo:", r.logo);
   console.log(`à venir (${r.upcoming.length}) :`);

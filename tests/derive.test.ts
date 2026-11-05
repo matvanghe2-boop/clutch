@@ -80,3 +80,36 @@ describe("un match terminé que la page d'équipe annonce encore", () => {
     expect(h2h).toMatchObject({ wins: 1, losses: 0 });
   });
 });
+
+describe("liens vers les équipes", () => {
+  it("l'équipe suivie vers sa page, les autres vers leur fiche", async () => {
+    const { teamPath, findTeamRef, teamMatches } = await import("@/lib/derive");
+    const snap = snapshot();
+    expect(teamPath(snap, "rocketleague", M8)).toBe("/equipe/m8-rl");
+    expect(teamPath(snap, "rocketleague", DUM)).toBe("/equipes/rocketleague/DUMORNAY_GOAT");
+    expect(teamPath(snap, "rocketleague", { name: "Sans page" })).toBeUndefined();
+    expect(findTeamRef(snap, "rocketleague", "DUMORNAY GOAT")).toMatchObject({ name: "DUMORNAY GOAT", short: "DUM" });
+    expect(teamMatches(snap, "rocketleague", DUM).map((x) => x.match.id)).toEqual(["tournament"]);
+  });
+});
+
+describe("chaînes françaises", () => {
+  it("passent avant les diffusions officielles, sans doublon", async () => {
+    const { matchStreams } = await import("@/lib/streams");
+    const { toFollowed } = await import("@/config/follow");
+    const team = toFollowed({ id: "m8-rl", game: "rocketleague", page: "Gentle Mates" });
+    expect(team.streams).toEqual(["rocketbaguette", "gotaga", "squeezie", "brawks"]);
+    const official = [
+      { platform: "twitch", channel: "RocketBaguette", url: "https://www.twitch.tv/RocketBaguette" },
+      { platform: "twitch", channel: "rocketleague", url: "https://www.twitch.tv/rocketleague" },
+    ];
+    expect(matchStreams(team, official).map((s) => `${s.channel}${s.fr ? " (fr)" : ""}`)).toEqual([
+      "rocketbaguette (fr)",
+      "gotaga (fr)",
+      "squeezie (fr)",
+      "brawks (fr)",
+      "rocketleague",
+    ]);
+    expect(matchStreams(toFollowed({ id: "x", game: "rocketleague", page: "X", streams: [] }), official)).toEqual(official);
+  });
+});

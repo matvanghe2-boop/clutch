@@ -513,3 +513,73 @@ export function rankOf(snap: Snapshot, wiki: GameId, team: TeamRef | null | unde
 
 /** « 2e », « 1er » : un rang à la française. */
 export const ordinal = (n: number) => `${n}${n === 1 ? "er" : "e"}`;
+
+/**
+ * Adresse de la page d'une équipe : la page complète pour une équipe suivie,
+ * sinon sa fiche (`/equipes/<jeu>/<page Liquipedia>`). Rien sans page connue.
+ */
+export function teamPath(snap: Snapshot, wiki: GameId, ref: TeamRef | null | undefined): string | undefined {
+  if (!ref) return undefined;
+  const followed = teamsOf(snap).find((f) => f.game === wiki && isTeam(ref, f));
+  if (followed) return `/equipe/${followed.id}`;
+  return ref.page ? fichePath(wiki, ref.page) : undefined;
+}
+
+/** Adresse de la fiche d'une équipe non suivie. */
+export const fichePath = (wiki: GameId, page: string) =>
+  `/equipes/${wiki}/${page.split("/").map((seg) => encodeURIComponent(seg.replace(/ /g, "_"))).join("/")}`;
+
+/** Lien d'une équipe vu d'une page de compétition : l'équipe suivie vers sa page, les autres vers leur fiche. */
+export function teamLink(wiki: GameId, ref: TeamRef | null | undefined, team: FollowedTeam): string | undefined {
+  if (!ref) return undefined;
+  if (isTeam(ref, team)) return `/equipe/${team.id}`;
+  return ref.page ? fichePath(wiki, ref.page) : undefined;
+}
+
+/** Nom, logo et sigle d'une équipe, d'après tout ce que l'instantané en connaît. */
+export function findTeamRef(snap: Snapshot, wiki: GameId, page: string): TeamRef | undefined {
+  const target: TeamRef = { name: page, page };
+  const opp = snap.opponents?.[opponentKey(wiki, page)];
+  const seen: TeamRef[] = [];
+  if (opp) seen.push({ name: opp.name, page: opp.page, logo: opp.logo });
+  for (const r of snap.rankings?.[wiki]?.rows ?? []) seen.push(r.team);
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.wiki !== wiki) continue;
+    seen.push(...(t.participants ?? []));
+    for (const m of tournamentMatches(t)) for (const o of m.opponents) if (o) seen.push(o);
+    for (const s of t.stages) for (const b of s.blocks) if (b.kind === "group") for (const r of b.table.rows) if (r.team) seen.push(r.team);
+  }
+  const same = seen.filter((r) => sameTeam(r, target));
+  if (!same.length) return undefined;
+  return {
+    name: same.find((r) => r.name && r.name !== page)?.name ?? same[0].name,
+    page,
+    short: same.find((r) => r.short)?.short,
+    logo: same.find((r) => r.logo)?.logo,
+  };
+}
+
+/** Les matchs d'une équipe dans les compétitions suivies, du plus récent au plus ancien. */
+export function teamMatches(snap: Snapshot, wiki: GameId, ref: TeamRef): { match: Match; tournament: Tournament }[] {
+  const out: { match: Match; tournament: Tournament }[] = [];
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.wiki !== wiki || t.participating === false) continue;
+    for (const m of tournamentMatches(t)) if (m.opponents.some((o) => sameTeam(o, ref))) out.push({ match: m, tournament: t });
+  }
+  return out.sort((a, b) => (b.match.timestamp ?? 0) - (a.match.timestamp ?? 0));
+}
+
+/** Sa place dans les classements de poule des compétitions suivies. */
+export function teamStandings(snap: Snapshot, wiki: GameId, ref: TeamRef) {
+  const out: { tournament: Tournament; table: string; row: StandingRow; size: number }[] = [];
+  for (const t of Object.values(snap.tournaments)) {
+    if (t.wiki !== wiki || t.participating === false) continue;
+    for (const s of t.stages)
+      for (const b of s.blocks) {
+        if (b.kind !== "group") continue;
+        const row = b.table.rows.find((r) => sameTeam(r.team, ref));
+        if (row) out.push({ tournament: t, table: b.table.title, row, size: b.table.rows.length });
+      }
+  }
+  return out;
+}

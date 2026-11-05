@@ -62,19 +62,42 @@ export interface TeamConfig {
   /** Autres noms sous lesquels l'équipe apparaît dans les tableaux. */
   aliases?: string[];
   watch?: WatchPreset;
+  /**
+   * Chaînes Twitch francophones proposées pour chacun de ses matchs (co-streams,
+   * dirigeants du club), en plus des diffusions officielles. Absent : celles par
+   * défaut de l'équipe (DEFAULT_STREAMS) ; liste vide : aucune.
+   */
+  streams?: string[];
 }
 
 /** Une équipe suivie, prête à l'emploi : sa règle de surveillance est résolue. */
-export interface FollowedTeam extends Omit<TeamConfig, "watch"> {
+export interface FollowedTeam extends Omit<TeamConfig, "watch" | "streams"> {
   preset?: WatchPreset;
   watch?: WatchRule;
+  /** Chaînes Twitch françaises, réglées ou par défaut. */
+  streams: string[];
 }
 
 export function toFollowed(cfg: TeamConfig): FollowedTeam {
   const preset = cfg.watch && cfg.watch in WATCH_PRESETS ? cfg.watch : undefined;
   const rule = preset ? (WATCH_PRESETS[preset] as { rule?: WatchRule }).rule : undefined;
-  return { id: cfg.id, game: cfg.game, page: cfg.page, aliases: cfg.aliases, preset, watch: rule };
+  return { id: cfg.id, game: cfg.game, page: cfg.page, aliases: cfg.aliases, preset, watch: rule, streams: cfg.streams ?? DEFAULT_STREAMS[cfg.id] ?? [] };
 }
+
+/**
+ * Chaînes Twitch francophones par équipe, vérifiées le 2026-11-05 : les
+ * co-streams français (RocketBaguette en Rocket League, CroissantStrike et
+ * KRL_Stream en CS2) et les cofondateurs de Gentle Mates, Gotaga, Squeezie et
+ * Brawks, qui suivent les matchs du club en direct.
+ */
+export const DEFAULT_STREAMS: Record<string, string[]> = {
+  "m8-rl": ["rocketbaguette", "gotaga", "squeezie", "brawks"],
+  "vitality-cs2": ["croissantstrike", "krl_stream"],
+  "m8-cdl": ["gotaga", "squeezie", "brawks"],
+};
+
+/** Nom de chaîne Twitch : lettres, chiffres et soulignés, 4 à 25 caractères. */
+export const TWITCH_LOGIN = /^[a-z0-9_]{4,25}$/i;
 
 /** Les équipes suivies tant que rien n'a été réglé depuis le site. */
 export const DEFAULT_TEAMS: TeamConfig[] = [

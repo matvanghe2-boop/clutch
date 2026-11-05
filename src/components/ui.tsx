@@ -100,7 +100,7 @@ export function StreamLinks({ streams, compact, max = 3 }: { streams: Stream[]; 
             href={s.url}
             target="_blank"
             rel="noopener noreferrer"
-            title={`${p.label} · ${s.channel}`}
+            title={`${p.label} · ${s.channel}${s.fr ? " (en français)" : ""}`}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md border border-line bg-panel-2 text-xs text-dim transition-colors",
               compact ? "p-1.5" : "px-2.5 py-1.5",
@@ -108,6 +108,7 @@ export function StreamLinks({ streams, compact, max = 3 }: { streams: Stream[]; 
             )}
           >
             <Icon />
+            {s.fr && <span className="text-[10px] font-bold tracking-wide text-[var(--accent)]">FR</span>}
             {!compact && <span>{s.channel}</span>}
           </a>
         );

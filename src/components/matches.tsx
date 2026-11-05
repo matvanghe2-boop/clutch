@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GAMES } from "@/config/follow";
 import { competitionHref, type HeadToHead, matchHref, type Oriented, type PastMatch, statusOf, type Tracked } from "@/lib/derive";
 import { clock, dayLabel, infoDate, relative, shortDate, shortDay } from "@/lib/format";
+import { matchStreams } from "@/lib/streams";
 import type { TeamRef } from "@/lib/types";
 import { Countdown } from "./Countdown";
 import { cn, GameTag, LiveBadge, Logo, ResultBadge, StreamLinks } from "./ui";
@@ -56,6 +57,7 @@ function TeamColumn({ team, align }: { team: TeamRef | null; align: "start" | "e
 /** Le grand bandeau du prochain match (ou du match en cours). */
 export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: HeadToHead }) {
   const m = o.match;
+  const streams = matchStreams(o.team, m.streams);
   const st = statusOf(m, now);
   const live = st === "live";
   return (
@@ -112,8 +114,8 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
             <H2HLine h2h={h2h} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StreamLinks streams={m.streams} />
-            {live && m.streams.length > 0 && (
+            <StreamLinks streams={streams} max={4} />
+            {live && streams.length > 0 && (
               <Link
                 href={`${matchHref(m)}#regarder`}
                 className="rounded-md bg-live px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
@@ -133,6 +135,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
 
 export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: HeadToHead }) {
   const m = o.match;
+  const streams = matchStreams(o.team, m.streams);
   const st = statusOf(m, now);
   return (
     <div
@@ -172,7 +175,7 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
           {m.bestOf && <span className="shrink-0 text-faint">Bo{m.bestOf}</span>}
           {/* Sur mobile, la colonne des streams disparaît : le stream principal passe ici. */}
           <span className="ml-auto shrink-0 sm:hidden">
-            <StreamLinks streams={m.streams} compact max={1} />
+            <StreamLinks streams={streams} compact max={1} />
           </span>
         </div>
         {h2h && h2h.meetings.length > 0 && (
@@ -182,7 +185,7 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
         )}
       </div>
       <div className="hidden flex-col items-end gap-1.5 text-[11px] sm:flex">
-        <StreamLinks streams={m.streams} compact max={2} />
+        <StreamLinks streams={streams} compact max={3} />
         {h2h && <H2HLine h2h={h2h} compact />}
       </div>
     </div>

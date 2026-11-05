@@ -1,5 +1,7 @@
+import Link from "next/link";
 import type { FollowedTeam } from "@/config/follow";
-import { isTeam, statusOf } from "@/lib/derive";
+import { isTeam, matchHref, statusOf, teamLink } from "@/lib/derive";
+import { matchStreams } from "@/lib/streams";
 import { clock, shortDate, shortDay } from "@/lib/format";
 import { bracketLayout } from "@/lib/bracket";
 import type { BracketNode, BracketSection, Match, Matchlist, StandingRow, StandingTable, SwissRound, TeamRef } from "@/lib/types";
@@ -72,7 +74,7 @@ export function GroupTableView({ table, team }: { table: StandingTable; team: Fo
                 <td className="py-2 pr-2">
                   <span className="flex items-center gap-2">
                     <Logo team={r.team} size={20} />
-                    <span className={cn("truncate", ours && "font-semibold text-[var(--accent)]")}>{r.team?.name ?? "À déterminer"}</span>
+                    <TeamName wiki={team.game} team={r.team} followed={team} className={cn("truncate", ours && "font-semibold text-[var(--accent)]")} />
                   </span>
                 </td>
                 {r.cells.map((c, j) => (
@@ -101,20 +103,39 @@ export function GroupTableView({ table, team }: { table: StandingTable; team: Fo
   );
 }
 
-function Side({ team, score, won, decided, ours }: { team: TeamRef | null; score: string | null; won: boolean; decided: boolean; ours: boolean }) {
+/**
+ * Nom d'équipe cliquable : la page de l'équipe suivie, ou la fiche des autres.
+ * Il passe au-dessus du lien étiré d'un match (`relative z-10`) : on ouvre
+ * l'équipe en cliquant sur son nom, la feuille de match partout ailleurs.
+ */
+function TeamName({ wiki, team, followed, className }: { wiki: FollowedTeam["game"]; team: TeamRef | null; followed: FollowedTeam; className?: string }) {
+  const href = teamLink(wiki, team, followed);
+  const label = team?.name ?? "À déterminer";
+  return href ? (
+    <Link href={href} className={cn("relative z-10 hover:underline", className)}>
+      {label}
+    </Link>
+  ) : (
+    <span className={className}>{label}</span>
+  );
+}
+
+/** Toute la surface d'un match de mon équipe mène à sa feuille de match. */
+function MatchOverlay({ m, label }: { m: Match; label: string }) {
+  return <Link href={matchHref(m)} className="absolute inset-0" aria-label={label} />;
+}
+
+function Side({ team, score, won, decided, ours, followed }: { team: TeamRef | null; score: string | null; won: boolean; decided: boolean; ours: boolean; followed: FollowedTeam }) {
   return (
     <div className={cn("flex h-8 items-center gap-2 px-2", ours && tint)}>
       <Logo team={team} size={18} />
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate",
-          !team && "italic text-faint",
-          decided && !won && "text-faint",
-          won && "font-medium",
-          ours && "text-[var(--accent)]",
-        )}
-      >
-        {team?.name ?? "À déterminer"}
+      <span className="flex min-w-0 flex-1">
+        <TeamName
+          wiki={followed.game}
+          team={team}
+          followed={followed}
+          className={cn("truncate", !team && "italic text-faint", decided && !won && "text-faint", won && "font-medium", ours && "text-[var(--accent)]")}
+        />
       </span>
       <span className={cn("w-5 text-right font-display text-base font-semibold tabular-nums", decided && !won && "text-faint")}>{score ?? ""}</span>
     </div>
@@ -125,16 +146,30 @@ export function BracketMatch({ m, team, now }: { m: Match; team: FollowedTeam; n
   const ours = m.opponents.some((o) => isTeam(o, team));
   const st = statusOf(m, now);
   return (
-    <div className={cn("overflow-hidden rounded-lg border bg-panel-2 text-sm", ours ? "border-[color-mix(in_srgb,var(--accent)_55%,transparent)]" : "border-line")}>
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-lg border bg-panel-2 text-sm",
+        ours ? "border-[color-mix(in_srgb,var(--accent)_55%,transparent)] transition-colors hover:border-[var(--accent)]" : "border-line",
+      )}
+    >
+      {ours && <MatchOverlay m={m} label="Feuille de match" />}
       {[0, 1].map((i) => (
         <div key={i} className={i === 0 ? "border-b border-line" : undefined}>
-          <Side team={m.opponents[i]} score={m.scores[i]} won={m.winner === i + 1} decided={m.winner !== undefined} ours={isTeam(m.opponents[i], team)} />
+          <Side team={m.opponents[i]} score={m.scores[i]} won={m.winner === i + 1} decided={m.winner !== undefined} ours={isTeam(m.opponents[i], team)} followed={team} />
         </div>
       ))}
-      {st !== "done" && m.timestamp && (
-        <div className="flex items-center justify-between border-t border-line px-2 py-1 text-[11px] text-faint">
-          {st === "live" ? <LiveBadge /> : <span>{shortDay(m.timestamp, now)} · {m.timeTbd ? "heure à conf." : clock(m.timestamp)}</span>}
-          {m.bestOf && <span>Bo{m.bestOf}</span>}
+      {((st !== "done" && m.timestamp) || ours) && (
+        <div className="flex items-center justify-between gap-2 border-t border-line px-2 py-1 text-[11px] text-faint">
+          {st === "live" ? (
+            <LiveBadge />
+          ) : st !== "done" && m.timestamp ? (
+            <span>
+              {shortDay(m.timestamp, now)} · {m.timeTbd ? "heure à conf." : clock(m.timestamp)}
+            </span>
+          ) : (
+            <span />
+          )}
+          {ours ? <span className="text-[var(--accent)]">Feuille de match →</span> : m.bestOf && <span>Bo{m.bestOf}</span>}
         </div>
       )}
     </div>
@@ -257,14 +292,23 @@ function ListMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number
     return (
       <span className={cn("flex min-w-0 items-center gap-2", i === 0 && "flex-row-reverse text-right")}>
         <Logo team={t} size={20} />
-        <span className={cn("truncate", lost && "text-faint", isTeam(t, team) && "font-semibold text-[var(--accent)]", !t && "italic text-faint")}>
-          {t?.name ?? "À déterminer"}
-        </span>
+        <TeamName
+          wiki={team.game}
+          team={t}
+          followed={team}
+          className={cn("truncate", lost && "text-faint", isTeam(t, team) && "font-semibold text-[var(--accent)]", !t && "italic text-faint")}
+        />
       </span>
     );
   };
   return (
-    <div className={cn("grid grid-cols-[3.75rem_1fr_auto_1fr] items-center gap-3 px-3 py-2 text-sm sm:grid-cols-[5.5rem_1fr_auto_1fr] sm:px-4", ours && tint)}>
+    <div
+      className={cn(
+        "relative grid grid-cols-[3.75rem_1fr_auto_1fr] items-center gap-3 px-3 py-2 text-sm sm:grid-cols-[5.5rem_1fr_auto_1fr] sm:px-4",
+        ours && cn(tint, "transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"),
+      )}
+    >
+      {ours && <MatchOverlay m={m} label="Feuille de match" />}
       <span className="text-[11px] leading-tight text-faint">
         {st === "live" ? (
           <LiveBadge />
@@ -292,7 +336,11 @@ function ListMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number
       </span>
       <span className="flex min-w-0 items-center justify-between gap-2">
         {side(1)}
-        {st !== "done" && <span className="shrink-0"><StreamLinks streams={m.streams} compact max={1} /></span>}
+        {st !== "done" && (
+          <span className="relative z-10 shrink-0">
+            <StreamLinks streams={ours ? matchStreams(team, m.streams) : m.streams} compact max={1} />
+          </span>
+        )}
       </span>
     </div>
   );

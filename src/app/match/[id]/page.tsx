@@ -8,12 +8,12 @@ import { StreamPlayer } from "@/components/StreamPlayer";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle, StreamLinks } from "@/components/ui";
 import { predict } from "@/app/actions";
 import { isAdmin } from "@/lib/admin";
-import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, type MatchStatus, opponentKey, ordinal, predictionResult, rankOf, statusOf } from "@/lib/derive";
+import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, type MatchStatus, opponentKey, ordinal, predictionResult, rankOf, statusOf, teamPath } from "@/lib/derive";
 import { clock, dayLabel, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { loadPredictions } from "@/lib/prediction-store";
 import { judge, possibleScores, type Prediction } from "@/lib/predictions";
-import { embeddable } from "@/lib/streams";
+import { embeddable, matchStreams } from "@/lib/streams";
 import type { RankingRow, RosterEntry, TeamRef } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,8 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   const now = Date.now() / 1000;
   const st = statusOf(m, now);
 
-  const players = embeddable(m.streams, (await headers()).get("host") ?? "localhost");
+  const streams = matchStreams(o.team, m.streams);
+  const players = embeddable(streams, (await headers()).get("host") ?? "localhost");
   const soon = st === "upcoming" && m.timestamp !== undefined && !m.timeTbd && m.timestamp - now < PLAYER_LEAD_S;
   const showPlayer = players.length > 0 && (st === "live" || soon);
 
@@ -108,7 +109,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
           </div>
 
           <div className="mt-7 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-6">
-            <Side team={o.us} align="end" />
+            <Side team={o.us} align="end" href={teamPath(snap, m.wiki, o.us)} />
             <div className="text-center">
               {st === "done" || st === "live" ? (
                 <div className="font-display text-5xl font-bold tabular-nums sm:text-6xl">
@@ -134,7 +135,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
               )}
               {st === "done" && m.timestamp && <div className="mt-1.5 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>}
             </div>
-            <Side team={o.them} align="start" />
+            <Side team={o.them} align="start" href={teamPath(snap, m.wiki, o.them)} />
           </div>
 
           <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm text-dim">
@@ -157,7 +158,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         </div>
       </section>
 
-      {m.streams.length > 0 && st !== "done" && (
+      {streams.length > 0 && st !== "done" && (
         <section id="regarder" className="scroll-mt-24">
           <SectionTitle>Regarder</SectionTitle>
           {showPlayer ? (
@@ -165,7 +166,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-dim">
               <span>{players.length ? "Le lecteur s'affiche ici une heure avant le début du match." : "Les streams du match :"}</span>
-              <StreamLinks streams={m.streams} />
+              <StreamLinks streams={streams} max={8} />
             </div>
           )}
         </section>
@@ -256,12 +257,20 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   );
 }
 
-function Side({ team, align }: { team: TeamRef | null; align: "start" | "end" }) {
+function Side({ team, align, href }: { team: TeamRef | null; align: "start" | "end"; href?: string }) {
   return (
     <div className={cn("flex min-w-0 flex-col items-center gap-2 sm:flex-row sm:gap-4", align === "end" && "sm:flex-row-reverse")}>
       <Logo team={team} size={64} className="drop-shadow-[0_6px_18px_rgba(0,0,0,0.5)]" />
       <div className={cn("min-w-0 text-center", align === "end" ? "sm:text-right" : "sm:text-left")}>
-        <div className="line-clamp-2 break-words font-display text-lg font-semibold leading-tight sm:text-2xl">{team?.name ?? "À déterminer"}</div>
+        <div className="line-clamp-2 break-words font-display text-lg font-semibold leading-tight sm:text-2xl">
+          {href ? (
+            <Link href={href} className="hover:underline">
+              {team?.name}
+            </Link>
+          ) : (
+            (team?.name ?? "À déterminer")
+          )}
+        </div>
         {team?.short && <div className="text-xs tracking-wider text-faint">{team.short}</div>}
       </div>
     </div>
