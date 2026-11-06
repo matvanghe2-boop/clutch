@@ -1,7 +1,7 @@
 import type { BracketNode, Match, Tournament } from "./types";
 
 /** Tous les matchs d'une compétition, listes et brackets confondus. */
-export function tournamentMatches(t: Tournament): Match[] {
+export function tournamentMatches(t: Pick<Tournament, "stages">): Match[] {
   const out: Match[] = [];
   const walk = (n: BracketNode) => {
     if (n.match) out.push(n.match);

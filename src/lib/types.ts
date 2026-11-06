@@ -25,6 +25,8 @@ export interface Stream {
 /** Une manche (map) d'un match. */
 export interface GameResult {
   map?: string;
+  /** Mode de jeu (CoD : Hardpoint, Search and Destroy…). */
+  mode?: string;
   score1?: string;
   score2?: string;
   winner?: 1 | 2;
@@ -195,6 +197,12 @@ export interface TeamSnapshot {
   roster?: RosterEntry[];
   /** Derniers mouvements de la chronologie (« 28 octobre – X rejoint l'équipe »), du plus récent au plus ancien. */
   timeline?: string[];
+  info?: TeamInfo;
+  /** Anciens joueurs, du départ le plus récent au plus ancien. */
+  former?: FormerPlayer[];
+  awards?: TeamAward[];
+  /** Faits marquants du club (section Records). */
+  records?: string[];
   fetchedAt: string;
 }
 
@@ -213,8 +221,16 @@ export interface Snapshot {
    * existe, plus tous les résultats vus depuis. Sert aux face-à-face.
    */
   history?: Record<string, RecentMatch[]>;
-  /** Dernière lecture de la page « /Matches » de chaque équipe. */
+  /** Dernière lecture de la page d'historique de chaque équipe. */
   historyFetchedAt?: Record<string, string>;
+  /** Page d'historique lue pour chaque équipe (« Matches » ou « Played Matches », « none » sans page). */
+  historySource?: Record<string, string>;
+  /** Palmarès de chaque équipe suivie (sous-page Results). */
+  palmares?: Record<string, Palmares>;
+  /** Manches de chaque équipe suivie : équipe → match → manches. */
+  games?: Record<string, Record<string, MapSample[]>>;
+  /** Pages de compétition déjà parcourues pour y relever les manches, par équipe. */
+  harvested?: Record<string, string[]>;
   teams: Record<string, TeamSnapshot>;
   tournaments: Record<string, Tournament>;
   /** Liste des compétitions à venir, en cours et terminées de chaque jeu. */
@@ -233,6 +249,78 @@ export interface Snapshot {
   rankings?: Partial<Record<GameId, Ranking>>;
   /** Échecs récents par clé de tâche, pour espacer les nouvelles tentatives. */
   failures: Record<string, { at: string; message: string }>;
+}
+
+/** Carte d'identité d'une équipe, lue dans l'infobox de sa page. */
+export interface TeamInfo {
+  location?: string;
+  region?: string;
+  /** Date de création, AAAA-MM-JJ. */
+  created?: string;
+  /** Gains totaux estimés, tels que Liquipedia les écrit (« $646,200 »). */
+  winnings?: string;
+  /** Note et rang Liquipedia (Rocket League). */
+  lpRating?: number;
+  lpRank?: number;
+  /** Encadrement : rôle (« Manager », « Coachs »…) et noms. */
+  staff: { role: string; names: string[] }[];
+}
+
+export interface FormerPlayer {
+  id: string;
+  name?: string;
+  /** AAAA-MM-JJ. */
+  joined?: string;
+  left?: string;
+  /** Son équipe suivante. */
+  next?: string;
+}
+
+/** Une distinction : MVP d'un joueur (tableau) ou titre du club (texte libre). */
+export interface TeamAward {
+  award: string;
+  date?: string;
+  tier?: string;
+  tournament?: string;
+  player?: string;
+}
+
+/** Une ligne du palmarès (sous-page Results). */
+export interface PalmaresRow {
+  date?: string;
+  /** « 1st », « 3rd - 4th ». */
+  place: string;
+  /** Rang exact ; absent pour une plage (« 3rd - 4th ») ou un simple résultat (« W »). */
+  rank?: number;
+  tier?: string;
+  tournament: TournamentRef;
+  prize?: string;
+}
+
+export interface Palmares {
+  /** Les lignes les plus récentes. */
+  rows: PalmaresRow[];
+  /** Compté sur tout le palmarès, pas seulement les lignes gardées. */
+  events: number;
+  titles: number;
+  finals: number;
+  podiums: number;
+  /** Titres en S-Tier. */
+  majorTitles: number;
+  fetchedAt: string;
+}
+
+/** Une manche jouée par une équipe suivie, de son point de vue : de quoi calculer son bilan par carte. */
+export interface MapSample {
+  /** Carte (CS2, CoD) ou arène (Rocket League). */
+  map?: string;
+  /** Mode de jeu (CoD : Hardpoint, Search and Destroy…). */
+  mode?: string;
+  us: number;
+  them: number;
+  won: boolean;
+  /** Date du match (secondes). */
+  at: number;
 }
 
 export interface RankingRow {
@@ -268,5 +356,6 @@ export interface OpponentSnapshot {
   roster: RosterEntry[];
   /** Ses derniers résultats, de son point de vue, du plus récent au plus ancien. */
   recent: RecentMatch[];
+  info?: TeamInfo;
   fetchedAt: string;
 }

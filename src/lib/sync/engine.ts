@@ -14,11 +14,11 @@ import { LiquipediaError, leadSections, listPages, pageExists, parsePage, queryW
 import { parseListing } from "../liquipedia/listing";
 import { parsePortal } from "../liquipedia/portal";
 import { parseSeasonStandings, parseVrs } from "../liquipedia/rankings";
-import { parseMatchHistory, parseTeamPage } from "../liquipedia/team-page";
+import { parseMatchHistory, parsePalmares, parseTeamPage } from "../liquipedia/team-page";
 import { parseTournamentPage } from "../liquipedia/tournament-page";
 import { tournamentKey } from "../snapshot";
 import { tournamentMatches } from "../tournament";
-import type { GameId, Match, PortalEntry, RecentMatch, Snapshot, TeamRef, Tournament } from "../types";
+import type { GameId, MapSample, Match, PortalEntry, RecentMatch, Snapshot, TeamRef, Tournament } from "../types";
 import type { FollowedTeam } from "../../config/follow";
 
 export type Profile = "local" | "ci" | "visit" | "cron";
@@ -63,6 +63,7 @@ function ttls(profile: Profile) {
     history: 7 * DAY,
     opponent: DAY,
     ranking: DAY,
+    palmares: 3 * DAY,
     failure: 15 * MIN,
     missing: DAY,
   };
@@ -77,6 +78,34 @@ const MAX_TOURNAMENTS = 30;
 const MAX_HISTORY = 400;
 
 const ageOf = (iso?: string) => (iso ? Date.now() - Date.parse(iso) : Infinity);
+
+/** Écart entre deux appels du cron externe. */
+const CRON_SLOT = 5 * MIN;
+
+function hash(s: string): number {
+  let h = 0;
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+/**
+ * Une page est-elle à relire ?
+ *
+ * En général, d'après l'âge de sa dernière lecture. Le cron externe ne peut pas
+ * s'y fier : entre deux passes, il ne garde que l'instantané publié, et une
+ * relecture sans changement ne publie rien (le quota d'écritures l'interdit).
+ * La page paraîtrait donc toujours à relire : les mêmes seraient relues à chaque
+ * passe, au détriment des autres. Il suit donc un calendrier sans mémoire : chaque
+ * page a son créneau, tiré de son nom et de l'heure (une relecture par période).
+ * Un créneau manqué attend simplement la période suivante.
+ */
+export function isDue(profile: Profile, key: string, age: number, ttl: number, now = Date.now()): boolean {
+  if (age === Infinity) return true;
+  if (profile !== "cron") return age >= ttl;
+  if (ttl <= CRON_SLOT) return true;
+  const cycle = Math.round(ttl / CRON_SLOT);
+  return Math.floor(now / CRON_SLOT) % cycle === hash(key) % cycle;
+}
 const nowS = () => Date.now() / 1000;
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -242,10 +271,11 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
     if (ms > 3000) log(`⏳ ${Math.ceil(ms / 1000)} s avant l'appel suivant (Liquipedia : 1 page toutes les 30 s)`);
   };
   const forced = (key: string) => Boolean(opts.force && !done.has(key));
+  const due = (key: string, age: number, ttl: number) => !done.has(key) && (forced(key) || isDue(opts.profile, key, age, ttl));
   const failedRecently = (key: string) => {
     const f = snap.failures[key];
     if (!f) return false;
-    return ageOf(f.at) < (/missingtitle|invalidtitle/.test(f.message) ? t.missing : t.failure);
+    return ageOf(f.at) < (/missingtitle|invalidtitle|doesn.t exist|Pas encore/.test(f.message) ? t.missing : t.failure);
   };
   const live = new Set(teams.filter((team) => playingSoon(snap, team)).map((team) => team.id));
 
@@ -255,7 +285,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
     const age = ageOf(current?.fetchedAt);
     const ttl = live.has(team.id) ? t.teamLive : t.team;
     if (opts.onlyLive && !live.has(team.id)) continue;
-    if ((!forced(key) && age < ttl) || failedRecently(key)) continue;
+    if (!due(key, age, ttl) || failedRecently(key)) continue;
     tasks.push({
       key,
       label: `équipe ${team.page} (${team.game})${live.has(team.id) ? " · en direct" : ""}`,
@@ -277,7 +307,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
     for (const wiki of games) {
       const key = `portal:${wiki}`;
       const age = ageOf(snap.portals?.[wiki]?.fetchedAt);
-      if ((!forced(key) && age < t.portal) || failedRecently(key)) continue;
+      if (!due(key, age, t.portal) || failedRecently(key)) continue;
       tasks.push({
         key,
         label: `liste des compétitions (${wiki})`,
@@ -295,7 +325,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
       for (const list of TIER_LISTS[wiki]) {
         const key = `listing:${wiki}:${list}`;
         const age = ageOf(snap.listings?.[`${wiki}:${list}`]?.fetchedAt);
-        if ((!forced(key) && age < t.listing) || failedRecently(key)) continue;
+        if (!due(key, age, t.listing) || failedRecently(key)) continue;
         tasks.push({
           key,
           label: `${list} (${wiki})`,
@@ -314,7 +344,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
       if (!SEASON_PREFIXES[wiki].length) continue;
       const key = `season:${wiki}`;
       const age = ageOf(snap.listings?.[`${wiki}:saisons`]?.fetchedAt);
-      if ((!forced(key) && age < t.season) || failedRecently(key)) continue;
+      if (!due(key, age, t.season) || failedRecently(key)) continue;
       tasks.push({
         key,
         label: `saisons en cours (${wiki})`,
@@ -331,21 +361,69 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
     for (const team of teams) {
       const key = `history:${team.id}`;
       const age = ageOf(snap.historyFetchedAt?.[team.id]);
-      if ((!forced(key) && age < t.history) || failedRecently(key)) continue;
+      // Sans source notée, l'historique n'a été cherché que sous l'ancien nom de page : à relire tout de suite.
+      const known = Boolean(snap.historySource?.[team.id]);
+      if ((known && !due(key, age, t.history)) || done.has(key) || failedRecently(key)) continue;
       tasks.push({
         key,
         label: `historique ${team.page} (${team.game})`,
-        priority: 3.5,
+        priority: known ? 3.5 : 3.1,
         staleness: age,
         run: async (s) => {
-          // Toutes les équipes n'ont pas de page « /Matches » : on le vérifie d'abord, par une requête légère.
-          const title = await pageExists(team.game, `${team.page}/Matches`, onWait);
+          // La page s'appelle « /Matches » ou « /Played Matches » selon les wikis : on le vérifie par des requêtes légères.
+          const title =
+            (await pageExists(team.game, `${team.page}/Matches`, onWait)) ?? (await pageExists(team.game, `${team.page}/Played Matches`, onWait));
           let added = 0;
           if (title) added = mergeHistory(s, team.id, parseMatchHistory((await parsePage(team.game, title, onWait)).html));
           s.historyFetchedAt = { ...s.historyFetchedAt, [team.id]: new Date().toISOString() };
-          return title ? `${added} matchs ajoutés à l'historique` : "pas de page d'historique : il se construit au fil des résultats";
+          s.historySource = { ...s.historySource, [team.id]: title ?? "none" };
+          return title ? `${added} matchs ajoutés à l'historique (${title})` : "pas de page d'historique : il se construit au fil des résultats";
         },
       });
+    }
+
+    // Palmarès : la sous-page « Results » de chaque équipe.
+    for (const team of teams) {
+      const key = `palmares:${team.id}`;
+      const age = ageOf(snap.palmares?.[team.id]?.fetchedAt);
+      if (!due(key, age, t.palmares) || failedRecently(key)) continue;
+      tasks.push({
+        key,
+        label: `palmarès ${team.page} (${team.game})`,
+        priority: 3.4,
+        staleness: age,
+        run: async (s) => {
+          const parsed = parsePalmares((await parsePage(team.game, `${team.page}/Results`, onWait)).html);
+          s.palmares = { ...s.palmares, [team.id]: { ...parsed, fetchedAt: new Date().toISOString() } };
+          return `${parsed.events} compétitions, ${parsed.titles} titres`;
+        },
+      });
+    }
+
+    // Manches du passé : on parcourt une fois chaque compétition jouée ces 12 derniers mois.
+    for (const team of teams) {
+      for (const page of unharvested(snap, team).slice(0, 6)) {
+        const key = `harvest:${team.id}:${page}`;
+        if (done.has(key) || failedRecently(key)) continue;
+        tasks.push({
+          key,
+          label: `manches de ${page} (${team.game})`,
+          priority: 3.7,
+          staleness: 0,
+          run: async (s) => {
+            let count = 0;
+            try {
+              const parsed = parseTournamentPage((await parsePage(team.game, page, onWait)).html, team.game, page);
+              count = harvestGames(s, teams, { wiki: team.game, stages: parsed.stages });
+            } catch (e) {
+              // Liquipedia refuse : on réessaiera. Page absente ou illisible : inutile d'y revenir.
+              if (e instanceof LiquipediaError && /^http-/.test(e.code)) throw e;
+            }
+            s.harvested = { ...s.harvested, [team.id]: [...(s.harvested?.[team.id] ?? []), page] };
+            return `${count} manches relevées`;
+          },
+        });
+      }
     }
 
     // Classements de saison : VRS de Valve (CS2), saison régulière (CDL). Une fois par jour.
@@ -354,7 +432,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
       if (!source) continue;
       const key = `ranking:${wiki}`;
       const age = ageOf(snap.rankings?.[wiki]?.fetchedAt);
-      if ((!forced(key) && age < t.ranking) || failedRecently(key)) continue;
+      if (!due(key, age, t.ranking) || failedRecently(key)) continue;
       tasks.push({
         key,
         label: `classement ${source.page} (${wiki})`,
@@ -380,7 +458,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
     for (const opp of upcomingOpponents(snap)) {
       const key = `opponent:${opponentKey(opp.wiki, opp.page)}`;
       const age = ageOf(snap.opponents?.[opponentKey(opp.wiki, opp.page)]?.fetchedAt);
-      if ((!forced(key) && age < t.opponent) || failedRecently(key)) continue;
+      if (!due(key, age, t.opponent) || failedRecently(key)) continue;
       tasks.push({
         key,
         label: `adversaire ${opp.page} (${opp.wiki})`,
@@ -396,6 +474,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
               page: opp.page,
               name: opp.name,
               logo: parsed.logo,
+              info: parsed.info,
               roster: parsed.roster,
               recent: parsed.recent,
               fetchedAt: new Date().toISOString(),
@@ -424,7 +503,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
             ? t.planned
             : t.active;
     const age = ageOf(current?.fetchedAt);
-    if (!forced(key) && current && age < ttl) continue;
+    if (!due(key, age, ttl)) continue;
     tasks.push({
       key,
       label: `compétition ${ref.page} (${ref.wiki})${state === "live" ? " · en direct" : ""}`,
@@ -437,6 +516,7 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
         const parsed = parseTournamentPage(page.html, ref.wiki, ref.page);
         const tour: Tournament = { key, wiki: ref.wiki, page: ref.page, ...parsed, fetchedAt: new Date().toISOString() };
         tour.participating = involvesFollowed(tour, ref.origin, teams);
+        harvestGames(s, teams, tour);
         // Sans équipe suivie, seules les dates servent : inutile de garder les phases.
         if (!tour.participating) tour.stages = [];
         s.tournaments[key] = tour;
@@ -455,7 +535,9 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
 function prune(snap: Snapshot, teams: FollowedTeam[]) {
   const ids = new Set(teams.map((t) => t.id));
   for (const id of Object.keys(snap.teams)) if (!ids.has(id)) delete snap.teams[id];
-  if (snap.history) for (const id of Object.keys(snap.history)) if (!ids.has(id)) delete snap.history[id];
+  for (const store of [snap.history, snap.palmares, snap.games, snap.harvested, snap.historySource, snap.historyFetchedAt]) {
+    if (store) for (const id of Object.keys(store)) if (!ids.has(id)) delete store[id];
+  }
   if (snap.rankings)
     for (const game of Object.keys(snap.rankings) as GameId[]) if (!teams.some((t) => t.game === game)) delete snap.rankings[game];
   if (!teams.every((t) => snap.teams[t.id])) return;
@@ -533,4 +615,47 @@ function rankingSource(snap: Snapshot, wiki: GameId): { page: string; title: str
   ];
   const season = Math.max(0, ...pages.map((p) => Number(p.match(/^Call of Duty League\/Season (\d+)\//)?.[1] ?? 0)));
   return season ? { page: `Call of Duty League/Season ${season}/Regular Season`, title: `CDL saison ${season} · saison régulière` } : undefined;
+}
+
+/** On garde et on relève les manches sur cette durée. */
+const GAMES_WINDOW_S = 400 * 24 * 3600;
+
+/** Relève les manches jouées par mes équipes dans une compétition. Chaque match écrase sa version précédente. */
+function harvestGames(snap: Snapshot, teams: FollowedTeam[], t: { wiki: GameId; stages: Tournament["stages"] }): number {
+  let count = 0;
+  const since = nowS() - GAMES_WINDOW_S;
+  for (const team of teams) {
+    if (team.game !== t.wiki) continue;
+    const mine = { ...snap.games?.[team.id] };
+    let touched = false;
+    for (const m of tournamentMatches(t)) {
+      if (!m.finished || m.timestamp === undefined || m.timestamp < since) continue;
+      const i = m.opponents.findIndex((o) => isTeam(o, team));
+      if (i < 0) continue;
+      const at = m.timestamp;
+      const samples = m.games.flatMap((g): MapSample[] => {
+        const [a, b] = i === 0 ? [g.score1, g.score2] : [g.score2, g.score1];
+        const [us, them] = [Number(a), Number(b)];
+        if (!a || !b || !Number.isFinite(us) || !Number.isFinite(them)) return [];
+        return [{ map: g.map, mode: g.mode, us, them, won: g.winner !== undefined ? g.winner === i + 1 : us > them, at }];
+      });
+      if (!samples.length) continue;
+      mine[m.id] = samples;
+      touched = true;
+      count += samples.length;
+    }
+    if (touched) snap.games = { ...snap.games, [team.id]: mine };
+  }
+  return count;
+}
+
+/** Compétitions de ces 12 derniers mois (niveaux S, A et B) dont on n'a pas encore relevé les manches. */
+function unharvested(snap: Snapshot, team: FollowedTeam): string[] {
+  const seen = new Set(snap.harvested?.[team.id] ?? []);
+  const since = nowS() - 365 * 24 * 3600;
+  const pages = (snap.history?.[team.id] ?? [])
+    .filter((r) => r.timestamp >= since && /^[SAB]-Tier$/.test(r.tier ?? ""))
+    .map((r) => r.tournament.page)
+    .filter((p): p is string => Boolean(p) && !seen.has(p as string));
+  return [...new Set(pages)];
 }

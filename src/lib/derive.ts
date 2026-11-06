@@ -191,6 +191,8 @@ export interface PastMatch {
   themScore: string;
   result: "win" | "loss" | "draw";
   tournament: TournamentRef;
+  /** Niveau de la compétition (S-Tier, A-Tier…). */
+  tier?: string;
   /** Le match tel que la compétition le décrit (manches, streams), quand on le connaît : il a sa page. */
   matchId?: string;
 }
@@ -203,6 +205,7 @@ const toPast = (team: FollowedTeam, r: RecentMatch): PastMatch => ({
   themScore: r.score[1],
   result: r.result,
   tournament: r.tournament,
+  tier: r.tier,
 });
 
 const samePast = (a: PastMatch, b: PastMatch) => Math.abs(a.timestamp - b.timestamp) < 3 * 3600 && sameTeam(a.opponent, b.opponent);
@@ -232,6 +235,7 @@ function freshResults(snap: Snapshot, team: FollowedTeam): PastMatch[] {
         themScore: o.themScore,
         result: o.result,
         tournament: m.tournament ?? { name: t.name, page: t.page },
+        tier: t.info["Liquipedia Tier"],
         matchId: m.id,
       };
       if (out.some((x) => samePast(x, past)) || known.some((r) => samePast(toPast(team, r), past))) continue;

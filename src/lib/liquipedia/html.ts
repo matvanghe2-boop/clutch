@@ -163,7 +163,10 @@ export function popupInfo($: CheerioAPI, $popup: El) {
     if (cells.length < 2) return;
     const left = cells.first();
     const right = cells.last();
-    const map = cells.length >= 3 ? text($(cells.get(1)!)) || undefined : undefined;
+    const $mapCell = cells.length >= 3 ? $(cells.get(1)!) : undefined;
+    const map = $mapCell ? text($mapCell) || undefined : undefined;
+    // CoD : l'icône à côté de la carte porte le mode (Hardpoint, Search and Destroy…).
+    const mode = $mapCell?.find(".league-icon-small-image a[title]").first().attr("title") || undefined;
     const score1 = text(left) || undefined;
     const score2 = text(right) || undefined;
     const winner = left.find('[data-label-type="result-win"]').length
@@ -172,7 +175,7 @@ export function popupInfo($: CheerioAPI, $popup: El) {
         ? 2
         : undefined;
     if (!map && !score1 && !score2) return;
-    games.push({ map, score1, score2, winner });
+    games.push({ map, mode, score1, score2, winner });
   });
   // Counter-Strike (et d'autres jeux) : une ligne par carte, le résultat de
   // chaque équipe de part et d'autre, le score principal suivi des mi-temps.
