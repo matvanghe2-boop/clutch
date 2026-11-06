@@ -12,7 +12,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
 /** Les derniers résultats en pastilles, du plus récent (à gauche) au plus ancien. */
 export function FormChips({ form, size = "md" }: { form: Form; size?: "sm" | "md" }) {
   return (
-    <span className="inline-flex gap-1" aria-label={form.last.map((r) => CHIP[r].label).join(", ")}>
+    <span className="inline-flex flex-wrap gap-1" aria-label={form.last.map((r) => CHIP[r].label).join(", ")}>
       {form.last.map((r, i) => (
         <span
           key={i}

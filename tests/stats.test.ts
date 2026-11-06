@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { toFollowed } from "@/config/follow";
 import type { PastMatch } from "@/lib/derive";
+import { money, monthYearOf, placeFr, tenure } from "@/lib/format";
 import { byMap, byPeriod, byTier, formCurve, gamesSummary, recordsOf, rivals, tally } from "@/lib/stats";
 import { isDue } from "@/lib/sync/engine";
 import type { MapSample } from "@/lib/types";
@@ -93,6 +94,11 @@ describe("cartes", () => {
     expect(maps[0]).toMatchObject({ played: 2, wins: 1, rate: 0.5, forAvg: 10.5, againstAvg: 11.5 });
   });
 
+  it("une prolongation reste la même arène", () => {
+    const maps = byMap([s("Mannfield (Dusk)", 3, 1), s("Mannfield (Dusk) - OT (+1:25)", 2, 1)]);
+    expect(maps.map((m) => [m.map, m.played])).toEqual([["Mannfield (Dusk)", 2]]);
+  });
+
   it("résumé toutes cartes confondues", () => {
     expect(gamesSummary([s("A", 4, 1), s("B", 1, 3)])).toMatchObject({ played: 2, wins: 1, forAvg: 2.5, againstAvg: 2 });
     expect(gamesSummary([])).toBeUndefined();
@@ -130,5 +136,36 @@ describe("calendrier de la synchro", () => {
     const keys = ["team:m8-rl", "team:vitality-cs2", "team:m8-cdl", "portal:rocketleague", "ranking:counterstrike", "opponent:rocketleague:Karmine Corp"];
     const slots = keys.map((k) => Array.from({ length: 288 }, (_, i) => i).find((i) => isDue("cron", k, 1e12, 24 * 60 * MIN, start + i * SLOT)));
     expect(new Set(slots).size).toBeGreaterThan(3);
+  });
+});
+
+describe("formats", () => {
+  const now = Date.parse("2026-11-06T12:00:00Z") / 1000;
+
+  it("ancienneté", () => {
+    expect(tenure("2024-01-04", undefined, now)).toBe("2 ans 10 mois");
+    expect(tenure("2026-10-28", undefined, now)).toBe("1 sem.");
+    expect(tenure("2025-10-11", "2026-10-26", now)).toBe("1 an");
+    expect(tenure("2026-11-05", undefined, now)).toBe("2 j");
+    expect(tenure(undefined, undefined, now)).toBeUndefined();
+    expect(tenure("2026-12-01", undefined, now)).toBeUndefined();
+  });
+
+  it("places à la française", () => {
+    expect(placeFr("1st")).toBe("1er");
+    expect(placeFr("3rd - 4th")).toBe("3e–4e");
+    expect(placeFr("17th - 32nd")).toBe("17e–32e");
+    expect(placeFr("W")).toBe("V");
+  });
+
+  it("montants à la française, et le reste tel quel", () => {
+    expect(money("$646,200")).toBe("646\u202f200\u00a0$");
+    expect(money("€5,000")).toBe("€5,000");
+    expect(money(undefined)).toBeUndefined();
+  });
+
+  it("mois et année", () => {
+    expect(monthYearOf("2024-01-04")).toBe("janvier 2024");
+    expect(monthYearOf("?")).toBeUndefined();
   });
 });

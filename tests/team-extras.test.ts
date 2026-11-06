@@ -44,6 +44,14 @@ describe("anciens joueurs", () => {
   it("Paris Gentle Mates a aussi les siens", () => {
     expect(parseTeamPage(fixture("team-cod-paris-gentle-mates.html"), cod).former.length).toBeGreaterThan(0);
   });
+
+  it("un changement de rôle dans le club n'est pas un départ", () => {
+    const { former } = parseTeamPage(fixture("team-cod-paris-gentle-mates.html"), cod);
+    const neptune = former.filter((f) => f.id === "Neptune");
+    expect(neptune).toEqual([expect.objectContaining({ joined: "2025-11-26", left: "2026-08-11" })]);
+    expect(neptune[0].next).toBeUndefined();
+    expect(former.some((f) => f.next?.startsWith("Paris Gentle Mates"))).toBe(false);
+  });
 });
 
 describe("distinctions et records", () => {

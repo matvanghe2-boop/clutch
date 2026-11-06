@@ -50,15 +50,20 @@ pas du nombre de visites.
 La synchronisation lit plusieurs sortes de pages :
 
 1. **la page de chaque équipe** : matchs à venir (horaire, streams, compétition,
-   phase), derniers résultats, effectif et derniers mouvements ;
+   phase), derniers résultats, effectif et derniers mouvements, carte d'identité,
+   anciens joueurs, distinctions et records ;
 2. **la page de chaque compétition** trouvée là, jouée dans les trois dernières
    semaines ou à venir : classements, poules, brackets, tous les matchs ;
-3. **la page `Équipe/Matches`**, une fois par semaine : tout l'historique, pour
-   les face-à-face sur plusieurs saisons ;
-4. **la page de chaque adversaire** des 7 prochains jours, une fois par jour :
-   son effectif et sa forme, pour la [page de match](#page-de-match) ;
-5. les classements de saison (voir [Classements et forme](#classements-et-forme)) ;
-6. les listes de compétitions et les saisons (voir [Calendrier](#calendrier)).
+3. **la page d'historique**, une fois par semaine : `Équipe/Matches`, ou
+   `Équipe/Played Matches` selon le wiki (Rocket League, CDL). Tout l'historique,
+   pour les face-à-face et les [statistiques](#statistiques-dune-équipe) ;
+4. **la page `Équipe/Results`**, tous les 3 jours : le palmarès ;
+5. **les compétitions des 12 derniers mois**, une seule fois chacune (S, A et
+   B-Tier, 6 pages par équipe et par passe au plus) : les manches déjà jouées ;
+6. **la page de chaque adversaire** des 7 prochains jours, une fois par jour :
+   son effectif, sa forme et sa carte d'identité, pour la [page de match](#page-de-match) ;
+7. les classements de saison (voir [Classements et forme](#classements-et-forme)) ;
+8. les listes de compétitions et les saisons (voir [Calendrier](#calendrier)).
 
 Elle choisit à chaque tour la page la plus urgente :
 
@@ -69,6 +74,7 @@ Elle choisit à chaque tour la page la plus urgente :
 | compétition en cours | toutes les 3 h |
 | compétition terminée | jamais |
 | historique complet | chaque semaine |
+| palmarès | tous les 3 jours |
 | adversaire de la semaine | chaque jour |
 | classement de saison | chaque jour |
 
@@ -115,6 +121,15 @@ Un service de cron gratuit, [cron-job.org](https://cron-job.org), appelle
 ensuite sur Vercel ([`src/lib/sync/auto.ts`](src/lib/sync/auto.ts)) : elle lit
 les pages dues (6 au plus, en moins de 3 minutes), et pendant un match relit le
 score à chaque passe. Elle ne publie que si les données ont changé.
+
+**Son calendrier ne dépend pas de l'âge des données.** Une page relue sans
+changement ne publie rien : l'âge noté dans l'instantané ne bouge donc pas, et le
+cron, qui repart de cet instantané à chaque passe, croirait la page toujours en
+retard. Il la relirait à chaque passe, pour rien. Le cron tire donc les créneaux
+d'une page de son nom et de l'heure (`isDue`, dans
+[`engine.ts`](src/lib/sync/engine.ts)) : une fois par période, à un moment qui
+varie d'une page à l'autre. Les autres passes (locale, GitHub, visites) gardent
+leur état ou écrivent ce qu'elles lisent : pour elles, seul l'âge compte.
 
 Mise en place, une fois :
 
@@ -257,12 +272,44 @@ bilan, série en cours) et son **classement de saison**, lu une fois par jour :
 - **CDL** : le classement de la saison régulière, dès que Liquipedia publie sa
   page (`Call of Duty League/Season N/Regular Season`), en général au début de
   la saison ;
-- **Rocket League** : rien pour l'instant. Le circuit RLCS 2027 (Club
+- **Rocket League** : pas de tableau pour l'instant. Le circuit RLCS 2027 (Club
   Championship) n'a pas de classement à points sur Liquipedia : sa page
-  « Qualification » ne liste que les équipes qualifiées.
+  « Qualification » ne liste que les équipes qualifiées. La note Liquipedia
+  (LPRating) de la page de l'équipe donne quand même son rang.
 
 Le haut du classement et les places de mes équipes et de leurs adversaires sont
 gardés ; la page de match affiche le rang des deux équipes.
+
+## Statistiques d'une équipe
+
+Tout vient de Liquipedia, et les calculs sont dans
+[`src/lib/stats.ts`](src/lib/stats.ts). La page d'une équipe suivie montre, dans
+[`src/components/team-stats.tsx`](src/components/team-stats.tsx) :
+
+- **sa carte d'identité** : classement, gains, titres, âge du club, encadrement ;
+- **ses bilans** par période et par niveau de compétition, et **sa courbe de
+  forme** : la part de victoires sur les 10 matchs précédents, à chaque match ;
+- **ses records** : meilleure et pire séries, balayages, manches décisives. Un Bo1
+  de CS2 donne le score de la carte (13-4) : il compte dans les bilans, pas ici ;
+- **ses victimes et ses bêtes noires**, à partir de 3 matchs ;
+- **ses manches** : cartes en CS2, modes et cartes en CDL, buts et arènes en Rocket
+  League. Elles sont relevées dans les pages de compétition, sur 400 jours au plus,
+  donc un match sans score de manche sur Liquipedia n'y figure pas. La section dit
+  combien de manches elle couvre ;
+- **son palmarès** : seule une première place exacte compte comme titre (« 1st -
+  3rd » est une phase de groupes, pas un titre) ;
+- **ses anciens joueurs**, leur passage au club et leur équipe suivante. Un
+  changement de rôle dans le club n'est pas un départ : ses deux lignes n'en font
+  qu'une ;
+- **ses distinctions et records**, dans le texte de Liquipedia, donc en anglais.
+
+**Pas de statistiques par joueur** : Liquipedia n'en publie pas pour ces jeux (ni
+K/D, ni rating). La page `Statistics` de la RLCS 2027 ne compte que les pays
+représentés. Les seules données individuelles sont les distinctions et le temps
+passé au club. Clutch n'invente rien à la place.
+
+La fiche d'une équipe non suivie reprend la carte d'identité, si elle affronte une
+de mes équipes dans les 7 jours. La feuille de match les compare dans **le duel**.
 
 ## Pronostics
 

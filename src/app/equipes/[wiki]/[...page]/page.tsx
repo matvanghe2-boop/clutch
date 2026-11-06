@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { GAME_IDS, GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow } from "@/components/matches";
+import { IdentityCard, rankFigure } from "@/components/team-stats";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import {
   competitionHref,
@@ -72,7 +73,6 @@ export default async function TeamFichePage({ params }: { params: Params }) {
   const ref: TeamRef = findTeamRef(snap, wiki, page) ?? (fiche ? { name: fiche.name, page, logo: fiche.logo } : self);
   const now = Date.now() / 1000;
   const rank = rankOf(snap, wiki, ref);
-  const ranking = snap.rankings?.[wiki];
   const form = fiche ? formOf(fiche.recent) : undefined;
   const mine = teamsOf(snap).filter((f) => f.game === wiki);
   const against = upcomingFeed(snap).filter((o) => o.match.wiki === wiki && sameTeam(o.them, ref) && statusOf(o.match, now) !== "stale");
@@ -97,12 +97,6 @@ export default async function TeamFichePage({ params }: { params: Params }) {
               </div>
             )}
             <p className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-dim">
-              {rank && ranking && (
-                <span>
-                  {ordinal(rank.rank)} {wiki === "counterstrike" ? "mondial au classement Valve" : "de la saison régulière"}
-                  {rank.points ? ` · ${rank.points} pts` : ""}
-                </span>
-              )}
               <a href={`https://liquipedia.net/${wiki}/${pageToPath(page)}`} target="_blank" rel="noopener noreferrer" className="text-faint hover:text-dim">
                 Liquipedia ↗
               </a>
@@ -110,6 +104,8 @@ export default async function TeamFichePage({ params }: { params: Params }) {
           </div>
         </div>
       </header>
+
+      <IdentityCard info={fiche?.info} rank={rankFigure(wiki, fiche?.info, rank)} now={now} />
 
       {!known && <Empty>Clutch ne connaît pas encore cette équipe : elle n&apos;apparaît dans aucune compétition suivie. Sa page Liquipedia reste à un clic.</Empty>}
 

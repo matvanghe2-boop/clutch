@@ -160,10 +160,17 @@ export interface MapTally {
   againstAvg: number;
 }
 
+/** « Mannfield (Dusk) - OT (+1:25) » : une prolongation ne fait pas une autre arène. */
+const arenaOf = (map: string) => map.replace(/\s*-\s*OT\b.*$/i, "").trim();
+
 /** Bilan par carte, de la plus jouée à la moins jouée. */
 export function byMap(samples: MapSample[]): MapTally[] {
   const groups = new Map<string, MapSample[]>();
-  for (const s of samples) if (s.map) groups.set(s.map, [...(groups.get(s.map) ?? []), s]);
+  for (const s of samples) {
+    if (!s.map) continue;
+    const key = arenaOf(s.map);
+    groups.set(key, [...(groups.get(key) ?? []), s]);
+  }
   return [...groups.entries()]
     .map(([map, list]) => {
       const wins = list.filter((s) => s.won).length;

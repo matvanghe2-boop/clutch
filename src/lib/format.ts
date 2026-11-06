@@ -63,3 +63,41 @@ export function infoDate(s: string | undefined, now: number): string | undefined
   if (!m) return s;
   return shortDate(Date.UTC(+m[1], +m[2] - 1, +m[3], 12) / 1000, now);
 }
+
+/** Temps passé entre deux dates : « 2 ans 3 mois », « 5 mois », « 3 sem. ». */
+export function tenure(fromIso: string | undefined, toIso: string | undefined, now: number): string | undefined {
+  const from = fromIso ? Date.parse(fromIso) : NaN;
+  const to = toIso ? Date.parse(toIso) : now * 1000;
+  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return undefined;
+  const days = (to - from) / 86_400_000;
+  const months = Math.floor(days / 30.44);
+  if (months < 1) return days < 7 ? `${Math.max(1, Math.round(days))} j` : `${Math.floor(days / 7)} sem.`;
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  if (!years) return `${rest} mois`;
+  return `${years} an${years > 1 ? "s" : ""}${rest ? ` ${rest} mois` : ""}`;
+}
+
+/** Une place de Liquipedia, à la française : « 1st » → « 1er », « 3rd - 4th » → « 3e–4e », « W » → « V ». */
+export function placeFr(place: string): string {
+  if (place === "W") return "V";
+  if (place === "L") return "D";
+  return place
+    .replace(/(\d+)(?:st|nd|rd|th)/g, (_, n: string) => (n === "1" ? "1er" : `${n}e`))
+    .replace(/\s*-\s*/g, "–");
+}
+
+/** Un montant de Liquipedia, à la française : « $646,200 » → « 646 200 $ ». Tel quel s'il est dans une autre forme. */
+export function money(value: string | undefined): string | undefined {
+  const m = value?.match(/^\$([\d,]+)/);
+  if (!m) return value;
+  return `${m[1].replace(/,/g, "\u202f")}\u00a0$`;
+}
+
+const monthYear = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "Europe/Paris" });
+
+/** « 2024-01-04 » → « janvier 2024 ». */
+export function monthYearOf(iso: string | undefined): string | undefined {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(t) ? undefined : monthYear.format(new Date(t));
+}

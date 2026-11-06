@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Countdown } from "@/components/Countdown";
 import { FormChips, FormSummary } from "@/components/form";
 import { StreamPlayer } from "@/components/StreamPlayer";
+import { Duel, rankFigure } from "@/components/team-stats";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle, StreamLinks } from "@/components/ui";
 import { predict } from "@/app/actions";
 import { isAdmin } from "@/lib/admin";
@@ -211,6 +212,11 @@ export default async function MatchPage({ params, searchParams }: { params: Para
           themName={o.them?.short ?? o.them?.name ?? "?"}
         />
       )}
+
+      <Duel
+        us={{ team: o.us, info: snap.teams[o.team.id]?.info, rank: rankFigure(m.wiki, snap.teams[o.team.id]?.info, rankOf(snap, m.wiki, o.us)), form: usForm }}
+        them={{ team: o.them, info: opp?.info, rank: rankFigure(m.wiki, opp?.info, rankOf(snap, m.wiki, o.them)), form: themForm }}
+      />
 
       <div className="grid gap-10 lg:grid-cols-2">
         <section>

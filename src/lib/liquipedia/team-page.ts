@@ -142,7 +142,7 @@ export function parseTeamPage(html: string, team: FollowedTeam): ParsedTeamPage 
     roster: parseRoster($),
     timeline: parseTimeline($),
     info: parseInfo($),
-    former: parseFormer($),
+    former: parseFormer($, team.page),
     awards: parseAwards($),
     records: parseRecords($),
   };
@@ -218,7 +218,7 @@ function parseInfo($: cheerio.CheerioAPI): TeamInfo | undefined {
 }
 
 /** Anciens joueurs : les tableaux à colonne « Leave Date » de la section Player Roster (un par jeu ou par onglet). */
-function parseFormer($: cheerio.CheerioAPI): FormerPlayer[] {
+function parseFormer($: cheerio.CheerioAPI, teamPage: string): FormerPlayer[] {
   const out = new Map<string, FormerPlayer>();
   $("#Player_Roster")
     .closest(".mw-heading")
@@ -247,7 +247,26 @@ function parseFormer($: cheerio.CheerioAPI): FormerPlayer[] {
         });
       });
     });
-  return [...out.values()].sort((a, b) => (b.left ?? "").localeCompare(a.left ?? "")).slice(0, 15);
+  return mergeRoleChanges([...out.values()], teamPage)
+    .sort((a, b) => (b.left ?? "").localeCompare(a.left ?? ""))
+    .slice(0, 15);
+}
+
+/**
+ * Un changement de rôle dans le club (« Paris Gentle Mates (Substitute) ») n'est
+ * pas un départ : Liquipedia en fait deux lignes, on n'en garde qu'un seul passage.
+ */
+function mergeRoleChanges(rows: FormerPlayer[], teamPage: string): FormerPlayer[] {
+  const own = (next?: string) => next?.toLowerCase().startsWith(teamPage.toLowerCase()) ?? false;
+  const chrono = [...rows].sort((a, b) => (a.joined ?? "").localeCompare(b.joined ?? ""));
+  const out: FormerPlayer[] = [];
+  chrono.forEach((row, i) => {
+    if (!own(row.next)) return void out.push(row);
+    const following = chrono.slice(i + 1).find((r) => r.id === row.id);
+    if (following) following.joined = row.joined;
+    else out.push({ ...row, next: undefined });
+  });
+  return out;
 }
 
 /** Distinctions : un tableau (MVP par joueur, en Rocket League) ou une liste (titres du club, en CS2). */

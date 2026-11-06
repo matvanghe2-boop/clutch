@@ -5,9 +5,10 @@ import { GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { RankingCard } from "@/components/ranking";
+import { FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
-import { formOf, headToHead, historyOf, opponentsRecord, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
-import { infoDate, shortDate } from "@/lib/format";
+import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
+import { infoDate, shortDate, tenure } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
 
@@ -31,7 +32,11 @@ export default async function TeamPage({ params }: { params: Params }) {
   const results = recentFeed(snap).filter((r) => r.team.id === team.id);
   const record = opponentsRecord(snap, team);
   const tracked = trackedTournaments(snap, now, team.game).filter((tr) => tr.team.id === team.id);
-  const form = formOf(historyOf(snap, team));
+  const history = historyOf(snap, team);
+  const form = formOf(history);
+  const palmares = snap.palmares?.[team.id];
+  const samples = Object.values(snap.games?.[team.id] ?? {}).flat();
+  const ownRef = { name: team.page, page: team.page };
 
   return (
     <div data-game={team.game} className="space-y-10">
@@ -62,6 +67,8 @@ export default async function TeamPage({ params }: { params: Params }) {
         </div>
       </header>
 
+      <IdentityCard info={data?.info} rank={rankFigure(team.game, data?.info, rankOf(snap, team.game, ownRef))} palmares={palmares} now={now} />
+
       <section>
         <SectionTitle>À venir</SectionTitle>
         {upcoming.length ? (
@@ -81,6 +88,12 @@ export default async function TeamPage({ params }: { params: Params }) {
           <RankingCard ranking={snap.rankings[team.game]!} team={team} now={now} />
         </section>
       )}
+
+      <TeamStatistics results={history} now={now} teamHref={(ref) => teamPath(snap, team.game, ref)} />
+
+      <GamesStats samples={samples} game={team.game} now={now} />
+
+      {palmares && palmares.events > 0 && <PalmaresCard palmares={palmares} wiki={team.game} now={now} />}
 
       {(data?.roster?.length || data?.timeline?.length) && (
         <div className="grid gap-10 lg:grid-cols-2">
@@ -102,8 +115,8 @@ export default async function TeamPage({ params }: { params: Params }) {
                     {p.role && <span className="shrink-0 rounded bg-panel-2 px-1.5 py-0.5 text-[11px] text-dim">{p.role}</span>}
                     <span className="hidden w-28 shrink-0 text-right text-xs text-faint sm:block">{p.country}</span>
                     {p.joined && (
-                      <span className="w-24 shrink-0 text-right text-xs text-faint" title="Arrivée dans l'équipe">
-                        {infoDate(p.joined, now)}
+                      <span className="w-24 shrink-0 text-right text-xs text-faint" title={`Arrivée dans l'équipe : ${infoDate(p.joined, now)}`}>
+                        {tenure(p.joined, undefined, now) ?? infoDate(p.joined, now)}
                       </span>
                     )}
                   </li>
@@ -125,6 +138,10 @@ export default async function TeamPage({ params }: { params: Params }) {
           ) : null}
         </div>
       )}
+
+      <FormerRoster players={data?.former ?? []} now={now} />
+
+      <Honors awards={data?.awards ?? []} records={data?.records ?? []} now={now} />
 
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
