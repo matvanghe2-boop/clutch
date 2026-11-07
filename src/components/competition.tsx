@@ -5,6 +5,7 @@ import { matchStreams } from "@/lib/streams";
 import { clock, dayKey, dayLabel, shortDate, shortDay } from "@/lib/format";
 import { bracketLayout } from "@/lib/bracket";
 import type { BracketNode, BracketSection, Match, Matchlist, StandingRow, StandingTable, SwissRound, TeamRef } from "@/lib/types";
+import { BracketHover } from "./Motion";
 import { cn, LiveBadge, Logo, StreamLinks } from "./ui";
 
 const tint = "bg-[color-mix(in_srgb,var(--accent)_11%,transparent)]";
@@ -36,7 +37,7 @@ export function GroupTableView({ table, team }: { table: StandingTable; team: Fo
   const swiss = table.rows.some((r) => r.rounds?.length);
   const numeric = Math.max(0, ...table.rows.map((r) => r.cells.length));
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="overflow-hidden panel">
       <div className="border-b border-line px-4 py-2.5 font-display font-semibold tracking-wide">{table.title}</div>
       {/* Largeurs fixes : la colonne équipe prend tout le reste, quel que soit le nombre de colonnes. */}
       <table className="w-full table-fixed text-sm">
@@ -127,7 +128,7 @@ function MatchOverlay({ m, label }: { m: Match; label: string }) {
 
 function Side({ team, score, won, decided, ours, followed }: { team: TeamRef | null; score: string | null; won: boolean; decided: boolean; ours: boolean; followed: FollowedTeam }) {
   return (
-    <div className={cn("flex h-8 items-center gap-2 px-2", ours && tint)}>
+    <div data-team={team?.page ?? team?.name} className={cn("flex h-8 items-center gap-2 px-2 transition-colors", ours && tint)}>
       <Logo team={team} size={18} />
       <span className="flex min-w-0 flex-1">
         <TeamName
@@ -137,7 +138,7 @@ function Side({ team, score, won, decided, ours, followed }: { team: TeamRef | n
           className={cn("truncate", !team && "italic text-faint", decided && !won && "text-faint", won && "font-medium", ours && "text-[var(--accent)]")}
         />
       </span>
-      <span className={cn("w-5 text-right font-display text-base font-semibold tabular-nums", decided && !won && "text-faint")}>{score ?? ""}</span>
+      <span className={cn("score w-5 text-right text-lg", decided && !won && "text-faint")}>{score ?? ""}</span>
     </div>
   );
 }
@@ -149,7 +150,8 @@ export function BracketMatch({ m, team, now }: { m: Match; team: FollowedTeam; n
     <div
       className={cn(
         "relative overflow-hidden rounded-lg border bg-panel-2 text-sm",
-        ours ? "border-[color-mix(in_srgb,var(--accent)_55%,transparent)] transition-colors hover:border-[var(--accent)]" : "border-line",
+        ours ? "lift border-[color-mix(in_srgb,var(--accent)_55%,transparent)] shadow-[0_0_22px_-8px_var(--accent)]" : "border-line",
+        st === "live" && "live-ring",
       )}
     >
       {ours && <MatchOverlay m={m} label="Feuille de match" />}
@@ -251,6 +253,7 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
   const headers = columns ? [...columns, ...(trailing ? [trailing] : [])] : [];
   return (
     <div className="scrollbar-thin overflow-x-auto pb-2">
+      <BracketHover>
       <div className="inline-block min-w-full">
         {headers.length > 0 && (
           <div className="mb-2 flex">
@@ -278,6 +281,7 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
           ))}
         </div>
       </div>
+      </BracketHover>
     </div>
   );
 }
@@ -303,7 +307,7 @@ function ListMatch({ m, team, now, inDay, caption }: { m: Match; team: FollowedT
   return (
     <div
       className={cn(
-        "relative grid grid-cols-[3.75rem_1fr_auto_1fr] items-center gap-3 px-3 py-2 text-sm sm:grid-cols-[5.5rem_1fr_auto_1fr] sm:px-4",
+        "row-hover relative grid grid-cols-[3.75rem_1fr_auto_1fr] items-center gap-3 px-3 py-2 text-sm sm:grid-cols-[5.5rem_1fr_auto_1fr] sm:px-4",
         ours && cn(tint, "transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"),
       )}
     >
@@ -316,7 +320,7 @@ function ListMatch({ m, team, now, inDay, caption }: { m: Match; team: FollowedT
           m.timeTbd ? (
             "heure à conf."
           ) : (
-            <b className="font-display text-base font-semibold text-ink tabular-nums">{clock(m.timestamp)}</b>
+            <b className="score text-xl text-ink">{clock(m.timestamp)}</b>
           )
         ) : m.timestamp ? (
           <>
@@ -334,7 +338,7 @@ function ListMatch({ m, team, now, inDay, caption }: { m: Match; team: FollowedT
         )}
       </span>
       {side(0)}
-      <span className="min-w-12 text-center font-display text-lg font-semibold tabular-nums">
+      <span className="score min-w-12 text-center text-2xl">
         {m.scores[0] !== null || m.scores[1] !== null ? (
           <>
             <span className={m.winner === 2 ? "text-faint" : undefined}>{m.scores[0] ?? 0}</span>
@@ -384,10 +388,10 @@ export function ScheduleView({ matches, team, now, onlyOurs }: { matches: Match[
   return (
     <section>
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-dim">Programme</h2>
+        <h2 className="section-title">Programme</h2>
         <span className="text-xs text-faint">à l&apos;heure de Paris</span>
       </div>
-      <div className="overflow-hidden rounded-xl border border-line bg-panel">
+      <div className="overflow-hidden panel">
         {days.map((d) => (
           <div key={d.key}>
             <div className="border-b border-line bg-panel-2 px-4 py-1.5 text-xs font-medium text-dim">{d.label}</div>
@@ -414,9 +418,9 @@ export function MatchlistView({ list, team, now, onlyOurs }: { list: Matchlist; 
     else rounds.push([m.round, [m]]);
   }
   return (
-    <details open={open} className="group overflow-hidden rounded-xl border border-line bg-panel">
+    <details open={open} className="group overflow-hidden panel">
       <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 hover:bg-panel-2">
-        <span className="font-display font-semibold tracking-wide">{list.title}</span>
+        <span className="display text-lg">{list.title}</span>
         <span className="flex items-center gap-2 text-xs text-faint">
           {matches.length} match{matches.length > 1 ? "s" : ""}
           <span className="transition-transform group-open:rotate-180">▾</span>

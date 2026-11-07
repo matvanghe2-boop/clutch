@@ -7,6 +7,7 @@ import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { RankingCard } from "@/components/ranking";
 import { EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
+import { TeamHero } from "@/components/versus";
 import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { lineupSince, pickEra, playedSince, rosterEras } from "@/lib/eras";
 import { infoDate, shortDate, tenure } from "@/lib/format";
@@ -47,32 +48,21 @@ export default async function TeamPage({ params, searchParams }: { params: Param
 
   return (
     <div data-game={team.game} className="space-y-10">
-      <header className="relative overflow-hidden rounded-2xl border border-line bg-panel p-5 sm:p-7">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(500px_220px_at_10%_0%,color-mix(in_srgb,var(--accent)_18%,transparent),transparent)]" />
-        <div className="relative flex items-center gap-5">
-          <Logo team={{ name: team.page, logo: data?.logo }} size={80} />
-          <div className="min-w-0">
-            <GameTag game={team.game} long />
-            <h1 className="mt-2 truncate font-display text-3xl font-bold sm:text-4xl">{team.page}</h1>
-            {form.last.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
-                <FormChips form={form} current={playedSince(history.slice(0, form.last.length), since)} />
-                <FormSummary form={form} />
-              </div>
-            )}
-            <p className="mt-1.5 text-sm text-dim">
-              <a
-                href={`https://liquipedia.net/${team.game}/${pageToPath(team.page)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-faint hover:text-dim"
-              >
-                Liquipedia ↗
-              </a>
-            </p>
+      <TeamHero team={{ name: team.page, logo: data?.logo }} game={team.game}>
+        <GameTag game={team.game} long />
+        <h1 className="display mt-2 break-words text-4xl sm:text-6xl">{team.page}</h1>
+        {form.last.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
+            <FormChips form={form} current={playedSince(history.slice(0, form.last.length), since)} />
+            <FormSummary form={form} />
           </div>
-        </div>
-      </header>
+        )}
+        <p className="mt-2 text-sm">
+          <a href={`https://liquipedia.net/${team.game}/${pageToPath(team.page)}`} target="_blank" rel="noopener noreferrer" className="text-faint hover:text-dim">
+            Liquipedia ↗
+          </a>
+        </p>
+      </TeamHero>
 
       <IdentityCard info={data?.info} rank={rankFigure(team.game, data?.info, rankOf(snap, team.game, ownRef))} palmares={palmares} now={now} />
 
@@ -109,7 +99,7 @@ export default async function TeamPage({ params, searchParams }: { params: Param
           {data?.roster?.length ? (
             <section>
               <SectionTitle>Effectif</SectionTitle>
-              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+              <ul className="divide-y divide-line overflow-hidden panel">
                 {data.roster.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                     <span className="min-w-0 flex-1">
@@ -136,7 +126,7 @@ export default async function TeamPage({ params, searchParams }: { params: Param
           {data?.timeline?.length ? (
             <section>
               <SectionTitle>Derniers mouvements</SectionTitle>
-              <ul className="space-y-2 rounded-xl border border-line bg-panel p-4 text-sm text-dim">
+              <ul className="space-y-2 panel p-4 text-sm text-dim">
                 {data.timeline.map((line, i) => (
                   <li key={i} className="border-l-2 border-[color-mix(in_srgb,var(--accent)_50%,transparent)] pl-3 leading-snug">
                     {line}
@@ -156,7 +146,7 @@ export default async function TeamPage({ params, searchParams }: { params: Param
         <section>
           <SectionTitle>Résultats</SectionTitle>
           {results.length ? (
-            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+            <div className="divide-y divide-line overflow-hidden panel">
               {results.map((r) => (
                 <ResultRow key={r.timestamp} r={r} now={now} />
               ))}
@@ -169,7 +159,7 @@ export default async function TeamPage({ params, searchParams }: { params: Param
         <section>
           <SectionTitle>Face-à-face</SectionTitle>
           {record.length ? (
-            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+            <div className="divide-y divide-line overflow-hidden panel">
               {record.map(({ opponent, h2h }) => {
                 const last = h2h.meetings[0];
                 return (

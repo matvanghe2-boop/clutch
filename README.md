@@ -327,6 +327,23 @@ bilan, série en cours) et son **classement de saison**, lu une fois par jour :
 Le haut du classement et les places de mes équipes et de leurs adversaires sont
 gardés ; la page de match affiche le rang des deux équipes.
 
+## Design et mouvement
+
+Clutch s'habille comme un direct : grande typographie condensée et inclinée, logos qui
+éclairent la scène de leurs propres couleurs (`src/components/versus.tsx`), fil de résultats
+sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
+
+- **Surfaces** : `.panel`, `.lift` (se soulève au survol), `.sheen` (reflet), `.arena` (la scène).
+- **Entrées** : chaque `section` de `main` entre quand on l'atteint. `MotionRoot` lui pose `data-in`,
+  et le CSS fait le reste : `.stagger` pour une cascade, `.rate-fill` pour une barre qui se remplit,
+  `<Num>` pour un nombre qui défile, sans JavaScript.
+- **Garde-fous** : rien n'est caché sans `html.motion`, posé par un script avant le premier affichage.
+  Tout est dans `prefers-reduced-motion: no-preference` : qui a coupé les animations voit tout, tout
+  de suite.
+
+Une entrée en cascade passe par une animation, jamais une transition : le délai d'une transition
+retarderait aussi le survol.
+
 ## Ce soir
 
 L'onglet **Ce soir** (`/ce-soir`) répond à une question : qu'est-ce que je regarde

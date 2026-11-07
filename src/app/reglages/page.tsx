@@ -56,12 +56,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           Settings → Environment Variables), puis redéploie. En attendant, les équipes restent en lecture seule.
         </div>
       ) : admin ? (
-        <form action={lock} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-dim">
+        <form action={lock} className="flex items-center justify-between gap-3 panel px-4 py-3 text-sm text-dim">
           <span>Réglages déverrouillés sur ce navigateur.</span>
           <button className={button}>Verrouiller</button>
         </form>
       ) : (
-        <form action={unlock} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-dim">
+        <form action={unlock} className="flex flex-wrap items-center gap-3 panel px-4 py-3 text-sm text-dim">
           <span className="min-w-48 flex-1">Saisis ton code pour modifier les équipes.</span>
           <input type="password" name="pin" placeholder="Code" autoComplete="current-password" className={cn(field, "w-36")} required />
           <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-bg hover:opacity-90">Déverrouiller</button>
@@ -70,7 +70,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
 
       <section>
         <SectionTitle>Équipes suivies</SectionTitle>
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+        <ul className="divide-y divide-line overflow-hidden panel">
           {teams.map((cfg) => {
             const team = toFollowed(cfg);
             return (
@@ -137,7 +137,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
 
       <section>
         <SectionTitle>Ajouter une équipe</SectionTitle>
-        <form action={addTeam} className="grid gap-3 rounded-xl border border-line bg-panel p-4 sm:grid-cols-3">
+        <form action={addTeam} className="grid gap-3 panel p-4 sm:grid-cols-3">
           <label className="space-y-1 text-sm text-dim">
             <span>Jeu</span>
             <select name="game" className={input} defaultValue="rocketleague" disabled={!admin}>
@@ -177,7 +177,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
       <section>
         <SectionTitle>Compétitions masquées</SectionTitle>
         {hidden.size ? (
-          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+          <ul className="divide-y divide-line overflow-hidden panel">
             {[...hidden].map((key) => (
               <li key={key} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                 <span className="truncate">{names.get(key) ?? key.split(":").slice(1).join(":")}</span>

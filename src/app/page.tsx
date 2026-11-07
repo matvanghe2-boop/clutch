@@ -22,8 +22,8 @@ function TonightBanner({ evening, now }: { evening: Evening; now: number }) {
   const [first, ...others] = evening.matches;
   const live = statusOf(first.match, now) === "live";
   return (
-    <Link href="/ce-soir" data-game={first.match.wiki} className="flex items-center gap-3 rounded-xl border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-panel px-4 py-3 transition-colors hover:border-[var(--accent)]">
-      <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">Ce soir</span>
+    <Link href="/ce-soir" data-game={first.match.wiki} className={`panel lift sheen relative flex items-center gap-3 overflow-hidden border-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-4 py-3 ${live ? "live-ring" : ""}`}>
+      <span className="display text-xl text-[var(--accent)]">Ce soir</span>
       <span className="min-w-0 flex-1 truncate text-sm">
         {live ? "En direct" : first.match.timeTbd || !first.match.timestamp ? "Heure à confirmer" : clock(first.match.timestamp)} · {first.us.short ?? first.us.name} contre {first.them?.short ?? first.them?.name ?? "à déterminer"}
         {others.length > 0 && <span className="text-faint"> · et {others.length} autre{others.length > 1 ? "s" : ""}</span>}
@@ -70,7 +70,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             href={g ? `/?jeu=${GAMES[g].short.toLowerCase()}` : "/"}
             data-game={g}
             className={cn(
-              "rounded-full border px-3 py-1 font-display text-sm font-semibold tracking-wide transition-colors",
+              "-skew-x-12 rounded border px-3 py-1 font-display text-sm font-bold italic tracking-wide transition-colors",
               game === g
                 ? g
                   ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]"
@@ -105,10 +105,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <div className="space-y-6">
             {[...days.entries()].map(([key, list]) => (
               <div key={key}>
-                <h3 className="mb-2 text-sm font-medium text-dim">
+                <h3 className="display mb-2 text-base tracking-wide text-dim">
                   {list[0].match.timestamp ? dayLabel(list[0].match.timestamp, now) : "Date à confirmer"}
                 </h3>
-                <div className="space-y-2">
+                <div className="stagger space-y-2">
                   {list.map((o) => (
                     <MatchRow key={o.match.id} o={o} now={now} h2h={headToHead(snap, o.team, o.them)} />
                   ))}
@@ -123,7 +123,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <section>
           <SectionTitle>Derniers résultats</SectionTitle>
           {results.length ? (
-            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+            <div className="divide-y divide-line overflow-hidden panel">
               {results.map((r) => (
                 <ResultRow key={`${r.team.id}-${r.timestamp}`} r={r} now={now} showGame={!game} />
               ))}

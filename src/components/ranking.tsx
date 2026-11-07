@@ -17,7 +17,7 @@ export function RankingCard({ ranking, team, now }: { ranking: Ranking; team: Fo
   const vrs = ranking.wiki === "counterstrike";
   const updated = ranking.updated ? infoDate(ranking.updated, now) : undefined;
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="overflow-hidden panel">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-3">
         <div className="text-sm">
           {mine ? (

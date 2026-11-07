@@ -83,17 +83,16 @@ export default async function CompetitionPage({
   const base = competitionHref(game, t.page);
 
   return (
-    <div data-game={game} className="space-y-8">
-      <header className="relative overflow-hidden rounded-2xl border border-line bg-panel p-5 sm:p-7">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(600px_200px_at_0%_0%,color-mix(in_srgb,var(--accent)_16%,transparent),transparent)]" />
-        <div className="relative">
+    <div data-game={game} className="space-y-10">
+      <header className="arena p-5 sm:p-8">
+        <div className="arena-left relative">
           <div className="flex items-center justify-between gap-3">
             <GameTag game={game} long />
             <a href={source} target="_blank" rel="noopener noreferrer" className="text-xs text-faint hover:text-dim">
               Source : Liquipedia ↗
             </a>
           </div>
-          <h1 className="mt-3 font-display text-3xl font-bold leading-tight sm:text-4xl">{t.name}</h1>
+          <h1 className="display mt-3 text-4xl sm:text-6xl">{t.name}</h1>
           {meta.length > 0 && <p className="mt-2 text-sm text-dim">{meta.join(" · ")}</p>}
         </div>
       </header>
@@ -102,7 +101,7 @@ export default async function CompetitionPage({
 
       {journey.length > 0 && (
         <section>
-          <h2 className="mb-3 font-display text-sm font-semibold uppercase tracking-[0.18em] text-dim">Parcours de {team.page}</h2>
+          <h2 className="section-title mb-4">Parcours de {team.page}</h2>
           <MatchlistView list={{ title: `${journey.length} match${journey.length > 1 ? "s" : ""} de ${team.page}`, matches: journey }} team={team} now={now} onlyOurs={false} />
         </section>
       )}
@@ -138,7 +137,7 @@ export default async function CompetitionPage({
 
       {t.stages.map((s) => (
         <section key={s.anchor} id={s.anchor} className="scroll-mt-20 space-y-4">
-          <h2 className="font-display text-2xl font-semibold">{s.title}</h2>
+          <h2 className="section-title !text-3xl">{s.title}</h2>
           {groupBlocks(s.blocks).map((chunk, i) =>
             chunk.kind === "groups" ? (
               <div key={i} className={cn("grid gap-3", chunk.tables.length > 1 && "md:grid-cols-2")}>
@@ -147,7 +146,7 @@ export default async function CompetitionPage({
                 ))}
               </div>
             ) : chunk.block.kind === "bracket" ? (
-              <div key={i} className="space-y-6 rounded-xl border border-line bg-panel/50 p-4">
+              <div key={i} className="space-y-6 panel p-4">
                 {chunk.block.bracket.sections.map((sec, j) => (
                   <BracketSectionView key={j} section={sec} team={team} now={now} />
                 ))}

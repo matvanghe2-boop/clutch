@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Countdown } from "@/components/Countdown";
+import { CountdownCells } from "@/components/Countdown";
 import { FormChips, FormSummary } from "@/components/form";
 import { StreamPlayer } from "@/components/StreamPlayer";
 import { Duel, rankFigure } from "@/components/team-stats";
+import { Versus } from "@/components/versus";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle, StreamLinks } from "@/components/ui";
 import { predict } from "@/app/actions";
 import { isAdmin } from "@/lib/admin";
@@ -91,11 +92,17 @@ export default async function MatchPage({ params, searchParams }: { params: Para
 
   return (
     <div data-game={m.wiki} className="space-y-10">
-      <section className="relative overflow-hidden rounded-2xl border border-line bg-panel">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(700px_220px_at_50%_-20%,color-mix(in_srgb,var(--accent)_22%,transparent),transparent)]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--accent),transparent)]" />
-        <div className="relative p-5 sm:p-7">
-          <div className="flex items-center justify-between gap-3 text-xs">
+      <Versus
+        game={m.wiki}
+        live={st === "live"}
+        us={o.us}
+        them={o.them}
+        usHref={teamPath(snap, m.wiki, o.us)}
+        themHref={teamPath(snap, m.wiki, o.them)}
+        dimUs={st === "done" && o.result === "loss"}
+        dimThem={st === "done" && o.result === "win"}
+        top={
+          <>
             <div className="flex min-w-0 items-center gap-2 text-dim">
               <GameTag game={m.wiki} />
               {t?.page ? (
@@ -106,48 +113,40 @@ export default async function MatchPage({ params, searchParams }: { params: Para
                 <span className="truncate">{t?.name}</span>
               )}
             </div>
-            {st === "live" ? (
-              <LiveBadge />
-            ) : (
-              <span className="shrink-0 font-display font-semibold uppercase tracking-[0.2em] text-faint">
-                {st === "done" ? "Terminé" : "À venir"}
-              </span>
-            )}
-          </div>
-
-          <div className="mt-7 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-6">
-            <Side team={o.us} align="end" href={teamPath(snap, m.wiki, o.us)} />
-            <div className="text-center">
-              {st === "done" || st === "live" ? (
-                <div className="font-display text-5xl font-bold tabular-nums sm:text-6xl">
-                  <span className={st === "done" && o.result !== "win" ? "text-dim" : undefined}>{o.usScore ?? 0}</span>
-                  <span className="px-2 text-faint">–</span>
-                  <span className={st === "done" && o.result !== "loss" ? "text-dim" : undefined}>{o.themScore ?? 0}</span>
-                </div>
-              ) : m.timestamp && m.timeTbd ? (
-                <>
-                  <div className="font-display text-3xl font-bold leading-none sm:text-4xl">{dayLabel(m.timestamp, now)}</div>
-                  <div className="mt-1.5 text-sm text-dim">Heure à confirmer</div>
-                </>
-              ) : m.timestamp ? (
-                <>
-                  <div className="font-display text-5xl font-bold leading-none tabular-nums sm:text-6xl">{clock(m.timestamp)}</div>
-                  <div className="mt-1.5 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
-                  <div className="mt-2 font-display text-lg font-semibold text-[var(--accent)]">
-                    <Countdown ts={m.timestamp} initialNow={now} />
-                  </div>
-                </>
-              ) : (
-                <div className="font-display text-3xl text-dim">Horaire à venir</div>
-              )}
-              {st === "done" && m.timestamp && <div className="mt-1.5 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>}
-            </div>
-            <Side team={o.them} align="start" href={teamPath(snap, m.wiki, o.them)} />
-          </div>
-
-          <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm text-dim">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {m.bestOf && <span className="font-display font-semibold text-ink">Bo{m.bestOf}</span>}
+            {st === "live" ? <LiveBadge /> : <span className="display shrink-0 text-sm tracking-[0.14em] text-faint">{st === "done" ? "Terminé" : "À venir"}</span>}
+          </>
+        }
+        center={
+          st === "done" || st === "live" ? (
+            <>
+              <div className="score text-5xl sm:text-6xl lg:text-8xl">
+                <span className={st === "done" && o.result !== "win" ? "text-dim" : undefined}>{o.usScore ?? 0}</span>
+                <span className="px-2 text-faint">–</span>
+                <span className={st === "done" && o.result !== "loss" ? "text-dim" : undefined}>{o.themScore ?? 0}</span>
+              </div>
+              {st === "done" && m.timestamp && <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>}
+            </>
+          ) : m.timestamp && m.timeTbd ? (
+            <>
+              <div className="display text-3xl sm:text-5xl">{dayLabel(m.timestamp, now)}</div>
+              <div className="mt-2 text-sm text-dim">Heure à confirmer</div>
+            </>
+          ) : m.timestamp ? (
+            <>
+              <div className="score text-5xl sm:text-6xl lg:text-8xl">{clock(m.timestamp)}</div>
+              <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
+              <div className="mt-3">
+                <CountdownCells ts={m.timestamp} initialNow={now} />
+              </div>
+            </>
+          ) : (
+            <div className="display text-2xl text-dim sm:text-4xl">Horaire à venir</div>
+          )
+        }
+        bottom={
+          <>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-dim">
+              {m.bestOf && <span className="display text-base text-ink">Bo{m.bestOf}</span>}
               {h2h.meetings.length > 0 ? (
                 <span className="text-faint">
                   Face-à-face <b className="font-semibold text-win">{h2h.wins}</b>–<b className="font-semibold text-loss">{h2h.losses}</b>
@@ -161,9 +160,9 @@ export default async function MatchPage({ params, searchParams }: { params: Para
                 Voir dans la compétition →
               </Link>
             )}
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       {streams.length > 0 && st !== "done" && (
         <section id="regarder" className="scroll-mt-24">
@@ -171,7 +170,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
           {showPlayer ? (
             <StreamPlayer streams={players} />
           ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-dim">
+            <div className="flex flex-wrap items-center justify-between gap-3 panel px-4 py-3 text-sm text-dim">
               <span>{players.length ? "Le lecteur s'affiche ici une heure avant le début du match." : "Les streams du match :"}</span>
               <StreamLinks streams={streams} max={8} />
             </div>
@@ -182,9 +181,15 @@ export default async function MatchPage({ params, searchParams }: { params: Para
       {games.length > 0 && (
         <section>
           <SectionTitle>Manches</SectionTitle>
-          <ol className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+          <ol className="divide-y divide-line overflow-hidden panel">
             {games.map((g, i) => (
-              <li key={i} className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 text-sm">
+              <li
+                key={i}
+                className={cn(
+                  "row-hover grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 border-l-2 px-4 py-2.5 text-sm",
+                  g.won === true ? "border-l-win/70" : g.won === false ? "border-l-loss/70" : "border-l-transparent",
+                )}
+              >
                 <span className="text-xs text-faint">Manche {i + 1}</span>
                 <span className="truncate">{g.map ?? "—"}</span>
                 <span className="flex items-center gap-3">
@@ -193,7 +198,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
                   ) : (
                     <ResultBadge result={g.won ? "win" : "loss"} />
                   )}
-                  <span className="w-16 text-right font-display text-lg font-semibold tabular-nums">
+                  <span className="score w-16 text-right text-2xl">
                     <span className={g.won === false ? "text-dim" : undefined}>{g.us ?? "–"}</span>
                     <span className="px-1 text-faint">–</span>
                     <span className={g.won === true ? "text-dim" : undefined}>{g.them ?? "–"}</span>
@@ -227,7 +232,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
           <SectionTitle>Forme du moment</SectionTitle>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+          <div className="divide-y divide-line overflow-hidden panel">
             <FormRow team={o.us} form={usForm} current={playedSince(usHistory.slice(0, usForm.last.length), usSince)} rank={rankOf(snap, m.wiki, o.us)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} />
             <FormRow team={o.them} form={themForm} current={playedSince((opp?.recent ?? []).slice(0, themForm?.last.length ?? 0), themSince)} rank={rankOf(snap, m.wiki, o.them)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} missing={opponentNote} />
           </div>
@@ -236,7 +241,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         <section>
           <SectionTitle>Face-à-face</SectionTitle>
           {h2h.meetings.length ? (
-            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+            <div className="divide-y divide-line overflow-hidden panel">
               {h2h.meetings.slice(0, 10).map((r) => (
                 <div key={r.timestamp} className="grid grid-cols-[3.5rem_1.5rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 text-sm">
                   <span className="text-xs text-faint">{shortDate(r.timestamp, now)}</span>
@@ -269,26 +274,6 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   );
 }
 
-function Side({ team, align, href }: { team: TeamRef | null; align: "start" | "end"; href?: string }) {
-  return (
-    <div className={cn("flex min-w-0 flex-col items-center gap-2 sm:flex-row sm:gap-4", align === "end" && "sm:flex-row-reverse")}>
-      <Logo team={team} size={64} className="drop-shadow-[0_6px_18px_rgba(0,0,0,0.5)]" />
-      <div className={cn("min-w-0 text-center", align === "end" ? "sm:text-right" : "sm:text-left")}>
-        <div className="line-clamp-2 break-words font-display text-lg font-semibold leading-tight sm:text-2xl">
-          {href ? (
-            <Link href={href} className="hover:underline">
-              {team?.name}
-            </Link>
-          ) : (
-            (team?.name ?? "À déterminer")
-          )}
-        </div>
-        {team?.short && <div className="text-xs tracking-wider text-faint">{team.short}</div>}
-      </div>
-    </div>
-  );
-}
-
 function FormRow({ team, form, missing, rank, rankLabel, current }: { team: TeamRef | null; form?: Form; missing?: string; rank?: RankingRow; rankLabel: string; current?: number }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
@@ -315,7 +300,7 @@ function FormRow({ team, form, missing, rank, rankLabel, current }: { team: Team
 
 function Roster({ team, players }: { team: TeamRef | null; players: RosterEntry[] }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="overflow-hidden panel">
       <div className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-sm font-medium">
         <Logo team={team} size={20} />
         <span className="truncate">{team?.name ?? "À déterminer"}</span>
@@ -373,7 +358,7 @@ function PredictionPanel({
   return (
     <section id="pronostic" className="scroll-mt-24">
       <SectionTitle aside={<Link href="/pronostics" className="text-xs text-faint hover:text-dim">Mes pronostics →</Link>}>Pronostic</SectionTitle>
-      <div className="space-y-4 rounded-xl border border-line bg-panel p-4">
+      <div className="space-y-4 panel p-4">
         {note && <p className={cn("text-sm", note.ok ? "text-win" : "text-loss")}>{note.text}</p>}
         {prediction ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">

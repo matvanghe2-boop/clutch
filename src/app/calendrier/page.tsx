@@ -215,7 +215,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
           ) : (
             <div className="space-y-6">
               {past.length > 0 && coming.length > 0 && (
-                <details className="rounded-xl border border-line bg-panel">
+                <details className="panel">
                   <summary className="cursor-pointer px-4 py-2.5 text-sm text-dim hover:text-ink">
                     Plus tôt ce mois-ci · {past.length} jour{past.length > 1 ? "s" : ""}
                   </summary>
@@ -237,7 +237,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
           {unscheduled.length > 0 && (
             <section>
               <SectionTitle>Matchs à programmer</SectionTitle>
-              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+              <ul className="divide-y divide-line overflow-hidden panel">
                 {unscheduled.map((u) => (
                   <li key={u.id} data-game={u.game} className="px-4 py-3">
                     <div className="flex min-w-0 items-center gap-2 text-sm">
@@ -264,7 +264,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
           <section>
             <SectionTitle>Prochaines compétitions</SectionTitle>
             {upcomingComps.length ? (
-              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+              <ul className="divide-y divide-line overflow-hidden panel">
                 {upcomingComps.map((c) => (
                   <UpcomingCompetition key={c.key} c={c} today={today} now={now} />
                 ))}
@@ -281,7 +281,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
 
           <section>
             <SectionTitle>Dans mon agenda</SectionTitle>
-            <div className="space-y-3 rounded-xl border border-line bg-panel p-4 text-sm text-dim">
+            <div className="space-y-3 panel p-4 text-sm text-dim">
               <p>Les matchs de mes équipes, mis à jour tout seuls dans l&apos;agenda du téléphone.</p>
               <a
                 href={`webcal://${icsUrl}`}
@@ -328,7 +328,7 @@ function AgendaDay({
         </div>
       )}
       {matches.length > 0 && (
-        <div className="divide-y divide-line/60 overflow-hidden rounded-xl border border-line bg-panel">
+        <div className="divide-y divide-line/60 overflow-hidden panel">
           {[...matches.filter((m) => m.ours), ...matches.filter((m) => !m.ours)].map((m) => (
             <AgendaMatch key={m.id} m={m} now={now} />
           ))}

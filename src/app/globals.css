@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0a0c10;
-  --color-panel: #11141a;
-  --color-panel-2: #171b23;
-  --color-line: #232935;
-  --color-ink: #e9ecf2;
-  --color-dim: #9aa3b5;
-  --color-faint: #5d6577;
+  --color-bg: #07090d;
+  --color-panel: #10131a;
+  --color-panel-2: #171b24;
+  --color-line: #242a37;
+  --color-ink: #eef1f6;
+  --color-dim: #a0a9bb;
+  --color-faint: #6a7386;
 
   --color-rl: #4c8dff;
   --color-cs: #f4a62a;
@@ -19,18 +19,18 @@
 
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+
+  /* Une seule courbe pour tout ce qui entre à l'écran : rapide au début, posée à la fin. */
+  --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :root {
   color-scheme: dark;
+  --accent: var(--color-rl);
 }
 
 body {
-  background:
-    radial-gradient(1200px 500px at 15% -10%, rgb(76 141 255 / 0.07), transparent 60%),
-    radial-gradient(900px 400px at 100% 0%, rgb(155 225 93 / 0.05), transparent 60%),
-    var(--color-bg);
-  background-attachment: fixed;
+  background: var(--color-bg);
   color: var(--color-ink);
   font-feature-settings: "tnum" 1;
 }
@@ -55,7 +55,7 @@ orbit-splash:not(:defined) {
   }
 }
 
-/* Couleur d'accent du jeu, posée par GameScope sur un conteneur. */
+/* Couleur d'accent du jeu, posée sur un conteneur. */
 [data-game="rocketleague"] {
   --accent: var(--color-rl);
 }
@@ -64,22 +64,6 @@ orbit-splash:not(:defined) {
 }
 [data-game="callofduty"] {
   --accent: var(--color-cod);
-}
-
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.35;
-    transform: scale(0.8);
-  }
-}
-
-.live-dot {
-  animation: pulse-dot 1.4s ease-in-out infinite;
 }
 
 .scrollbar-thin {
@@ -92,4 +76,655 @@ details > summary {
 }
 details > summary::-webkit-details-marker {
   display: none;
+}
+
+/* ─────────────  Décor de fond  ───────────── */
+
+/* Deux lueurs qui dérivent lentement, sur une trame très discrète. Elles prennent la
+   couleur du jeu sur une page d'équipe, de match ou de compétition. */
+.ambient {
+  --glow-a: var(--color-rl);
+  --glow-b: var(--color-cod);
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.018) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, black, transparent 70%);
+}
+.ambient::before,
+.ambient::after {
+  content: "";
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  opacity: 0.13;
+  transition: background 0.8s;
+}
+.ambient::before {
+  top: -45vmax;
+  left: -15vmax;
+  background: radial-gradient(closest-side, var(--glow-a), transparent);
+}
+.ambient::after {
+  top: -40vmax;
+  right: -20vmax;
+  background: radial-gradient(closest-side, var(--glow-b), transparent);
+}
+body:has(.page-enter > [data-game="rocketleague"]) .ambient {
+  --glow-a: var(--color-rl);
+  --glow-b: var(--color-rl);
+}
+body:has(.page-enter > [data-game="counterstrike"]) .ambient {
+  --glow-a: var(--color-cs);
+  --glow-b: var(--color-cs);
+}
+body:has(.page-enter > [data-game="callofduty"]) .ambient {
+  --glow-a: var(--color-cod);
+  --glow-b: var(--color-cod);
+}
+
+@layer components {
+  /* ─────────────  Typographie  ───────────── */
+
+  /* La voix de Clutch : condensée, inclinée, en capitales, comme un habillage de direct. */
+  .display {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 800;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+    line-height: 0.95;
+  }
+
+  .brand-text {
+    background: linear-gradient(95deg, #fff 30%, #9ec2ff 62%, #bdeb94);
+    background-clip: text;
+    color: transparent;
+  }
+
+  .section-title {
+    position: relative;
+    padding-left: 0.85rem;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 800;
+    font-size: 1.25rem;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    text-transform: uppercase;
+    color: var(--color-ink);
+  }
+  .section-title::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.1em;
+    bottom: 0.1em;
+    width: 0.3rem;
+    transform: skewX(-14deg);
+    border-radius: 1px;
+    background: var(--accent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+
+  /* ─────────────  Surfaces  ───────────── */
+
+  .panel {
+    border-radius: 14px;
+    border: 1px solid var(--color-line);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.028), transparent 45%),
+      var(--color-panel);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.045),
+      0 10px 28px -20px rgb(0 0 0 / 0.9);
+  }
+  .panel-xl {
+    border-radius: 20px;
+  }
+
+  /* Ce qui se clique se soulève, et prend la couleur de son jeu. */
+  .lift {
+    transition:
+      transform 0.28s var(--ease-out-strong),
+      border-color 0.2s,
+      box-shadow 0.28s;
+  }
+  @media (hover: hover) {
+    .lift:hover {
+      transform: translateY(-2px);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--color-line));
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 18px 44px -22px color-mix(in srgb, var(--accent) 60%, transparent);
+    }
+  }
+
+  .row-hover {
+    transition: background-color 0.15s;
+  }
+  @media (hover: hover) {
+    .row-hover:hover {
+      background-color: color-mix(in srgb, var(--accent) 7%, transparent);
+    }
+  }
+
+  /* Reflet qui traverse une carte au survol. */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-120%) skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
+    pointer-events: none;
+  }
+  @media (hover: hover) {
+    .sheen:hover::after {
+      transform: translateX(120%) skewX(-18deg);
+      transition: transform 0.75s var(--ease-out-strong);
+    }
+  }
+
+  /* Étiquette en parallélogramme : le texte reste droit dans sa pente. */
+  .tag {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    transform: skewX(-12deg);
+    border-radius: 3px;
+    padding: 0.125rem 0.45rem;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .tag > * {
+    transform: skewX(12deg);
+  }
+
+  /* ─────────────  La scène d'un match  ───────────── */
+
+  .arena {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid var(--color-line);
+    background: #0c0f15;
+  }
+  /* La lumière vient du centre, comme sur une scène, et le bord porte la couleur du jeu. */
+  .arena::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(60% 90% at 50% -25%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%),
+      linear-gradient(180deg, transparent 55%, rgb(0 0 0 / 0.45));
+  }
+  .arena::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  /* Chaque logo éclaire son côté de la scène de ses propres couleurs. */
+  .backlight {
+    position: absolute;
+    z-index: -1;
+    top: 50%;
+    width: 46%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    opacity: 0.42;
+    filter: blur(70px) saturate(1.7);
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
+  .arena-logo {
+    filter: drop-shadow(0 12px 28px rgb(0 0 0 / 0.65));
+  }
+
+  /* Le trait de lumière entre les deux équipes. */
+  .slash {
+    position: absolute;
+    z-index: -1;
+    top: -20%;
+    bottom: -20%;
+    left: 50%;
+    width: 1px;
+    transform: skewX(-14deg);
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent), transparent);
+    box-shadow: 0 0 40px 6px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .score {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 800;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Compte à rebours en cases. */
+  .cd-cell {
+    display: grid;
+    min-width: 2.6rem;
+    justify-items: center;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--color-line));
+    background: rgb(255 255 255 / 0.035);
+    padding: 0.3rem 0.35rem 0.2rem;
+  }
+  .cd-value {
+    overflow: hidden;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 800;
+    font-size: 1.5rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .cd-label {
+    margin-top: 0.1rem;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+  }
+
+  /* ─────────────  Le fil de résultats  ───────────── */
+
+  .ticker {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid rgb(36 42 55 / 0.7);
+    background: rgb(7 9 13 / 0.6);
+    mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
+  }
+  .ticker-track {
+    display: flex;
+    width: max-content;
+  }
+  .ticker-track > div {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 1.75rem;
+    padding-right: 1.75rem;
+  }
+
+  /* ─────────────  Navigation  ───────────── */
+
+  .nav-link {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    color: var(--color-dim);
+    transition:
+      color 0.15s,
+      background-color 0.15s;
+  }
+  .nav-link:hover {
+    color: var(--color-ink);
+    background: var(--color-panel-2);
+  }
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: -0.2rem;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    transform: scaleX(0);
+    transition: transform 0.3s var(--ease-out-strong);
+  }
+  .nav-link[data-active]::after {
+    transform: scaleX(1);
+  }
+  .nav-link[data-active] {
+    color: var(--color-ink);
+  }
+
+  /* ─────────────  Données  ───────────── */
+
+  /* Un nombre qui défile jusqu'à sa valeur, sans JavaScript : la transition porte sur
+     une propriété typée, et le texte vient d'un compteur CSS. */
+  .num {
+    counter-reset: num var(--n);
+    transition: --n 1.1s var(--ease-out-strong) 0.1s;
+  }
+  .num::before {
+    content: counter(num);
+  }
+
+  .rate-track {
+    display: block;
+    height: 6px;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--color-panel-2);
+  }
+  .rate-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 65%, transparent), var(--accent));
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+    transform-origin: left;
+    transition: transform 1.1s var(--ease-out-strong) 0.15s;
+  }
+
+  .tile {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0.75rem 1rem;
+  }
+  .tile::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent 70%);
+    opacity: 0.7;
+  }
+
+  /* Un chemin dans le bracket : la même équipe s'allume à chaque tour. */
+  [data-path] {
+    background-color: color-mix(in srgb, var(--accent) 22%, transparent) !important;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+}
+
+@property --n {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --ring {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ─────────────  Mouvement  ─────────────
+
+   Tout ce qui bouge est ici, et rien ne bouge pour qui l'a désactivé. `html.motion` n'est
+   posé qu'à l'exécution du script : sans lui, tout reste visible et à sa valeur finale. */
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+.live-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+  .page-enter {
+    animation: page-in 0.5s var(--ease-out-strong) both;
+  }
+
+  /* Le décor respire. */
+  @keyframes drift-a {
+    to {
+      transform: translate(14vmax, 7vmax) scale(1.15);
+    }
+  }
+  @keyframes drift-b {
+    to {
+      transform: translate(-12vmax, 9vmax) scale(0.9);
+    }
+  }
+  .ambient::before {
+    animation: drift-a 26s ease-in-out infinite alternate;
+  }
+  .ambient::after {
+    animation: drift-b 32s ease-in-out infinite alternate;
+  }
+
+  /* Les équipes entrent par les côtés, puis l'enjeu s'imprime au centre. */
+  @keyframes from-left {
+    from {
+      opacity: 0;
+      transform: translateX(-48px) skewX(-6deg);
+    }
+  }
+  @keyframes from-right {
+    from {
+      opacity: 0;
+      transform: translateX(48px) skewX(-6deg);
+    }
+  }
+  @keyframes stamp {
+    from {
+      opacity: 0;
+      transform: scale(1.4);
+    }
+  }
+  @keyframes logo-float {
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+  @keyframes backlight-breathe {
+    50% {
+      opacity: 0.6;
+    }
+  }
+  .arena-left {
+    animation: from-left 0.7s var(--ease-out-strong) 0.05s both;
+  }
+  .arena-right {
+    animation: from-right 0.7s var(--ease-out-strong) 0.05s both;
+  }
+  .arena-center {
+    animation: stamp 0.55s var(--ease-out-strong) 0.3s both;
+  }
+  .arena-logo {
+    animation: logo-float 5s ease-in-out infinite;
+  }
+  .arena-right .arena-logo {
+    animation-delay: -2.5s;
+  }
+  .backlight {
+    animation: backlight-breathe 6s ease-in-out infinite;
+  }
+
+  /* En direct : un trait de lumière fait le tour de la carte. */
+  @keyframes ring-spin {
+    to {
+      --ring: 360deg;
+    }
+  }
+  .live-ring {
+    position: relative;
+  }
+  .live-ring::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    height: auto;
+    /* La carte peut aussi porter un reflet, sur ce même pseudo-élément : il cède la place au direct. */
+    transform: none !important;
+    transition: none;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--ring), transparent 65%, var(--color-live) 88%, #ffb3c0 95%, transparent);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    animation: ring-spin 2.8s linear infinite;
+  }
+
+  @keyframes live-breathe {
+    50% {
+      box-shadow: 0 0 22px 2px rgb(255 59 92 / 0.55);
+    }
+  }
+  .live-pill {
+    animation: live-breathe 1.8s ease-in-out infinite;
+  }
+
+  /* Un chiffre qui change tombe à sa place. */
+  @keyframes tick {
+    from {
+      opacity: 0;
+      transform: translateY(-65%);
+    }
+  }
+  .tick {
+    display: inline-block;
+    animation: tick 0.32s var(--ease-out-strong);
+  }
+
+  /* Le fil de résultats. */
+  @keyframes ticker-run {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  .ticker-track {
+    animation: ticker-run var(--ticker-duration, 60s) linear infinite;
+  }
+  .ticker:hover .ticker-track,
+  .ticker:focus-within .ticker-track {
+    animation-play-state: paused;
+  }
+
+  /* La courbe se trace. */
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+  }
+  html.motion section[data-in] .curve-path {
+    stroke-dasharray: 1;
+    animation: draw 1.6s var(--ease-out-strong) both;
+  }
+
+  /* Les pastilles de forme arrivent l'une après l'autre. */
+  @keyframes chip-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+  }
+  .chips > * {
+    animation: chip-in 0.35s var(--ease-out-strong) both;
+  }
+  .chips > :nth-child(2) { animation-delay: 40ms; }
+  .chips > :nth-child(3) { animation-delay: 80ms; }
+  .chips > :nth-child(4) { animation-delay: 120ms; }
+  .chips > :nth-child(5) { animation-delay: 160ms; }
+  .chips > :nth-child(6) { animation-delay: 200ms; }
+  .chips > :nth-child(7) { animation-delay: 240ms; }
+  .chips > :nth-child(8) { animation-delay: 280ms; }
+  .chips > :nth-child(9) { animation-delay: 320ms; }
+  .chips > :nth-child(10) { animation-delay: 360ms; }
+  .chips > :nth-child(11) { animation-delay: 400ms; }
+
+  /* Les listes arrivent en cascade. Une animation plutôt qu'une transition : son délai
+     ne touche que l'entrée, le survol d'une carte reste immédiat. */
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+  }
+  html.motion main section:not([data-in]) .stagger > * {
+    opacity: 0;
+  }
+  html.motion main section[data-in] .stagger > * {
+    animation: rise 0.55s var(--ease-out-strong) backwards;
+  }
+  html.motion main section[data-in] .stagger > :nth-child(2) { animation-delay: 50ms; }
+  html.motion main section[data-in] .stagger > :nth-child(3) { animation-delay: 100ms; }
+  html.motion main section[data-in] .stagger > :nth-child(4) { animation-delay: 150ms; }
+  html.motion main section[data-in] .stagger > :nth-child(5) { animation-delay: 200ms; }
+  html.motion main section[data-in] .stagger > :nth-child(6) { animation-delay: 250ms; }
+  html.motion main section[data-in] .stagger > :nth-child(7) { animation-delay: 300ms; }
+  html.motion main section[data-in] .stagger > :nth-child(8) { animation-delay: 350ms; }
+
+  /* Les sections entrent quand on les atteint ; barres et nombres s'animent à ce moment. */
+  main section {
+    transition:
+      opacity 0.6s var(--ease-out-strong),
+      transform 0.6s var(--ease-out-strong);
+  }
+  html.motion main section:not([data-in]) {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  html.motion main section:not([data-in]) .rate-fill {
+    transform: scaleX(0) !important;
+  }
+  html.motion main section:not([data-in]) .num {
+    --n: 0 !important;
+  }
+
+  .reveal-line {
+    transform-origin: left;
+    transition: transform 0.8s var(--ease-out-strong) 0.1s;
+  }
+  html.motion main section:not([data-in]) .reveal-line {
+    transform: scaleX(0);
+  }
+}
+
+/* Sans animation, le fil de résultats se fait défiler à la main. */
+@media (prefers-reduced-motion: reduce) {
+  .ticker {
+    overflow-x: auto;
+  }
+}
+
+/* Une arène n'est jamais cachée : elle a déjà sa propre entrée, et elle est au-dessus de la ligne de flottaison. */
+html.motion main section.arena:not([data-in]) {
+  opacity: 1;
+  transform: none;
 }

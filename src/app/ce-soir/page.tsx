@@ -43,8 +43,8 @@ export default async function TonightPage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="font-display text-4xl font-bold sm:text-5xl">{title}</h1>
-        <p className="mt-1 text-sm text-dim">
+        <h1 className="brand-text display text-6xl sm:text-8xl">{title}</h1>
+        <p className="mt-2 text-sm text-dim">
           {evening.tonight ? fullDate.format(new Date(now * 1000)) : "Rien pour tes équipes ce soir : voici leur prochaine soirée."}
           {!nothing && <span className="text-faint"> · {summary.join(" · ")}</span>}
         </p>
@@ -77,7 +77,7 @@ export default async function TonightPage() {
       {evening.done.length > 0 && (
         <section>
           <SectionTitle>Déjà joués ce soir</SectionTitle>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+          <div className="divide-y divide-line overflow-hidden panel">
             {evening.done.map((r) => (
               <ResultRow key={`${r.team.id}-${r.timestamp}`} r={r} now={now} showGame />
             ))}

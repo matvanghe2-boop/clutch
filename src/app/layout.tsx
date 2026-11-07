@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist } from "next/font/google";
 import Script from "next/script";
+import { MotionRoot } from "@/components/Motion";
 import { SiteFooter, SiteHeader } from "@/components/site";
 import "./globals.css";
 
@@ -8,7 +9,8 @@ const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
 const barlow = Barlow_Condensed({
   variable: "--font-barlow",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "600", "700", "800"],
+  style: ["normal", "italic"],
 });
 
 /** La passe de secours tourne après l'envoi de la page (voir SiteHeader) : elle a besoin de temps. */
@@ -22,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0c10",
+  themeColor: "#07090d",
   // Nécessaire pour que env(safe-area-inset-*) ait une valeur sur iPhone.
   viewportFit: "cover",
 };
@@ -32,6 +34,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     // L'écran d'ouverture Orbit bloque le défilement (style sur <html>) avant l'hydratation.
     <html lang="fr" suppressHydrationWarning>
       <body className={`${geist.variable} ${barlow.variable} min-h-dvh font-sans antialiased`}>
+        {/* Avant le premier affichage : sans ce script, tout reste visible et rien n'est caché en attendant d'entrer. */}
+        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('motion')" }} />
+        <div className="ambient" aria-hidden />
+        <MotionRoot />
         {/*
           Signature du réseau Orbit : écran d'ouverture et header, avec le
           pingouin esport. Copies servies depuis public/ (et mises en cache par

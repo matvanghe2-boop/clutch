@@ -45,7 +45,7 @@ export function FormCurve({ points, window: size }: { points: Point[]; window: n
   const current = points[points.length - 1];
 
   return (
-    <div className="rounded-xl border border-line bg-panel p-4">
+    <div className="panel p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs text-faint">Part de victoires sur les {size} matchs précédents, à chaque match</p>
         <p className="text-xs text-dim">
@@ -83,7 +83,7 @@ export function FormCurve({ points, window: size }: { points: Point[]; window: n
               {[0, 50, 100].map((y) => (
                 <line key={y} x1="0" x2="100" y1={y} y2={y} stroke="var(--color-line)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
               ))}
-              <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              <path className="curve-path" pathLength={1} d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
 
             {shown && (

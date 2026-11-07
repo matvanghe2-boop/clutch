@@ -8,7 +8,7 @@ export function StreamPlayer({ streams }: { streams: EmbeddableStream[] }) {
   const [current, setCurrent] = useState(0);
   const stream = streams[current] ?? streams[0];
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="overflow-hidden panel">
       {streams.length > 1 && (
         <div className="scrollbar-thin flex gap-1 overflow-x-auto border-b border-line p-1.5" role="tablist">
           {streams.map((s, i) => (

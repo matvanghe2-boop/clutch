@@ -107,7 +107,7 @@ export function MonthGrid({
 }) {
   const lanes = assignLanes(competitions);
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="overflow-hidden panel">
       <div className="grid grid-cols-7 border-b border-line text-[11px] font-medium uppercase tracking-wider text-faint">
         {WEEKDAYS.map((d) => (
           <div key={d} className="px-2 py-1.5">

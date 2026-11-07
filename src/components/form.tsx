@@ -18,13 +18,13 @@ const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
 export function FormChips({ form, size = "md", current }: { form: Form; size?: "sm" | "md"; current?: number }) {
   const split = current !== undefined && current < form.last.length ? current : undefined;
   return (
-    <span className="inline-flex flex-wrap items-center gap-1" aria-label={form.last.map((r) => CHIP[r].label).join(", ")}>
+    <span className="chips inline-flex flex-wrap items-center gap-1" aria-label={form.last.map((r) => CHIP[r].label).join(", ")}>
       {form.last.map((r, i) => (
         <Fragment key={i}>
           {i === split && <span className="mx-0.5 h-4 w-px bg-faint" title="À gauche : l'effectif actuel. À droite : l'effectif d'avant." />}
           <span
             className={cn(
-              "grid place-items-center rounded font-display font-bold",
+              "grid place-items-center rounded font-display font-extrabold italic",
               size === "sm" ? "size-5 text-[11px]" : "size-6 text-xs",
               CHIP[r].cls,
               i > 0 && "opacity-80",

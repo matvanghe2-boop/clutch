@@ -6,6 +6,7 @@ import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow } from "@/components/matches";
 import { IdentityCard, rankFigure } from "@/components/team-stats";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle } from "@/components/ui";
+import { TeamHero } from "@/components/versus";
 import {
   competitionHref,
   findTeamRef,
@@ -83,27 +84,21 @@ export default async function TeamFichePage({ params }: { params: Params }) {
 
   return (
     <div data-game={wiki} className="space-y-10">
-      <header className="relative overflow-hidden rounded-2xl border border-line bg-panel p-5 sm:p-7">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(500px_220px_at_10%_0%,color-mix(in_srgb,var(--accent)_14%,transparent),transparent)]" />
-        <div className="relative flex items-center gap-5">
-          <Logo team={ref} size={80} />
-          <div className="min-w-0">
-            <GameTag game={wiki} long />
-            <h1 className="mt-2 truncate font-display text-3xl font-bold sm:text-4xl">{ref.name}</h1>
-            {form && form.last.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
-                <FormChips form={form} />
-                <FormSummary form={form} />
-              </div>
-            )}
-            <p className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-dim">
-              <a href={`https://liquipedia.net/${wiki}/${pageToPath(page)}`} target="_blank" rel="noopener noreferrer" className="text-faint hover:text-dim">
-                Liquipedia ↗
-              </a>
-            </p>
+      <TeamHero team={ref} game={wiki}>
+        <GameTag game={wiki} long />
+        <h1 className="display mt-2 break-words text-4xl sm:text-6xl">{ref.name}</h1>
+        {form && form.last.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
+            <FormChips form={form} />
+            <FormSummary form={form} />
           </div>
-        </div>
-      </header>
+        )}
+        <p className="mt-2 text-sm">
+          <a href={`https://liquipedia.net/${wiki}/${pageToPath(page)}`} target="_blank" rel="noopener noreferrer" className="text-faint hover:text-dim">
+            Liquipedia ↗
+          </a>
+        </p>
+      </TeamHero>
 
       <IdentityCard info={fiche?.info} rank={rankFigure(wiki, fiche?.info, rank)} now={now} />
 
@@ -125,7 +120,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
           <SectionTitle>Face-à-face</SectionTitle>
           <div className="space-y-3">
             {h2h.map(({ team, h2h }) => (
-              <div key={team.id} className="overflow-hidden rounded-xl border border-line bg-panel">
+              <div key={team.id} className="overflow-hidden panel">
                 <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 text-sm">
                   <Link href={`/equipe/${team.id}`} className="flex items-center gap-2 font-medium hover:underline">
                     <Logo team={{ name: team.page, logo: snap.teams[team.id]?.logo }} size={20} />
@@ -160,7 +155,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
           <section>
             <SectionTitle>Derniers résultats</SectionTitle>
             {fiche.recent.length ? (
-              <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+              <div className="divide-y divide-line overflow-hidden panel">
                 {fiche.recent.map((x) => (
                   <div key={x.timestamp} className="grid grid-cols-[3.5rem_1.5rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 text-sm">
                     <span className="text-xs text-faint">{shortDate(x.timestamp, now)}</span>
@@ -184,7 +179,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
           <section>
             <SectionTitle>Effectif</SectionTitle>
             {fiche.roster.length ? (
-              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+              <ul className="divide-y divide-line overflow-hidden panel">
                 {fiche.roster.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                     <span className="min-w-0 flex-1">
@@ -218,7 +213,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
       {standings.length > 0 && (
         <section>
           <SectionTitle>Classements</SectionTitle>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+          <div className="divide-y divide-line overflow-hidden panel">
             {standings.map((s, i) => (
               <Link key={i} href={competitionHref(wiki, s.tournament.page)} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-panel-2">
                 <span className="min-w-0 truncate">
@@ -239,7 +234,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
       {matches.length > 0 && (
         <section>
           <SectionTitle>Dans les compétitions suivies</SectionTitle>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+          <div className="divide-y divide-line overflow-hidden panel">
             {matches.slice(0, 20).map(({ match: m, tournament }) => {
               const st = statusOf(m, now);
               const i = m.opponents.findIndex((o) => sameTeam(o, ref));

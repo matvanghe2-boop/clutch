@@ -6,15 +6,15 @@ import { pageToPath } from "@/lib/liquipedia/html";
 import { byMap, byPeriod, byTier, formCurve, gamesSummary, type MapTally, recordsOf, type Rival, rivals, type Tally, tally } from "@/lib/stats";
 import type { FormerPlayer, GameId, MapSample, Palmares, RankingRow, TeamAward, TeamInfo, TeamRef } from "@/lib/types";
 import { FormCurve } from "./FormCurve";
-import { cn, Logo, SectionTitle } from "./ui";
+import { cn, Logo, Num, SectionTitle } from "./ui";
 
 const percent = (r: number) => `${Math.round(r * 100)} %`;
 
 function Tile({ label, value, detail, className }: { label: string; value: React.ReactNode; detail?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("min-w-0 rounded-xl border border-line bg-panel px-4 py-3", className)}>
+    <div className={cn("panel lift tile", className)}>
       <div className="text-xs text-faint">{label}</div>
-      <div className="mt-1 break-words font-display text-xl font-bold tabular-nums sm:text-2xl">{value}</div>
+      <div className="score mt-1.5 break-words text-xl sm:text-3xl">{value}</div>
       {detail && <div className="text-xs text-faint">{detail}</div>}
     </div>
   );
@@ -40,10 +40,10 @@ export function IdentityCard({ info, rank, palmares, now }: { info?: TeamInfo; r
   if (!winnings && !rank && !age && !palmares && !info?.staff.length) return null;
   return (
     <section className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
         {rank && <Tile label="Classement" value={rank.value} detail={rank.detail} />}
         {winnings && <Tile label="Gains totaux" value={winnings} detail="estimation Liquipedia" />}
-        {palmares && <Tile label="Titres" value={palmares.titles} detail={`dont ${palmares.majorTitles} en S-Tier`} />}
+        {palmares && <Tile label="Titres" value={<Num value={palmares.titles} />} detail={`dont ${palmares.majorTitles} en S-Tier`} />}
         {age && <Tile label="Le club existe depuis" value={age} detail={monthYearOf(info?.created)} />}
       </div>
       {(info?.staff.length || place) && (
@@ -63,8 +63,8 @@ export function IdentityCard({ info, rank, palmares, now }: { info?: TeamInfo; r
 
 function RateBar({ rate }: { rate: number }) {
   return (
-    <span className="block h-1.5 w-full overflow-hidden rounded-full bg-panel-2" aria-hidden>
-      <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.round(rate * 100)}%` }} />
+    <span className="rate-track" aria-hidden>
+      <span className="rate-fill" style={{ transform: `scaleX(${rate})` }} />
     </span>
   );
 }
@@ -85,7 +85,7 @@ function TallyRow({ label, tally }: { label: string; tally: Tally }) {
           <span className="text-faint">—</span>
         )}
       </td>
-      <td className="w-16 whitespace-nowrap px-2 py-2 text-right font-display text-base font-semibold tabular-nums">{tally.played ? percent(tally.rate) : ""}</td>
+      <td className="score w-16 whitespace-nowrap px-2 py-2 text-right text-lg">{tally.played ? <Num value={Math.round(tally.rate * 100)} suffix=" %" /> : ""}</td>
       <td className="hidden w-32 py-2 pr-4 sm:table-cell">{tally.played > 0 && <RateBar rate={tally.rate} />}</td>
     </tr>
   );
@@ -112,17 +112,17 @@ export function EraTable({ eras, selected, total, palmares, base, now }: { eras:
           href={`${href}#statistiques`}
           scroll={false}
           aria-current={active ? "true" : undefined}
-          className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-panel-2 sm:grid-cols-[minmax(0,1fr)_auto_7rem]", active && "bg-[color-mix(in_srgb,var(--accent)_11%,transparent)]")}
+          className={cn("row-hover grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-l-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_8rem]", active ? "border-l-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_13%,transparent)]" : "border-l-transparent")}
         >
           <span className="min-w-0">
-            <span className="block truncate text-sm font-medium">{label}</span>
+            <span className="display block truncate text-lg">{label}</span>
             <span className="block text-xs text-faint">
               {sub}
               {titles ? ` · ${pluralize(titles, "titre")}` : ""}
             </span>
           </span>
           <span className="text-right">
-            <span className="block font-display text-lg font-semibold leading-tight tabular-nums">{t.played ? percent(t.rate) : "—"}</span>
+            <span className="score block text-2xl">{t.played ? <Num value={Math.round(t.rate * 100)} suffix=" %" /> : "—"}</span>
             <span className="block whitespace-nowrap text-xs tabular-nums text-faint">{t.played ? `${t.wins} V · ${t.losses} D` : "pas encore de match"}</span>
           </span>
           <span className="hidden sm:block">{t.played > 0 && <RateBar rate={t.rate} />}</span>
@@ -133,7 +133,7 @@ export function EraTable({ eras, selected, total, palmares, base, now }: { eras:
   return (
     <section>
       <SectionTitle aside={<span className="text-xs text-faint">choisis un effectif pour ses statistiques</span>}>Par effectif</SectionTitle>
-      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+      <ul className="stagger divide-y divide-line overflow-hidden panel">
         {eras.map((era) =>
           line(
             era.current ? base : `${base}?effectif=${era.from}`,
@@ -159,7 +159,7 @@ export function TeamStatistics({ results, scope, now, teamHref }: { results: Pas
     return (
       <section id="statistiques" className="scroll-mt-24">
         <SectionTitle>Statistiques</SectionTitle>
-        <p className="rounded-xl border border-line bg-panel px-4 py-6 text-center text-sm text-faint">Cet effectif n&apos;a pas encore joué de match connu de Liquipedia.</p>
+        <p className="panel px-4 py-6 text-center text-sm text-faint">Cet effectif n&apos;a pas encore joué de match connu de Liquipedia.</p>
       </section>
     );
   const first = results[results.length - 1];
@@ -175,7 +175,7 @@ export function TeamStatistics({ results, scope, now, teamHref }: { results: Pas
       <SectionTitle aside={<span className="text-right text-xs text-faint">{scope ? `${scope} · ` : ""}{pluralize(results.length, "match")} depuis {shortDate(first.timestamp, now)}</span>}>Statistiques</SectionTitle>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-xl border border-line bg-panel">
+        <div className="overflow-hidden panel">
           <div className="border-b border-line px-4 py-2 text-xs text-faint">Par période</div>
           <table className="w-full">
             <tbody>
@@ -186,7 +186,7 @@ export function TeamStatistics({ results, scope, now, teamHref }: { results: Pas
           </table>
         </div>
         {tiers.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-line bg-panel">
+          <div className="overflow-hidden panel">
             <div className="border-b border-line px-4 py-2 text-xs text-faint">Par niveau de compétition</div>
             <table className="w-full">
               <tbody>
@@ -201,11 +201,11 @@ export function TeamStatistics({ results, scope, now, teamHref }: { results: Pas
 
       {curve.length >= 5 && <FormCurve points={curve} window={size} />}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {records.bestStreak && <Tile label="Meilleure série" value={pluralize(records.bestStreak.count, "victoire")} detail={dates(records.bestStreak)} />}
-        {records.worstStreak && <Tile label="Pire série" value={pluralize(records.worstStreak.count, "défaite")} detail={dates(records.worstStreak)} />}
-        {records.seriesPlayed > 0 && <Tile label="Balayages" value={records.sweeps} detail={`${records.sweptBy} subis · sur ${pluralize(records.seriesPlayed, "série")}`} />}
-        {records.deciders > 0 && <Tile label="Manches décisives" value={percent(records.decidersWon / records.deciders)} detail={`${records.decidersWon} gagnées sur ${records.deciders}`} />}
+      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {records.bestStreak && <Tile label="Meilleure série" value={<Num value={records.bestStreak.count} suffix={records.bestStreak.count > 1 ? " victoires" : " victoire"} />} detail={dates(records.bestStreak)} />}
+        {records.worstStreak && <Tile label="Pire série" value={<Num value={records.worstStreak.count} suffix={records.worstStreak.count > 1 ? " défaites" : " défaite"} />} detail={dates(records.worstStreak)} />}
+        {records.seriesPlayed > 0 && <Tile label="Balayages" value={<Num value={records.sweeps} />} detail={`${records.sweptBy} subis · sur ${pluralize(records.seriesPlayed, "série")}`} />}
+        {records.deciders > 0 && <Tile label="Manches décisives" value={<Num value={Math.round((records.decidersWon / records.deciders) * 100)} suffix=" %" />} detail={`${records.decidersWon} gagnées sur ${records.deciders}`} />}
       </div>
 
       {(victims.length > 0 || nemeses.length > 0) && (
@@ -220,14 +220,14 @@ export function TeamStatistics({ results, scope, now, teamHref }: { results: Pas
 
 function RivalList({ title, rivals: list, teamHref }: { title: string; rivals: Rival[]; teamHref: (t: TeamRef) => string | undefined }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="overflow-hidden panel">
       <div className="border-b border-line px-4 py-2 text-xs text-faint">{title}, à partir de 3 matchs</div>
       {list.length ? (
         <ul className="divide-y divide-line">
           {list.map((r) => {
             const href = teamHref(r.opponent);
             return (
-              <li key={r.opponent.page ?? r.opponent.name} className="flex items-center gap-2 px-4 py-2 text-sm">
+              <li key={r.opponent.page ?? r.opponent.name} className="row-hover flex items-center gap-2 px-4 py-2 text-sm">
                 <Logo team={r.opponent} size={18} />
                 {href ? (
                   <Link href={href} className="min-w-0 flex-1 truncate hover:underline">
@@ -239,7 +239,7 @@ function RivalList({ title, rivals: list, teamHref }: { title: string; rivals: R
                 <span className="whitespace-nowrap text-xs tabular-nums text-faint">
                   {r.tally.wins} V · {r.tally.losses} D
                 </span>
-                <span className="w-12 text-right font-display font-semibold tabular-nums">{percent(r.tally.rate)}</span>
+                <span className="score w-14 text-right text-lg">{percent(r.tally.rate)}</span>
               </li>
             );
           })}
@@ -255,7 +255,7 @@ const fmtAvg = (n: number) => n.toFixed(1).replace(".", ",");
 
 function MapTable({ title, groups, unit }: { title: string; groups: MapTally[]; unit?: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+    <div className="overflow-hidden panel">
       <div className="border-b border-line px-4 py-2 text-xs text-faint">{title}</div>
       <table className="w-full text-sm">
         <tbody>
@@ -266,7 +266,9 @@ function MapTable({ title, groups, unit }: { title: string; groups: MapTally[]; 
                 {m.wins}
                 <span className="text-faint"> / {m.played}</span>
               </td>
-              <td className="w-16 whitespace-nowrap px-2 py-2 text-right font-display text-base font-semibold tabular-nums">{percent(m.rate)}</td>
+              <td className="score w-16 whitespace-nowrap px-2 py-2 text-right text-lg">
+                <Num value={Math.round(m.rate * 100)} suffix=" %" />
+              </td>
               <td className="hidden w-24 py-2 pr-2 sm:table-cell">
                 <RateBar rate={m.rate} />
               </td>
@@ -300,7 +302,7 @@ export function GamesStats({ samples, game, now }: { samples: MapSample[]; game:
     <section className="space-y-3">
       <SectionTitle aside={<span className="text-xs text-faint">{pluralize(summary.played, "manche")} depuis {shortDate(since, now)}</span>}>{title}</SectionTitle>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Tile label="Manches gagnées" value={percent(summary.rate)} detail={`${summary.wins} sur ${summary.played}`} className="col-span-2 lg:col-span-1" />
+        <Tile label="Manches gagnées" value={<Num value={Math.round(summary.rate * 100)} suffix=" %" />} detail={`${summary.wins} sur ${summary.played}`} className="col-span-2 lg:col-span-1" />
         {rocket ? (
           <>
             <Tile label="Buts marqués par manche" value={fmtAvg(summary.forAvg)} />
@@ -329,9 +331,9 @@ const placeColor = (rank?: number) => (rank === 1 ? "text-[var(--accent)]" : ran
 /** Palmarès : le décompte, puis les compétitions récentes, le reste à déplier. */
 export function PalmaresCard({ palmares, wiki, now }: { palmares: Palmares; wiki: GameId; now: number }) {
   const row = (r: Palmares["rows"][number], i: number) => (
-    <li key={i} className="grid grid-cols-[3.5rem_4rem_minmax(0,1fr)_auto] items-center gap-2 px-4 py-2 text-sm">
+    <li key={i} className={cn("row-hover grid grid-cols-[3.5rem_4rem_minmax(0,1fr)_auto] items-center gap-2 border-l-2 px-4 py-2 text-sm", r.rank === 1 ? "border-l-[var(--accent)]" : "border-l-transparent")}>
       <span className="text-xs text-faint">{r.date ? infoDate(r.date, now) : "—"}</span>
-      <span className={cn("whitespace-nowrap font-display font-semibold", placeColor(r.rank))}>{placeFr(r.place)}</span>
+      <span className={cn("score whitespace-nowrap text-lg", placeColor(r.rank))}>{placeFr(r.place)}</span>
       <span className="min-w-0">
         {r.tournament.page ? (
           <a href={`https://liquipedia.net/${wiki}/${pageToPath(r.tournament.page)}`} target="_blank" rel="noopener noreferrer" className="line-clamp-2 hover:underline sm:truncate">
@@ -348,13 +350,13 @@ export function PalmaresCard({ palmares, wiki, now }: { palmares: Palmares; wiki
   return (
     <section className="space-y-3">
       <SectionTitle aside={<span className="text-xs text-faint">{pluralize(palmares.events, "compétition")}</span>}>Palmarès</SectionTitle>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile label="Titres" value={palmares.titles} />
-        <Tile label="En S-Tier" value={palmares.majorTitles} />
-        <Tile label="Finales perdues" value={palmares.finals} />
-        <Tile label="Podiums" value={palmares.podiums} />
+      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile label="Titres" value={<Num value={palmares.titles} />} />
+        <Tile label="En S-Tier" value={<Num value={palmares.majorTitles} />} />
+        <Tile label="Finales perdues" value={<Num value={palmares.finals} />} />
+        <Tile label="Podiums" value={<Num value={palmares.podiums} />} />
       </div>
-      <div className="overflow-hidden rounded-xl border border-line bg-panel">
+      <div className="overflow-hidden panel">
         <ul className="divide-y divide-line">{palmares.rows.slice(0, 8).map(row)}</ul>
         {palmares.rows.length > 8 && (
           <details className="group border-t border-line">
@@ -373,7 +375,7 @@ export function FormerRoster({ players, now }: { players: FormerPlayer[]; now: n
   return (
     <section>
       <SectionTitle>Anciens joueurs</SectionTitle>
-      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+      <ul className="divide-y divide-line overflow-hidden panel">
         {players.map((p) => (
           <li key={`${p.id}-${p.joined}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2.5 text-sm">
             <span className="min-w-0 flex-1">
@@ -402,7 +404,7 @@ export function Honors({ awards, records, now }: { awards: TeamAward[]; records:
       <SectionTitle>Distinctions</SectionTitle>
       <div className="grid gap-3 lg:grid-cols-2">
         {awards.length > 0 && (
-          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+          <ul className="divide-y divide-line overflow-hidden panel">
             {awards.map((a, i) => (
               <li key={i} className="px-4 py-2.5 text-sm">
                 <span className="font-medium">{a.player ?? a.award}</span>
@@ -413,7 +415,7 @@ export function Honors({ awards, records, now }: { awards: TeamAward[]; records:
           </ul>
         )}
         {records.length > 0 && (
-          <ul className="space-y-2 rounded-xl border border-line bg-panel p-4 text-sm text-dim">
+          <ul className="space-y-2 panel p-4 text-sm text-dim">
             {records.map((r, i) => (
               <li key={i} className="border-l-2 border-[color-mix(in_srgb,var(--accent)_50%,transparent)] pl-3 leading-snug">
                 {r}
@@ -471,6 +473,8 @@ interface DuelLine {
   right?: string;
   us?: number;
   them?: number;
+  /** La part de mon équipe, quand les deux chiffres s'additionnent : la barre de force. */
+  share?: number;
 }
 
 /** Les chiffres des deux équipes, face à face. Masqué tant qu'aucune ligne n'a ses deux côtés. */
@@ -487,13 +491,15 @@ export function Duel({ us, them }: { us: DuelSide; them: DuelSide }) {
     { label: "Bilan de cet effectif", left: lineupRecord(us)?.text, right: lineupRecord(them)?.text, us: lineupRecord(us)?.wins, them: lineupRecord(them)?.wins },
     { label: "Club créé en", left: year(us.info), right: year(them.info) },
   ];
-  const shown = lines.filter((l) => l.left || l.right);
+  const shown: DuelLine[] = lines
+    .filter((l) => l.left || l.right)
+    .map((l) => (l.label !== "Classement" && l.us !== undefined && l.them !== undefined && l.us + l.them > 0 ? { ...l, share: l.us / (l.us + l.them) } : l));
   if (!lines.some((l) => l.left && l.right)) return null;
   const strong = (mine?: number, other?: number) => (mine !== undefined && other !== undefined && mine > other ? "font-semibold text-ink" : "text-dim");
   return (
     <section>
       <SectionTitle>Le duel</SectionTitle>
-      <div className="overflow-hidden rounded-xl border border-line bg-panel">
+      <div className="overflow-hidden panel">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 border-b border-line px-4 py-2.5 text-sm font-medium">
           <span className="flex min-w-0 items-center gap-2">
             <Logo team={us.team} size={20} />
@@ -507,10 +513,18 @@ export function Duel({ us, them }: { us: DuelSide; them: DuelSide }) {
         </div>
         <dl className="divide-y divide-line">
           {shown.map((l) => (
-            <div key={l.label} className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] items-center gap-3 px-4 py-2 text-sm tabular-nums">
-              <dd className={strong(l.us, l.them)}>{l.left ?? "—"}</dd>
-              <dt className="text-center text-xs text-faint">{l.label}</dt>
-              <dd className={cn("text-right", strong(l.them, l.us))}>{l.right ?? "—"}</dd>
+            <div key={l.label} className="px-4 py-2.5 text-sm tabular-nums">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] items-center gap-3">
+                <dd className={strong(l.us, l.them)}>{l.left ?? "—"}</dd>
+                <dt className="text-center text-xs text-faint">{l.label}</dt>
+                <dd className={cn("text-right", strong(l.them, l.us))}>{l.right ?? "—"}</dd>
+              </div>
+              {l.share !== undefined && (
+                <div className="mt-1.5 flex h-1 gap-0.5 overflow-hidden rounded-full" aria-hidden>
+                  <span className="reveal-line rounded-full bg-[var(--accent)]" style={{ width: `${l.share * 100}%` }} />
+                  <span className="flex-1 rounded-full bg-panel-2" />
+                </div>
+              )}
             </div>
           ))}
         </dl>

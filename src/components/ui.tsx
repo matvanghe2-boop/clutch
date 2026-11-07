@@ -34,19 +34,16 @@ export function Logo({ team, size = 28, className }: { team: TeamRef | null; siz
 
 export function GameTag({ game, long }: { game: GameId; long?: boolean }) {
   return (
-    <span
-      data-game={game}
-      className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-display text-[11px] font-bold tracking-wider text-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)]"
-    >
-      {long ? GAMES[game].label : GAMES[game].short}
+    <span data-game={game} className="tag">
+      <span>{long ? GAMES[game].label : GAMES[game].short}</span>
     </span>
   );
 }
 
 export function LiveBadge({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 font-display text-xs font-bold tracking-widest text-live", className)}>
-      <span className="live-dot size-1.5 rounded-full bg-live" />
+    <span className={cn("live-pill inline-flex items-center gap-1.5 rounded bg-live px-2 py-0.5 font-display text-xs font-extrabold italic tracking-widest text-white", className)}>
+      <span className="live-dot size-1.5 rounded-full bg-white" />
       LIVE
     </span>
   );
@@ -54,13 +51,13 @@ export function LiveBadge({ className }: { className?: string }) {
 
 export function ResultBadge({ result }: { result: "win" | "loss" | "draw" }) {
   const map = {
-    win: ["V", "text-win bg-win/12"],
-    loss: ["D", "text-loss bg-loss/12"],
+    win: ["V", "text-win bg-win/15"],
+    loss: ["D", "text-loss bg-loss/15"],
     draw: ["N", "text-dim bg-panel-2"],
   } as const;
   const [label, cls] = map[result];
   return (
-    <span className={cn("grid size-6 place-items-center rounded font-display text-sm font-bold", cls)} title={result}>
+    <span className={cn("grid size-6 place-items-center rounded font-display text-sm font-extrabold italic", cls)} title={result}>
       {label}
     </span>
   );
@@ -119,10 +116,25 @@ export function StreamLinks({ streams, compact, max = 3 }: { streams: Stream[]; 
 
 export function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <div className="mb-3 flex items-end justify-between gap-3">
-      <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-dim">{children}</h2>
+    <div className="mb-4 flex items-end justify-between gap-3">
+      <h2 className="section-title">{children}</h2>
       {aside}
     </div>
+  );
+}
+
+/**
+ * Un nombre entier qui défile jusqu'à sa valeur à son entrée à l'écran. Le lecteur d'écran
+ * et le copier-coller gardent le texte ; sans animation, la valeur s'affiche d'emblée.
+ */
+export function Num({ value, suffix }: { value: number; suffix?: string }) {
+  return (
+    <span className="whitespace-nowrap">
+      <span className="num" style={{ "--n": value } as React.CSSProperties}>
+        <span className="sr-only">{value}</span>
+      </span>
+      {suffix}
+    </span>
   );
 }
 
