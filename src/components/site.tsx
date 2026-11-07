@@ -32,6 +32,12 @@ export async function SiteHeader() {
           <span className="font-display text-xl font-bold tracking-[0.14em]">CLUTCH</span>
         </Link>
         <nav className="scrollbar-thin -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+          <Link href="/ce-soir" className={navLink} title="Ce soir">
+            <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" strokeLinejoin="round" />
+            </svg>
+            <span className="hidden lg:inline">Ce soir</span>
+          </Link>
           <Link href="/calendrier" className={navLink} title="Calendrier">
             <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               <rect x="3.5" y="5" width="17" height="15" rx="2.5" />

@@ -5,9 +5,10 @@ import { GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { RankingCard } from "@/components/ranking";
-import { FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
+import { EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
+import { lineupSince, pickEra, playedSince, rosterEras } from "@/lib/eras";
 import { infoDate, shortDate, tenure } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
@@ -21,7 +22,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: team ? `${team.page} · ${GAMES[team.game].short}` : "Équipe" };
 }
 
-export default async function TeamPage({ params }: { params: Params }) {
+export default async function TeamPage({ params, searchParams }: { params: Params; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const wanted = (await searchParams).effectif;
   const snap = await loadSnapshot();
   const team = teamById(snap, (await params).id);
   if (!team) notFound();
@@ -37,6 +39,11 @@ export default async function TeamPage({ params }: { params: Params }) {
   const palmares = snap.palmares?.[team.id];
   const samples = Object.values(snap.games?.[team.id] ?? {}).flat();
   const ownRef = { name: team.page, page: team.page };
+  // Par défaut, les chiffres de l'équipe d'aujourd'hui : ceux du club mélangeraient des joueurs partis depuis.
+  const eras = rosterEras(data?.roster ?? [], data?.stints ?? [], history);
+  const era = pickEra(eras, typeof wanted === "string" ? wanted : undefined);
+  const inEra = (ts: number) => !era || ((new Date(ts * 1000).toISOString().slice(0, 10) >= era.from) && (!era.to || new Date(ts * 1000).toISOString().slice(0, 10) < era.to));
+  const since = lineupSince(data?.roster ?? []);
 
   return (
     <div data-game={team.game} className="space-y-10">
@@ -49,7 +56,7 @@ export default async function TeamPage({ params }: { params: Params }) {
             <h1 className="mt-2 truncate font-display text-3xl font-bold sm:text-4xl">{team.page}</h1>
             {form.last.length > 0 && (
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
-                <FormChips form={form} />
+                <FormChips form={form} current={playedSince(history.slice(0, form.last.length), since)} />
                 <FormSummary form={form} />
               </div>
             )}
@@ -89,9 +96,11 @@ export default async function TeamPage({ params }: { params: Params }) {
         </section>
       )}
 
-      <TeamStatistics results={history} now={now} teamHref={(ref) => teamPath(snap, team.game, ref)} />
+      <EraTable eras={eras} selected={era} total={history} palmares={palmares} base={`/equipe/${team.id}`} now={now} />
 
-      <GamesStats samples={samples} game={team.game} now={now} />
+      <TeamStatistics results={era ? era.results : history} scope={era ? (era.current ? "Effectif actuel" : era.players.join(", ")) : eras.length ? "Tout l'historique" : undefined} now={now} teamHref={(ref) => teamPath(snap, team.game, ref)} />
+
+      <GamesStats samples={samples.filter((s) => inEra(s.at))} game={team.game} now={now} />
 
       {palmares && palmares.events > 0 && <PalmaresCard palmares={palmares} wiki={team.game} now={now} />}
 

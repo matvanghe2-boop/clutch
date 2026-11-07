@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import type { FollowedTeam } from "../../config/follow";
-import type { FormerPlayer, Match, Palmares, PalmaresRow, RecentMatch, RosterEntry, TeamAward, TeamInfo, TeamRef } from "../types";
+import type { FormerPlayer, Match, Palmares, PalmaresRow, RecentMatch, RosterEntry, RosterStint, TeamAward, TeamInfo, TeamRef } from "../types";
 import { clean, type El, logoFrom, makeMatch, parseHref, scoreWinner, streamsFrom, teamFrom, text, timerFrom } from "./html";
 
 export interface ParsedTeamPage {
@@ -11,6 +11,7 @@ export interface ParsedTeamPage {
   timeline: string[];
   info?: TeamInfo;
   former: FormerPlayer[];
+  stints: RosterStint[];
   awards: TeamAward[];
   records: string[];
 }
@@ -87,6 +88,7 @@ function parseTimeline($: cheerio.CheerioAPI): string[] {
  */
 export function parseTeamPage(html: string, team: FollowedTeam): ParsedTeamPage {
   const $ = cheerio.load(html);
+  const stintRows = parseStintRows($);
   let logo: string | undefined;
 
   const self = (short: string, $block: El): TeamRef => {
@@ -142,7 +144,8 @@ export function parseTeamPage(html: string, team: FollowedTeam): ParsedTeamPage 
     roster: parseRoster($),
     timeline: parseTimeline($),
     info: parseInfo($),
-    former: parseFormer($, team.page),
+    former: parseFormer(stintRows, team.page),
+    stints: parseStints(stintRows),
     awards: parseAwards($),
     records: parseRecords($),
   };
@@ -218,8 +221,13 @@ function parseInfo($: cheerio.CheerioAPI): TeamInfo | undefined {
 }
 
 /** Anciens joueurs : les tableaux à colonne « Leave Date » de la section Player Roster (un par jeu ou par onglet). */
-function parseFormer($: cheerio.CheerioAPI, teamPage: string): FormerPlayer[] {
-  const out = new Map<string, FormerPlayer>();
+/**
+ * Toutes les lignes de la section « Player Roster » qui ont une date de départ, telles
+ * quelles : un changement de rôle y fait deux lignes. `left` est la fin du passage à ce
+ * rôle : la mise à l'écart (« Inactive Date ») si elle précède le départ officiel.
+ */
+function parseStintRows($: cheerio.CheerioAPI): (FormerPlayer & { role?: string; inactive?: string })[] {
+  const out = new Map<string, FormerPlayer & { role?: string; inactive?: string }>();
   $("#Player_Roster")
     .closest(".mw-heading")
     .nextUntil(".mw-heading2")
@@ -229,7 +237,8 @@ function parseFormer($: cheerio.CheerioAPI, teamPage: string): FormerPlayer[] {
       const at = headerColumns($, $table);
       const iLeave = at(/^leave/);
       if (iLeave < 0) return;
-      const [iId, iName, iJoin, iNext] = [at(/^id$/), at(/^name$/), at(/^join/), at(/new team/)];
+      const [iId, iName, iJoin, iNext, iInactive] = [at(/^id$/), at(/^name$/), at(/^join/), at(/new team/), at(/^inactive/)];
+      const iRole = at(/^$|position|role/);
       $table.find("tr").each((_, tr) => {
         const tds = $(tr).children("td");
         if (tds.length <= iLeave) return;
@@ -244,12 +253,31 @@ function parseFormer($: cheerio.CheerioAPI, teamPage: string): FormerPlayer[] {
           joined,
           left: text(tds.eq(iLeave)).match(/\d{4}-\d{2}-\d{2}/)?.[0],
           next: ($next && (noRefs(text($next)) || $next.find("a[title]").first().attr("title"))) || undefined,
+          role: iRole >= 0 ? noRefs(text(tds.eq(iRole))) || undefined : undefined,
+          inactive: iInactive >= 0 ? text(tds.eq(iInactive)).match(/\d{4}-\d{2}-\d{2}/)?.[0] : undefined,
         });
       });
     });
-  return mergeRoleChanges([...out.values()], teamPage)
+  return [...out.values()];
+}
+
+/** Les anciens joueurs, un passage par personne, du départ le plus récent au plus ancien. */
+function parseFormer(rows: FormerPlayer[], teamPage: string): FormerPlayer[] {
+  return mergeRoleChanges(
+    rows.map(({ id, name, joined, left, next }) => ({ id, name, joined, left, next })),
+    teamPage,
+  )
     .sort((a, b) => (b.left ?? "").localeCompare(a.left ?? ""))
     .slice(0, 15);
+}
+
+/** Chaque passage dans le club à un rôle donné : de quoi reconstituer l'effectif à toute date. */
+function parseStints(rows: ReturnType<typeof parseStintRows>): RosterStint[] {
+  return rows
+    .filter((r) => r.joined && r.left)
+    .map((r) => ({ id: r.id, role: r.role, joined: r.joined!, left: r.inactive && r.inactive < r.left! ? r.inactive : r.left! }))
+    .sort((a, b) => b.joined.localeCompare(a.joined))
+    .slice(0, 80);
 }
 
 /**

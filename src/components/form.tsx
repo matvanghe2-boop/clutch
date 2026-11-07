@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Form, Outcome } from "@/lib/derive";
 import { cn } from "./ui";
 
@@ -9,22 +10,30 @@ const CHIP: Record<Outcome, { letter: string; cls: string; label: string }> = {
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
 
-/** Les derniers résultats en pastilles, du plus récent (à gauche) au plus ancien. */
-export function FormChips({ form, size = "md" }: { form: Form; size?: "sm" | "md" }) {
+/**
+ * Les derniers résultats en pastilles, du plus récent (à gauche) au plus ancien.
+ * `current` : combien sont de l'effectif actuel. Un trait les sépare des autres,
+ * joués par une équipe qui n'existe plus.
+ */
+export function FormChips({ form, size = "md", current }: { form: Form; size?: "sm" | "md"; current?: number }) {
+  const split = current !== undefined && current < form.last.length ? current : undefined;
   return (
-    <span className="inline-flex flex-wrap gap-1" aria-label={form.last.map((r) => CHIP[r].label).join(", ")}>
+    <span className="inline-flex flex-wrap items-center gap-1" aria-label={form.last.map((r) => CHIP[r].label).join(", ")}>
       {form.last.map((r, i) => (
-        <span
-          key={i}
-          className={cn(
-            "grid place-items-center rounded font-display font-bold",
-            size === "sm" ? "size-5 text-[11px]" : "size-6 text-xs",
-            CHIP[r].cls,
-            i > 0 && "opacity-80",
-          )}
-        >
-          {CHIP[r].letter}
-        </span>
+        <Fragment key={i}>
+          {i === split && <span className="mx-0.5 h-4 w-px bg-faint" title="À gauche : l'effectif actuel. À droite : l'effectif d'avant." />}
+          <span
+            className={cn(
+              "grid place-items-center rounded font-display font-bold",
+              size === "sm" ? "size-5 text-[11px]" : "size-6 text-xs",
+              CHIP[r].cls,
+              i > 0 && "opacity-80",
+              split !== undefined && i >= split && "opacity-40",
+            )}
+          >
+            {CHIP[r].letter}
+          </span>
+        </Fragment>
       ))}
     </span>
   );

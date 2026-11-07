@@ -1,63 +1,55 @@
 /**
- * Publication de l'instantané dans Vercel Blob, où le site le lit.
+ * Publication de l'instantané, là où le site le lit (voir `../store`).
  *
- * On publie si les données ont changé, ou si la dernière publication date de
- * plus de deux heures : c'est le signal de vie de la synchro (`checkedAt`), qui
- * permet au site de détecter une synchro arrêtée. Le plan Hobby limite les
- * écritures dans Blob à 2 000 par mois : publier à chaque passe (toutes les
- * 15 min) les dépasserait.
+ * Avec la base : à chaque passe qui a lu une page. Les heures de lecture sont ainsi
+ * gardées, et chaque page revient à son heure.
+ *
+ * Sans base, sur Blob : seulement si les données ont changé, car le plan Hobby limite
+ * les écritures à 2 000 par mois.
+ *
+ * Dans les deux cas, au moins toutes les deux heures : c'est le signal de vie de la
+ * synchro (`checkedAt`), qui permet au site de détecter une synchro arrêtée.
  */
-import { put } from "@vercel/blob";
+import { canWrite, hasDatabase, readDoc, writeDoc } from "../store";
 import type { Snapshot } from "../types";
 
 export const HEARTBEAT_MS = 2 * 60 * 60 * 1000;
 
-/**
- * Durée de cache CDN des fichiers lus par le site. Une réécriture se propage
- * en moins d'une minute quelle que soit cette durée ; une durée longue fait
- * des lectures des « HIT », que le plan Hobby ne compte pas (10 000 lectures
- * hors cache par mois au plus, et l'accès à Blob coupé 30 jours au-delà).
- */
-export const CDN_MAX_AGE = 3600;
-
 /** Champs qui changent à chaque lecture sans que les données changent. */
 const VOLATILE = new Set(["fetchedAt", "updatedAt", "checkedAt", "failures", "historyFetchedAt"]);
+const CLOCK = new Set(["updatedAt", "checkedAt"]);
 
 export const stable = (s: Snapshot) => JSON.stringify(s, (k, v) => (VOLATILE.has(k) ? undefined : v));
 
-/** Adresse d'un autre fichier du même store (config.json à côté de snapshot.json). */
-export function siblingUrl(name: string): string | undefined {
-  const url = process.env.SNAPSHOT_URL;
-  return url ? url.replace(/[^/]+$/, name) : undefined;
+/** L'empreinte d'un instantané avant une passe : l'instantané, lui, est modifié sur place. */
+export interface SnapshotState {
+  stable: string;
+  /** Tout sauf l'horloge de la passe : une passe sans aucune lecture ne change rien. */
+  exact: string;
+  beat?: string;
 }
 
+export function stateOf(s: Snapshot): SnapshotState {
+  return {
+    stable: stable(s),
+    exact: JSON.stringify(s, (k, v) => (CLOCK.has(k) ? undefined : v)),
+    beat: s.checkedAt ?? s.updatedAt ?? undefined,
+  };
+}
+
+/** Le dernier instantané publié. Une panne de la base est une erreur : repartir de la sauvegarde d'hier écraserait le reste. */
 export async function readPublished(): Promise<Snapshot | null> {
-  const url = process.env.SNAPSHOT_URL;
-  if (!url) return null;
-  // À travers le CDN : juste après une publication, il peut encore servir la
-  // précédente une minute ou deux. Le verrou de la synchro de secours (4 min au
-  // moins entre deux passes) et l'écart de 15 min des passes planifiées couvrent ce délai.
-  const res = await fetch(url, { cache: "no-store" });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Lecture de la version publiée : HTTP ${res.status}`);
-  return (await res.json()) as Snapshot;
+  return readDoc<Snapshot>("snapshot", { strict: true });
 }
 
-export type PublishOutcome = "published" | "heartbeat" | "unchanged" | "no-token";
+export type PublishOutcome = "published" | "saved" | "heartbeat" | "unchanged" | "no-token";
 
-export async function publishIfNeeded(snap: Snapshot, force = false): Promise<PublishOutcome> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return "no-token";
-  const published = await readPublished();
-  const changed = !published || stable(published) !== stable(snap);
-  const lastBeat = published?.checkedAt ?? published?.updatedAt;
-  const beatDue = !lastBeat || Date.now() - Date.parse(lastBeat) > HEARTBEAT_MS;
-  if (!force && !changed && !beatDue) return "unchanged";
-  await put("snapshot.json", JSON.stringify(snap), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    cacheControlMaxAge: CDN_MAX_AGE,
-  });
-  return changed || force ? "published" : "heartbeat";
+export async function publishIfNeeded(snap: Snapshot, before: SnapshotState | undefined, force = false): Promise<PublishOutcome> {
+  if (!canWrite()) return "no-token";
+  const changed = !before || stable(snap) !== before.stable;
+  const touched = hasDatabase() && before !== undefined && stateOf(snap).exact !== before.exact;
+  const beatDue = !before?.beat || Date.now() - Date.parse(before.beat) > HEARTBEAT_MS;
+  if (!force && !changed && !touched && !beatDue) return "unchanged";
+  await writeDoc("snapshot", snap);
+  return changed || force ? "published" : touched ? "saved" : "heartbeat";
 }

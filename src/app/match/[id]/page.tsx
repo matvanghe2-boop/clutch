@@ -10,6 +10,7 @@ import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle, StreamL
 import { predict } from "@/app/actions";
 import { isAdmin } from "@/lib/admin";
 import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, matchHref, type MatchStatus, opponentKey, ordinal, predictionResult, rankOf, statusOf, teamPath, undatedId } from "@/lib/derive";
+import { lineupSince, playedSince } from "@/lib/eras";
 import { clock, dayLabel, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { loadPredictions } from "@/lib/prediction-store";
@@ -70,10 +71,13 @@ export default async function MatchPage({ params, searchParams }: { params: Para
 
   const h2h = headToHead(snap, o.team, o.them);
   const opp = o.them?.page ? snap.opponents?.[opponentKey(m.wiki, o.them.page)] : undefined;
-  const usForm = formOf(historyOf(snap, o.team));
+  const usHistory = historyOf(snap, o.team);
+  const usForm = formOf(usHistory);
   const themForm = opp ? formOf(opp.recent) : undefined;
   const usRoster = snap.teams[o.team.id]?.roster ?? [];
   const themRoster = opp?.roster ?? [];
+  const usSince = lineupSince(usRoster);
+  const themSince = lineupSince(themRoster);
   const t = m.tournament;
   // Pourquoi la fiche de l'adversaire manque : il n'est pas encore connu, le match est passé, ou Liquipedia n'a pas de page pour lui.
   const noPage = o.them?.page && /missingtitle|doesn.t exist/.test(snap.failures[`opponent:${opponentKey(m.wiki, o.them.page)}`]?.message ?? "");
@@ -216,16 +220,16 @@ export default async function MatchPage({ params, searchParams }: { params: Para
       )}
 
       <Duel
-        us={{ team: o.us, info: snap.teams[o.team.id]?.info, rank: rankFigure(m.wiki, snap.teams[o.team.id]?.info, rankOf(snap, m.wiki, o.us)), form: usForm }}
-        them={{ team: o.them, info: opp?.info, rank: rankFigure(m.wiki, opp?.info, rankOf(snap, m.wiki, o.them)), form: themForm }}
+        us={{ team: o.us, info: snap.teams[o.team.id]?.info, rank: rankFigure(m.wiki, snap.teams[o.team.id]?.info, rankOf(snap, m.wiki, o.us)), form: usForm, since: usSince, results: usHistory, now }}
+        them={{ team: o.them, info: opp?.info, rank: rankFigure(m.wiki, opp?.info, rankOf(snap, m.wiki, o.them)), form: themForm, since: themSince, results: opp?.recent, partial: true, now }}
       />
 
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
           <SectionTitle>Forme du moment</SectionTitle>
           <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
-            <FormRow team={o.us} form={usForm} rank={rankOf(snap, m.wiki, o.us)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} />
-            <FormRow team={o.them} form={themForm} rank={rankOf(snap, m.wiki, o.them)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} missing={opponentNote} />
+            <FormRow team={o.us} form={usForm} current={playedSince(usHistory.slice(0, usForm.last.length), usSince)} rank={rankOf(snap, m.wiki, o.us)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} />
+            <FormRow team={o.them} form={themForm} current={playedSince((opp?.recent ?? []).slice(0, themForm?.last.length ?? 0), themSince)} rank={rankOf(snap, m.wiki, o.them)} rankLabel={snap.rankings?.[m.wiki]?.wiki === "counterstrike" ? "VRS" : "saison"} missing={opponentNote} />
           </div>
         </section>
 
@@ -285,7 +289,7 @@ function Side({ team, align, href }: { team: TeamRef | null; align: "start" | "e
   );
 }
 
-function FormRow({ team, form, missing, rank, rankLabel }: { team: TeamRef | null; form?: Form; missing?: string; rank?: RankingRow; rankLabel: string }) {
+function FormRow({ team, form, missing, rank, rankLabel, current }: { team: TeamRef | null; form?: Form; missing?: string; rank?: RankingRow; rankLabel: string; current?: number }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
       <span className="flex min-w-36 flex-1 items-center gap-2">
@@ -299,7 +303,7 @@ function FormRow({ team, form, missing, rank, rankLabel }: { team: TeamRef | nul
       </span>
       {form?.last.length ? (
         <span className="flex flex-col items-end gap-1">
-          <FormChips form={form} size="sm" />
+          <FormChips form={form} size="sm" current={current} />
           <FormSummary form={form} />
         </span>
       ) : (

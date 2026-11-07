@@ -2,10 +2,10 @@
  * Synchro sur Vercel. Deux modes, selon que la variable CRON_SECRET existe.
  *
  * Avec un cron externe (cron-job.org appelle /api/sync toutes les 5 min, avec
- * le secret) : c'est lui qui synchronise, par `scheduledPass`. Il n'écrit rien
- * dans Blob tant que les données ne changent pas : le plan Hobby limite les
- * écritures à 2 000 par mois, et l'accès à Blob est coupé 30 jours si on les
- * dépasse. Les visites ne servent plus que de secours, si la synchro se tait
+ * le secret) : c'est lui qui synchronise, par `scheduledPass`. Sans base de données,
+ * il n'écrit rien dans Blob tant que les données ne changent pas : le plan Hobby
+ * limite les écritures à 2 000 par mois, et l'accès à Blob est coupé 30 jours si on
+ * les dépasse. Les visites ne servent plus que de secours, si la synchro se tait
  * plus de 2 h 30.
  *
  * Sans cron externe : les visites déclenchent la synchro (`autoRefresh`), après
@@ -15,17 +15,17 @@
  *     toutes les 4 minutes au plus ;
  *   - les équipes ont changé dans les réglages.
  *
- * Les passes de secours prennent un verrou (sync-lock.json, écriture
- * conditionnée à l'ETag) : deux passes simultanées doubleraient le rythme des
- * appels à Liquipedia.
+ * Les passes de secours prennent un verrou : deux passes simultanées doubleraient le
+ * rythme des appels à Liquipedia.
  */
 import { BlobNotFoundError, BlobPreconditionFailedError, head, put } from "@vercel/blob";
 import { DEFAULT_TEAMS, type TeamConfig } from "../../config/follow";
 import { liveSoon } from "../derive";
 import { emptySnapshot } from "../snapshot";
 import type { Snapshot } from "../types";
+import { backupIfDue, canWrite, hasDatabase, lockInDatabase } from "../store";
 import { runPass } from "./engine";
-import { publishIfNeeded, readPublished } from "./publish";
+import { publishIfNeeded, readPublished, stateOf } from "./publish";
 import { loadTeamConfig } from "./team-config";
 
 const MIN = 60_000;
@@ -55,7 +55,7 @@ let running = false;
 const BUDGET_MS = 180_000;
 
 function canRun(): boolean {
-  if (!process.env.VERCEL || !process.env.BLOB_READ_WRITE_TOKEN || !process.env.SNAPSHOT_URL) return false;
+  if (!process.env.VERCEL || !canWrite()) return false;
   // Next exécute aussi les `after()` des pages qu'il génère au build : pas d'appel à Liquipedia depuis la machine de build.
   return process.env.NEXT_PHASE !== "phase-production-build";
 }
@@ -80,6 +80,7 @@ export async function autoRefresh(seen: Snapshot, { always = false } = {}): Prom
     if (!(await takeLock(liveOnly ? 4 * MIN : 10 * MIN, reason))) return;
 
     const snap = (await readPublished()) ?? seen;
+    const before = stateOf(snap);
     const result = await runPass(snap, {
       profile: "visit",
       teams: await loadTeamConfig(),
@@ -88,7 +89,7 @@ export async function autoRefresh(seen: Snapshot, { always = false } = {}): Prom
       deadline: start + BUDGET_MS,
       log: (...args) => console.log("[clutch]", ...args),
     });
-    const outcome = await publishIfNeeded(snap);
+    const outcome = await publishIfNeeded(snap, before);
     console.log(`[clutch] passe de secours (${reason}) : ${result.pages} pages, ${outcome}`);
   } finally {
     running = false;
@@ -108,6 +109,7 @@ export async function scheduledPass(): Promise<void> {
     const start = Date.now();
     const snap = (await readPublished()) ?? emptySnapshot();
     if (start - lastCheck(snap) > STALE_MS && !(await takeLock(10 * MIN, "reprise de la synchro régulière"))) return;
+    const before = stateOf(snap);
     const result = await runPass(snap, {
       profile: "cron",
       teams: await loadTeamConfig(),
@@ -115,19 +117,21 @@ export async function scheduledPass(): Promise<void> {
       deadline: start + BUDGET_MS,
       log: (...args) => console.log("[clutch]", ...args),
     });
-    const outcome = await publishIfNeeded(snap);
+    const outcome = await publishIfNeeded(snap, before);
     console.log(`[clutch] synchro régulière : ${result.pages} pages, ${outcome}`);
+    await backupIfDue().catch((e) => console.error("[clutch] sauvegarde dans Blob :", e));
   } finally {
     running = false;
   }
 }
 
 /**
- * Prend le verrou (sync-lock.json), sauf si une passe l'a pris il y a moins de
- * `gap` ms. L'écriture est conditionnée à l'ETag lu : de deux instances qui
- * tentent leur chance en même temps, une seule l'emporte.
+ * Prend le verrou, sauf si une passe l'a pris il y a moins de `gap` ms. Sans base,
+ * c'est sync-lock.json dans Blob, dont l'écriture est conditionnée à l'ETag lu : de
+ * deux instances qui tentent leur chance en même temps, une seule l'emporte.
  */
 async function takeLock(gap: number, reason: string): Promise<boolean> {
+  if (hasDatabase()) return lockInDatabase(gap, reason);
   let etag: string | undefined;
   try {
     const lock = await head(LOCK);

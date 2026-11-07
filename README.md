@@ -116,12 +116,45 @@ Le site est déployé sur Vercel, relié au dépôt GitHub : **un push sur `main
 déploie**. Pour déployer à la main : `npx vercel --prod --yes`.
 
 ```
-cron-job.org, toutes les 5 min ──► /api/sync (Vercel) ──► Vercel Blob (snapshot.json) ──► le site
+cron-job.org, toutes les 5 min ──► /api/sync (Vercel) ──► base Redis ──► le site
+                                                              └─ une copie par jour ──► Vercel Blob
 ```
 
-La synchronisation **ne committe jamais rien** : elle publie l'instantané dans
-**Vercel Blob**, où le site le lit (`SNAPSHOT_URL`). Sans `SNAPSHOT_URL`, en
-local, le site lit `data/snapshot.json`.
+La synchronisation **ne committe jamais rien** : elle publie l'instantané en ligne,
+où le site le lit ([`src/lib/store.ts`](src/lib/store.ts)). En local, sans stockage
+en ligne, le site lit `data/snapshot.json`.
+
+### La base de données
+
+L'instantané, les équipes suivies et les pronostics vivent dans une base **Redis**
+(Upstash, offre gratuite), reliée au projet depuis le Marketplace de Vercel, une fois :
+
+```bash
+npx vercel integration add upstash/upstash-kv
+```
+
+Elle écrit ses variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) dans le projet ; il
+reste à redéployer. **Il n'y a rien d'autre à migrer** : à sa première lecture, chaque
+document est repris de Vercel Blob. Tant que la base n'est pas reliée, le site reste
+entièrement sur Blob.
+
+Pourquoi elle plutôt que Blob seul : 2 000 écritures par mois au plus sur Blob, avec
+l'accès coupé 30 jours au-delà (le site s'arrêterait), et une écriture qui met une
+minute ou deux à traverser son CDN. La base répond sans délai, et chaque passe peut y
+garder l'heure de lecture de chaque page.
+
+Pourquoi pas Postgres : les données sont des documents qu'on lit et qu'on écrit en
+entier. Le plan gratuit de Supabase est déjà pris par d'autres applis (2 projets
+actifs au plus), et une passe toutes les 5 minutes empêcherait une base Neon de se
+mettre en veille, ce qui consommerait vite ses heures de calcul gratuites.
+
+Ce que ça consomme : l'offre gratuite donne 500 000 commandes et 10 Go par mois.
+Compressé, l'instantané pèse moins de 100 Ko ; le cron fait 2 commandes par passe, soit
+environ 17 000 par mois et 2 Go au plus, avant les visites.
+
+**Blob reste la sauvegarde** : une copie par jour de chaque document, relue si la base
+ne répond pas. Une écriture n'a jamais lieu à partir de cette copie : elle échoue plutôt
+que d'écraser des données plus récentes.
 
 ### La synchro régulière : un cron externe
 
@@ -131,14 +164,13 @@ ensuite sur Vercel ([`src/lib/sync/auto.ts`](src/lib/sync/auto.ts)) : elle lit
 les pages dues (6 au plus, en moins de 3 minutes), et pendant un match relit le
 score à chaque passe. Elle ne publie que si les données ont changé.
 
-**Son calendrier ne dépend pas de l'âge des données.** Une page relue sans
-changement ne publie rien : l'âge noté dans l'instantané ne bouge donc pas, et le
-cron, qui repart de cet instantané à chaque passe, croirait la page toujours en
-retard. Il la relirait à chaque passe, pour rien. Le cron tire donc les créneaux
-d'une page de son nom et de l'heure (`isDue`, dans
-[`engine.ts`](src/lib/sync/engine.ts)) : une fois par période, à un moment qui
-varie d'une page à l'autre. Les autres passes (locale, GitHub, visites) gardent
-leur état ou écrivent ce qu'elles lisent : pour elles, seul l'âge compte.
+**Son calendrier.** Avec la base, chaque passe y note l'heure de ses lectures : une
+page est relue quand elle a dépassé son âge. Sans base, sur Blob, une page relue sans
+changement ne publie rien : l'âge noté dans l'instantané ne bouge pas, et le cron, qui
+repart de cet instantané à chaque passe, la croirait toujours en retard. Il tire alors
+les créneaux d'une page de son nom et de l'heure (`isDue`, dans
+[`engine.ts`](src/lib/sync/engine.ts)) : une fois par période, à un moment qui varie
+d'une page à l'autre.
 
 Mise en place, une fois :
 
@@ -151,8 +183,8 @@ Mise en place, une fois :
 Le cron quotidien de Vercel ([`vercel.json`](vercel.json), 5 h 15 UTC) appelle la
 même adresse avec le même secret, que Vercel ajoute de lui-même.
 
-**Le quota de Blob.** Le plan Hobby compte 2 000 écritures et 10 000 lectures
-hors cache par mois, et coupe l'accès à Blob 30 jours au-delà : le site
+**Le quota de Blob, sans base.** Le plan Hobby compte 2 000 écritures et 10 000
+lectures hors cache par mois, et coupe l'accès à Blob 30 jours au-delà : le site
 s'arrêterait. D'où trois règles :
 
 - la synchro régulière n'écrit rien tant que rien ne change, pas même un verrou ;
@@ -165,24 +197,26 @@ s'arrêterait. D'où trois règles :
 ### Les secours
 
 Si la synchro régulière se tait plus de 2 h 30, un bandeau le signale en haut
-du site, et deux secours prennent le relais, sous un verrou dans Blob :
+du site, et deux secours prennent le relais, sous un verrou :
 
 - **à la visite** : la page s'affiche tout de suite puis, la réponse envoyée,
   le serveur lit au plus 4 pages et publie ;
-- **GitHub Actions** ([`.github/workflows/sync.yml`](.github/workflows/sync.yml)) :
-  toutes les 15 minutes en théorie, mais GitHub lance ses tâches planifiées très
-  irrégulièrement, et ses machines partagent leurs adresses avec beaucoup
-  d'autres projets (Liquipedia leur répond parfois 429). Le workflow vérifie
-  donc d'abord la fraîcheur des données (`scripts/ci.ts fresh`) et ne
-  synchronise que si elles ont plus de 2 h 30. Il garde l'état de passe en
-  passe dans son cache, et se réactive lui-même une fois par jour (GitHub
-  désactive les tâches planifiées d'un dépôt public sans activité).
+- **le cron quotidien de Vercel**, une passe par jour.
+
+La synchro par GitHub Actions a été retirée : GitHub lançait ses tâches très
+irrégulièrement, ses machines recevaient des 429 de Liquipedia, et il aurait fallu lui
+confier l'accès à la base pour un secours qui ne servait pas.
 
 Sans `CRON_SECRET`, c'est l'ancien fonctionnement : les visites déclenchent la
 synchro quand un match est en cours ou que les équipes ont changé.
 
-Le secret `BLOB_READ_WRITE_TOKEN` du dépôt GitHub donne au workflow le droit
-d'écrire dans Blob. Lancer une passe GitHub à la main : `gh workflow run sync.yml`.
+### L'API officielle de Liquipedia (LPDB)
+
+Elle n'est pas branchée. Elle n'est pas en libre-service : l'accès se demande à
+Liquipedia, par le formulaire de [liquipedia.net/api](https://liquipedia.net/api), et
+ses conditions limitent à 60 requêtes par heure. Elle donnerait des données
+structurées, moins sensibles à un changement de mise en page. Rien ne l'attend : tout
+fonctionne sans elle, par l'API MediaWiki.
 
 ## Calendrier
 
@@ -288,6 +322,43 @@ bilan, série en cours) et son **classement de saison**, lu une fois par jour :
 
 Le haut du classement et les places de mes équipes et de leurs adversaires sont
 gardés ; la page de match affiche le rang des deux équipes.
+
+## Ce soir
+
+L'onglet **Ce soir** (`/ce-soir`) répond à une question : qu'est-ce que je regarde
+ce soir ? Une soirée va de 6 h à 6 h le lendemain, à l'heure de Paris : un match de CDL
+à 1 h du matin fait partie de la soirée de la veille
+([`src/lib/tonight.ts`](src/lib/tonight.ts)).
+
+- **À regarder maintenant** : un lecteur par match en cours ou qui commence dans
+  l'heure. S'il y en a plusieurs, ils se placent côte à côte, le son coupé sur tous sauf
+  le premier. Chacun garde ses onglets de chaînes, françaises d'abord.
+- **Ensuite**, **Déjà joués ce soir** et **Horaire à venir** complètent la soirée.
+- Si tes équipes ne jouent pas ce soir, la page annonce leur prochaine soirée.
+
+L'accueil affiche un lien vers cette vue quand tes équipes jouent le soir même.
+
+## Stats par effectif
+
+Un club peut changer entièrement d'équipe du jour au lendemain : Gentle Mates a perdu
+tous ses joueurs le 26 octobre 2026, et Vatira, Atow et zen sont arrivés le 28. Mélanger
+leurs résultats ne dirait rien de l'équipe d'aujourd'hui.
+
+**Les statistiques décrivent donc l'effectif actuel par défaut.** Le bloc « Par effectif »
+de la page d'une équipe liste chaque période, avec ses joueurs, ses dates, son bilan et
+ses titres : un clic y bascule toutes les statistiques, et « Tout l'historique du club »
+reste à un clic.
+
+Les périodes viennent de la section « Player Roster » de Liquipedia
+([`src/lib/eras.ts`](src/lib/eras.ts)) : chaque arrivée ou départ de joueur en ouvre une.
+Les coachs et les remplaçants n'en sont pas, un joueur écarté cesse de compter à sa mise à
+l'écart, et une période sans match disparaît. La date d'arrivée d'un joueur n'est pas
+toujours celle de son premier match : un joueur signé en avance peut compter un peu tôt.
+
+Ailleurs, les pastilles de forme marquent d'un trait les matchs de l'effectif d'avant, et
+le duel de la feuille de match compare depuis quand chaque équipe joue ensemble et son
+bilan depuis. Pour un adversaire, Clutch ne connaît que ses 10 derniers résultats : si son
+effectif est plus ancien, ce bilan reste vide.
 
 ## Statistiques d'une équipe
 

@@ -1,13 +1,12 @@
 /**
- * Les équipes suivies, réglables depuis le site (/reglages). Stockées dans
- * Vercel Blob (config.json, à côté de l'instantané) en production, dans
- * data/config.json en local ; à défaut, les valeurs de src/config/follow.ts.
+ * Les équipes suivies, réglables depuis le site (/reglages). Stockées en ligne
+ * en production (voir `../store`), dans data/config.json en local ; à défaut, les
+ * valeurs de src/config/follow.ts.
  */
 import fs from "node:fs";
 import path from "node:path";
-import { put } from "@vercel/blob";
 import { DEFAULT_TEAMS, GAME_IDS, type TeamConfig, TWITCH_LOGIN, WATCH_PRESETS } from "../../config/follow";
-import { CDN_MAX_AGE, siblingUrl } from "./publish";
+import { hasOnlineStore, readDoc, writeDoc } from "../store";
 
 const LOCAL_PATH = path.join(process.cwd(), "data", "config.json");
 
@@ -37,19 +36,15 @@ export function parseTeamConfig(raw: string | undefined): TeamConfig[] | null {
 }
 
 /**
- * Lue à travers le CDN de Blob : après une modification, l'ancienne version
- * peut encore être servie une minute ou deux (un paramètre d'URL n'y change
- * rien, le CDN l'ignore). La page Réglages s'en accommode avec un cookie.
+ * Sans base de données, lue à travers le CDN de Blob : après une modification,
+ * l'ancienne version peut encore être servie une minute ou deux. La page Réglages
+ * s'en accommode avec un cookie.
  */
 export async function loadTeamConfig(): Promise<TeamConfig[]> {
   try {
-    const url = siblingUrl("config.json");
-    if (url) {
-      const res = await fetch(url, { cache: "no-store" });
-      if (res.ok) {
-        const list = await res.json();
-        if (valid(list) && list.length) return list;
-      }
+    if (hasOnlineStore()) {
+      const list = await readDoc<unknown>("config");
+      if (valid(list) && list.length) return list;
     } else if (fs.existsSync(LOCAL_PATH)) {
       const list = JSON.parse(fs.readFileSync(LOCAL_PATH, "utf8"));
       if (valid(list) && list.length) return list;
@@ -62,16 +57,7 @@ export async function loadTeamConfig(): Promise<TeamConfig[]> {
 
 export async function saveTeamConfig(list: TeamConfig[]): Promise<void> {
   if (!valid(list)) throw new Error("Configuration d'équipes invalide");
-  if (process.env.BLOB_READ_WRITE_TOKEN && process.env.SNAPSHOT_URL) {
-    await put("config.json", JSON.stringify(list), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-      cacheControlMaxAge: CDN_MAX_AGE,
-    });
-    return;
-  }
+  if (await writeDoc("config", list)) return;
   fs.mkdirSync(path.dirname(LOCAL_PATH), { recursive: true });
   fs.writeFileSync(LOCAL_PATH, JSON.stringify(list, null, 2));
 }

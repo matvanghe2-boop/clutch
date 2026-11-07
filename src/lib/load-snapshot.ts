@@ -1,25 +1,21 @@
 import { unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 import { emptySnapshot, readSnapshot } from "./snapshot";
+import { hasOnlineStore, readDoc } from "./store";
 import type { Snapshot } from "./types";
 
 /**
- * L'instantané que le site affiche. En production, la synchro le publie dans
- * Vercel Blob et `SNAPSHOT_URL` pointe dessus : les données changent sans
- * commit ni redéploiement. En local, sans cette variable, on lit le fichier
- * qu'écrit `npm run dev`.
+ * L'instantané que le site affiche. En production, la synchro le publie en ligne
+ * (voir `store`) : les données changent sans commit ni redéploiement. En local, on
+ * lit le fichier qu'écrit `npm run dev`.
  *
  * `cache` : une seule lecture par requête, quel que soit le nombre de
  * composants qui en ont besoin.
  */
 export const loadSnapshot = cache(async (): Promise<Snapshot> => {
-  const url = process.env.SNAPSHOT_URL;
-  if (!url) return readSnapshot();
+  if (!hasOnlineStore()) return readSnapshot();
   try {
-    // Pas de cache côté Next : le CDN de Blob garde déjà le fichier 60 s.
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return { ...emptySnapshot(), ...((await res.json()) as Snapshot) };
+    return { ...emptySnapshot(), ...(await readDoc<Snapshot>("snapshot")) };
   } catch (e) {
     // Au build, Next interrompt le rendu statique d'une page qui lit des données
     // fraîches en levant une erreur interne : elle doit remonter, ce n'est pas une panne.

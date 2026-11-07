@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { type Form, ordinal, type PastMatch } from "@/lib/derive";
+import { type Era, titlesIn } from "@/lib/eras";
 import { infoDate, money, monthYearOf, placeFr, shortDate, tenure } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
-import { byMap, byPeriod, byTier, formCurve, gamesSummary, type MapTally, recordsOf, type Rival, rivals, type Tally } from "@/lib/stats";
+import { byMap, byPeriod, byTier, formCurve, gamesSummary, type MapTally, recordsOf, type Rival, rivals, type Tally, tally } from "@/lib/stats";
 import type { FormerPlayer, GameId, MapSample, Palmares, RankingRow, TeamAward, TeamInfo, TeamRef } from "@/lib/types";
 import { FormCurve } from "./FormCurve";
 import { cn, Logo, SectionTitle } from "./ui";
@@ -92,9 +93,75 @@ function TallyRow({ label, tally }: { label: string; tally: Tally }) {
 
 const pluralize = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
 
-/** Bilans, courbe de forme, records et adversaires, calculés sur tout l'historique connu. */
-export function TeamStatistics({ results, now, teamHref }: { results: PastMatch[]; now: number; teamHref: (t: TeamRef) => string | undefined }) {
-  if (results.length < 3) return null;
+const eraDates = (era: Era, now: number) => {
+  const day = (iso: string) => infoDate(iso, now);
+  return era.to ? `${day(era.from)} → ${day(era.to)} · ${tenure(era.from, era.to, now)}` : `depuis le ${day(era.from)} · ${tenure(era.from, undefined, now)}`;
+};
+
+/**
+ * Le bilan de chaque effectif du club : on y choisit celui que les statistiques
+ * ci-dessous décrivent. Un lien par ligne : le choix tient dans l'adresse.
+ */
+export function EraTable({ eras, selected, total, palmares, base, now }: { eras: Era[]; selected?: Era; total: PastMatch[]; palmares?: Palmares; base: string; now: number }) {
+  if (!eras.length) return null;
+  const line = (href: string, active: boolean, label: React.ReactNode, sub: React.ReactNode, results: PastMatch[], titles?: number) => {
+    const t = tally(results);
+    return (
+      <li key={href}>
+        <Link
+          href={`${href}#statistiques`}
+          scroll={false}
+          aria-current={active ? "true" : undefined}
+          className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-panel-2 sm:grid-cols-[minmax(0,1fr)_auto_7rem]", active && "bg-[color-mix(in_srgb,var(--accent)_11%,transparent)]")}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium">{label}</span>
+            <span className="block text-xs text-faint">
+              {sub}
+              {titles ? ` · ${pluralize(titles, "titre")}` : ""}
+            </span>
+          </span>
+          <span className="text-right">
+            <span className="block font-display text-lg font-semibold leading-tight tabular-nums">{t.played ? percent(t.rate) : "—"}</span>
+            <span className="block whitespace-nowrap text-xs tabular-nums text-faint">{t.played ? `${t.wins} V · ${t.losses} D` : "pas encore de match"}</span>
+          </span>
+          <span className="hidden sm:block">{t.played > 0 && <RateBar rate={t.rate} />}</span>
+        </Link>
+      </li>
+    );
+  };
+  return (
+    <section>
+      <SectionTitle aside={<span className="text-xs text-faint">choisis un effectif pour ses statistiques</span>}>Par effectif</SectionTitle>
+      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+        {eras.map((era) =>
+          line(
+            era.current ? base : `${base}?effectif=${era.from}`,
+            selected?.from === era.from,
+            <>
+              {era.current && <span className="mr-2 rounded bg-panel-2 px-1.5 py-0.5 text-[11px] font-medium text-[var(--accent)]">Actuel</span>}
+              {era.players.join(" · ")}
+            </>,
+            eraDates(era, now),
+            era.results,
+            titlesIn(era, palmares),
+          ),
+        )}
+        {line(`${base}?effectif=tout`, !selected, "Tout l'historique du club", pluralize(total.length, "match"), total)}
+      </ul>
+    </section>
+  );
+}
+
+/** Bilans, courbe de forme, records et adversaires, sur l'effectif choisi. */
+export function TeamStatistics({ results, scope, now, teamHref }: { results: PastMatch[]; scope?: string; now: number; teamHref: (t: TeamRef) => string | undefined }) {
+  if (!results.length)
+    return (
+      <section id="statistiques" className="scroll-mt-24">
+        <SectionTitle>Statistiques</SectionTitle>
+        <p className="rounded-xl border border-line bg-panel px-4 py-6 text-center text-sm text-faint">Cet effectif n&apos;a pas encore joué de match connu de Liquipedia.</p>
+      </section>
+    );
   const first = results[results.length - 1];
   const periods = byPeriod(results, now);
   const tiers = byTier(results);
@@ -104,8 +171,8 @@ export function TeamStatistics({ results, now, teamHref }: { results: PastMatch[
   const curve = formCurve(results, size);
   const dates = (s?: { from: number; to: number }) => (s ? `${shortDate(s.from, now)} → ${shortDate(s.to, now)}` : undefined);
   return (
-    <section className="space-y-3">
-      <SectionTitle aside={<span className="text-xs text-faint">{pluralize(results.length, "match")} depuis {shortDate(first.timestamp, now)}</span>}>Statistiques</SectionTitle>
+    <section id="statistiques" className="scroll-mt-24 space-y-3">
+      <SectionTitle aside={<span className="text-right text-xs text-faint">{scope ? `${scope} · ` : ""}{pluralize(results.length, "match")} depuis {shortDate(first.timestamp, now)}</span>}>Statistiques</SectionTitle>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="overflow-hidden rounded-xl border border-line bg-panel">
@@ -365,6 +432,23 @@ interface DuelSide {
   info?: TeamInfo;
   rank?: { value: string; rank: number };
   form?: Form;
+  /** Depuis quand l'effectif en place joue ensemble. */
+  since?: string;
+  /** Ses résultats, du plus récent au plus ancien. */
+  results?: { timestamp: number; result: PastMatch["result"] }[];
+  /** Ses résultats ne remontent pas loin : au-delà, le bilan de l'effectif serait faux. */
+  partial?: boolean;
+  now: number;
+}
+
+/** Le bilan de l'effectif en place, si les résultats connus remontent jusqu'à son arrivée. */
+function lineupRecord(side: DuelSide): { text: string; wins: number } | undefined {
+  const { since, results } = side;
+  if (!since || !results) return undefined;
+  const oldest = results.at(-1)?.timestamp;
+  if (side.partial && results.length >= 10 && oldest !== undefined && new Date(oldest * 1000).toISOString().slice(0, 10) > since) return undefined;
+  const t = tally(results.filter((r) => new Date(r.timestamp * 1000).toISOString().slice(0, 10) >= since));
+  return { text: `${t.wins} V · ${t.losses} D`, wins: t.played ? t.rate : 0 };
 }
 
 const streakText = (form?: Form) => {
@@ -397,6 +481,8 @@ export function Duel({ us, them }: { us: DuelSide; them: DuelSide }) {
     { label: "Gains totaux", left: money(us.info?.winnings), right: money(them.info?.winnings), us: amount(us.info), them: amount(them.info) },
     { label: "Victoires, 10 derniers matchs", left: usWon !== undefined && usSize ? `${usWon} sur ${usSize}` : undefined, right: themWon !== undefined && themSize ? `${themWon} sur ${themSize}` : undefined, us: usSize === themSize ? usWon : undefined, them: usSize === themSize ? themWon : undefined },
     { label: "Série en cours", left: streakText(us.form), right: streakText(them.form) },
+    { label: "Effectif en place depuis", left: us.since && infoDate(us.since, us.now), right: them.since && infoDate(them.since, them.now) },
+    { label: "Bilan de cet effectif", left: lineupRecord(us)?.text, right: lineupRecord(them)?.text, us: lineupRecord(us)?.wins, them: lineupRecord(them)?.wins },
     { label: "Club créé en", left: year(us.info), right: year(them.info) },
   ];
   const shown = lines.filter((l) => l.left || l.right);

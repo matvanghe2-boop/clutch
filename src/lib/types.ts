@@ -200,6 +200,7 @@ export interface TeamSnapshot {
   info?: TeamInfo;
   /** Anciens joueurs, du départ le plus récent au plus ancien. */
   former?: FormerPlayer[];
+  stints?: RosterStint[];
   awards?: TeamAward[];
   /** Faits marquants du club (section Records). */
   records?: string[];
@@ -264,6 +265,14 @@ export interface TeamInfo {
   lpRank?: number;
   /** Encadrement : rôle (« Manager », « Coachs »…) et noms. */
   staff: { role: string; names: string[] }[];
+}
+
+/** Un passage dans le club à un rôle donné (joueur, remplaçant, coach…). */
+export interface RosterStint {
+  id: string;
+  role?: string;
+  joined: string;
+  left: string;
 }
 
 export interface FormerPlayer {

@@ -4,7 +4,6 @@
  *   npm run sync                  une passe : tout ce qui est périmé, puis s'arrête
  *   npm run sync:watch            tourne en continu (lancé aussi par npm run dev)
  *   npm run sync -- --force       relit tout une fois, même ce qui est à jour
- *   tsx scripts/refresh.ts --ci   la passe planifiée de GitHub Actions, bornée à 6 pages
  */
 import { readSnapshot, writeSnapshot } from "../src/lib/snapshot";
 import { runPass } from "../src/lib/sync/engine";
@@ -18,19 +17,17 @@ try {
 
 const watch = process.argv.includes("--watch");
 const force = process.argv.includes("--force");
-const ci = process.argv.includes("--ci");
 const MIN = 60_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (...args: unknown[]) => console.log(new Date().toLocaleTimeString("fr-FR"), ...args);
 
 async function main() {
-  log(watch ? "Synchronisation continue démarrée." : ci ? "Synchronisation planifiée : une passe bornée." : "Synchronisation : une passe.");
+  log(watch ? "Synchronisation continue démarrée." : "Synchronisation : une passe.");
   for (let first = true; ; first = false) {
     const snap = readSnapshot();
     const result = await runPass(snap, {
-      profile: ci ? "ci" : "local",
+      profile: "local",
       teams: await loadTeamConfig(),
-      maxPages: ci ? 6 : undefined,
       force: force && first,
       log,
       afterTask: writeSnapshot,

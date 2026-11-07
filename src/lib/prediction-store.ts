@@ -1,16 +1,15 @@
 /**
- * Stockage des pronostics : predictions.json dans Blob, à côté de
- * l'instantané (data/predictions.json en local). Comme pour les équipes, le
- * CDN sert encore l'ancienne version une minute ou deux après une écriture :
+ * Stockage des pronostics : en ligne en production (voir `store`),
+ * data/predictions.json en local. Sans base de données, comme pour les équipes, le
+ * CDN de Blob sert encore l'ancienne version une minute ou deux après une écriture :
  * les pronostics des dix dernières minutes sont aussi gardés dans un cookie,
  * pour les afficher tout de suite et ne pas les perdre à l'écriture suivante.
  */
 import fs from "node:fs";
 import path from "node:path";
-import { put } from "@vercel/blob";
 import { cookies } from "next/headers";
 import type { Prediction, Predictions } from "./predictions";
-import { CDN_MAX_AGE, siblingUrl } from "./sync/publish";
+import { hasOnlineStore, readDoc, writeDoc } from "./store";
 
 const LOCAL_PATH = path.join(process.cwd(), "data", "predictions.json");
 const RECENT_COOKIE = "clutch_pronos";
@@ -18,11 +17,7 @@ const RECENT_MS = 10 * 60_000;
 
 async function stored(): Promise<Predictions> {
   try {
-    const url = siblingUrl("predictions.json");
-    if (url) {
-      const res = await fetch(url, { cache: "no-store" });
-      return res.ok ? ((await res.json()) as Predictions) : {};
-    }
+    if (hasOnlineStore()) return (await readDoc<Predictions>("predictions")) ?? {};
     if (fs.existsSync(LOCAL_PATH)) return JSON.parse(fs.readFileSync(LOCAL_PATH, "utf8")) as Predictions;
   } catch {
     // Fichier illisible : aucun pronostic plutôt qu'une page cassée.
@@ -45,16 +40,10 @@ export async function loadPredictions(): Promise<Predictions> {
 }
 
 export async function savePrediction(id: string, p: Prediction): Promise<void> {
-  const all = { ...(await loadPredictions()), [id]: p };
-  if (process.env.BLOB_READ_WRITE_TOKEN && process.env.SNAPSHOT_URL) {
-    await put("predictions.json", JSON.stringify(all), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-      cacheControlMaxAge: CDN_MAX_AGE,
-    });
-  } else {
+  // Lecture stricte : en cas de panne de la base, réécrire la sauvegarde d'hier perdrait les pronostics du jour.
+  const current = hasOnlineStore() ? ((await readDoc<Predictions>("predictions", { strict: true })) ?? {}) : await stored();
+  const all = { ...current, ...(await recent()), [id]: p };
+  if (!(await writeDoc("predictions", all))) {
     fs.mkdirSync(path.dirname(LOCAL_PATH), { recursive: true });
     fs.writeFileSync(LOCAL_PATH, JSON.stringify(all, null, 2));
   }

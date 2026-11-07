@@ -17,6 +17,7 @@ import { parseSeasonStandings, parseVrs } from "../liquipedia/rankings";
 import { parseMatchHistory, parsePalmares, parseTeamPage } from "../liquipedia/team-page";
 import { parseTournamentPage } from "../liquipedia/tournament-page";
 import { tournamentKey } from "../snapshot";
+import { hasDatabase } from "../store";
 import { tournamentMatches } from "../tournament";
 import type { GameId, MapSample, Match, PortalEntry, RecentMatch, Snapshot, TeamRef, Tournament } from "../types";
 import type { FollowedTeam } from "../../config/follow";
@@ -53,7 +54,7 @@ function ttls(profile: Profile) {
     teamLive: frequent ? 4 * MIN : 12 * MIN,
     live: frequent ? 4 * MIN : profile === "ci" ? 12 * MIN : 10 * MIN,
     /** Une équipe suivie y attend son horaire, ou y joue d'ici 24 h : Liquipedia peut l'annoncer ou le déplacer à tout moment. */
-    scheduling: frequent ? 10 * MIN : 30 * MIN,
+    scheduling: frequent ? 9 * MIN : 30 * MIN,
     active: 3 * HOUR,
     /** Pas encore commencée, une équipe suivie inscrite. */
     planned: 12 * HOUR,
@@ -295,7 +296,9 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
     if (ms > 3000) log(`⏳ ${Math.ceil(ms / 1000)} s avant l'appel suivant (Liquipedia : 1 page toutes les 30 s)`);
   };
   const forced = (key: string) => Boolean(opts.force && !done.has(key));
-  const due = (key: string, age: number, ttl: number) => !done.has(key) && (forced(key) || isDue(opts.profile, key, age, ttl));
+  // Avec la base, chaque passe y garde ses heures de lecture : l'âge d'une page est juste, le cron n'a plus besoin de créneaux.
+  const clock = opts.profile === "cron" && hasDatabase() ? "visit" : opts.profile;
+  const due = (key: string, age: number, ttl: number) => !done.has(key) && (forced(key) || isDue(clock, key, age, ttl));
   const failedRecently = (key: string) => {
     const f = snap.failures[key];
     if (!f) return false;

@@ -3,9 +3,10 @@ import { GAME_IDS, GAMES } from "@/config/follow";
 import { MatchRow, NextMatch, ResultRow, TournamentCard } from "@/components/matches";
 import { cn, Empty, SectionTitle } from "@/components/ui";
 import { headToHead, recentFeed, statusOf, trackedTournaments, upcomingFeed } from "@/lib/derive";
-import { dayKey, dayLabel } from "@/lib/format";
+import { clock, dayKey, dayLabel } from "@/lib/format";
 import { readHidden } from "@/lib/hidden";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { type Evening, eveningOf } from "@/lib/tonight";
 import type { GameId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,23 @@ export const dynamic = "force-dynamic";
 function parseGame(v: string | string[] | undefined): GameId | undefined {
   const s = Array.isArray(v) ? v[0] : v;
   return GAME_IDS.find((g) => g === s || GAMES[g].short.toLowerCase() === s?.toLowerCase());
+}
+
+/** Le lien vers la vue du soir, quand mes équipes jouent ce soir. */
+function TonightBanner({ evening, now }: { evening: Evening; now: number }) {
+  if (!evening.tonight || !evening.matches.length) return null;
+  const [first, ...others] = evening.matches;
+  const live = statusOf(first.match, now) === "live";
+  return (
+    <Link href="/ce-soir" data-game={first.match.wiki} className="flex items-center gap-3 rounded-xl border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-panel px-4 py-3 transition-colors hover:border-[var(--accent)]">
+      <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">Ce soir</span>
+      <span className="min-w-0 flex-1 truncate text-sm">
+        {live ? "En direct" : first.match.timeTbd || !first.match.timestamp ? "Heure à confirmer" : clock(first.match.timestamp)} · {first.us.short ?? first.us.name} contre {first.them?.short ?? first.them?.name ?? "à déterminer"}
+        {others.length > 0 && <span className="text-faint"> · et {others.length} autre{others.length > 1 ? "s" : ""}</span>}
+      </span>
+      <span className="shrink-0 text-faint">→</span>
+    </Link>
+  );
 }
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -36,6 +54,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const hidden = await readHidden();
   const tracked = trackedTournaments(snap, now, game).filter((tr) => !hidden.has(tr.tournament.key));
 
+  const evening = eveningOf(snap, now);
   const days = new Map<string, typeof rest>();
   for (const o of rest) {
     const key = o.match.timestamp ? dayKey(o.match.timestamp) : "zz";
@@ -63,6 +82,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </Link>
         ))}
       </nav>
+
+      {!game && <TonightBanner evening={evening} now={now} />}
 
       {hero ? (
         <NextMatch o={hero} now={now} h2h={headToHead(snap, hero.team, hero.them)} />
