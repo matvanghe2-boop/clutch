@@ -127,16 +127,20 @@ en ligne, le site lit `data/snapshot.json`.
 ### La base de données
 
 L'instantané, les équipes suivies et les pronostics vivent dans une base **Redis**
-(Upstash, offre gratuite), reliée au projet depuis le Marketplace de Vercel, une fois :
+(Upstash, offre gratuite). Un compte gratuit n'a droit qu'à une base : celle-ci,
+`upstash-kv-citrine-paddle`, est partagée avec le projet `ultimate-wrapped`. Rien ne s'y
+mélange : les clés de Clutch commencent par `clutch:`, celles de l'autre projet par
+`spotify:` ou `session:`. En revanche, les quotas ci-dessous sont communs.
+
+Elle est reliée à la production seulement, pour qu'un déploiement de test n'y écrive pas :
 
 ```bash
-npx vercel integration add upstash/upstash-kv
+npx vercel integration resource connect upstash-kv-citrine-paddle clutch --environment production --yes
 ```
 
-Elle écrit ses variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) dans le projet ; il
+Ceci écrit ses variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) dans le projet ; il
 reste à redéployer. **Il n'y a rien d'autre à migrer** : à sa première lecture, chaque
-document est repris de Vercel Blob. Tant que la base n'est pas reliée, le site reste
-entièrement sur Blob.
+document est repris de Vercel Blob. Sans ces variables, le site reste entièrement sur Blob.
 
 Pourquoi elle plutôt que Blob seul : 2 000 écritures par mois au plus sur Blob, avec
 l'accès coupé 30 jours au-delà (le site s'arrêterait), et une écriture qui met une
