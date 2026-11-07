@@ -363,7 +363,8 @@ function onClick(e: MouseEvent) {
   ripple(e.clientX, e.clientY, color);
   setNav(soft ? "soft" : "page");
   p.timers.push(window.setTimeout(abort, GIVE_UP_MS));
-  if (soft || quiet()) return;
+  // Un lien vers un endroit précis (« Regarder ») veut y être tout de suite : pas de mise en scène.
+  if (soft || quiet() || a.hash) return;
 
   const kind = kindOf(a.pathname);
   const card = a.closest("[data-morph]");
