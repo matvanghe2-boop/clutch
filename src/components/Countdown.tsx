@@ -1,16 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { countdownBeat, kickOff } from "@/lib/motion/moments";
+import { stageOf } from "@/lib/motion/stage";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** L'heure, à la seconde pile : les chiffres changent tous ensemble, et au bon moment. */
 function useNow(initialNow: number) {
   const [now, setNow] = useState(initialNow);
   useEffect(() => {
-    const tick = () => setNow(Date.now() / 1000);
+    let timer = 0;
+    const tick = () => {
+      const ms = Date.now();
+      setNow(ms / 1000);
+      timer = window.setTimeout(tick, 1000 - (ms % 1000) + 8);
+    };
     tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    return () => clearTimeout(timer);
   }, []);
   return now;
 }
@@ -45,17 +53,56 @@ function Cell({ value, label }: { value: string; label: string }) {
   );
 }
 
-/** Le grand compte à rebours des scènes de match, en cases. */
+/**
+ * Le grand compte à rebours des scènes de match. Les cases s'allument dans la dernière heure ;
+ * la dernière minute remplace l'heure du match par un chiffre géant ; à zéro, la scène s'embrase
+ * et la page se recharge pour passer le match en direct.
+ */
 export function CountdownCells({ ts, initialNow }: { ts: number; initialNow: number }) {
   const now = useNow(initialNow);
-  const diff = Math.max(0, Math.floor(ts - now));
-  if (diff === 0) return <span className="display text-xl text-[var(--accent)]">C&apos;est l&apos;heure</span>;
+  const router = useRouter();
+  const self = useRef<HTMLSpanElement>(null);
+  const diff = Math.max(0, Math.ceil(ts - now));
+  const stage = stageOf(diff);
+
+  useEffect(() => {
+    const el = self.current;
+    if (el && stage === "final") countdownBeat(el, diff);
+  }, [diff, stage]);
+
+  // Seulement si on a vécu le passage à zéro : une page ouverte en retard n'a rien à fêter.
+  const armed = useRef(stage !== "go");
+  useEffect(() => {
+    if (stage !== "go" || !armed.current) return;
+    armed.current = false;
+    if (self.current) kickOff(self.current);
+    const id = setTimeout(() => router.refresh(), 2200);
+    return () => clearTimeout(id);
+  }, [stage, router]);
+
+  if (stage === "go") {
+    return (
+      <span ref={self} data-stage="go" className="cd-go display">
+        C&apos;est parti
+      </span>
+    );
+  }
+  if (stage === "final") {
+    return (
+      <span ref={self} data-stage="final" className="cd-final" role="timer" aria-label={`Dans ${diff} secondes`}>
+        <span key={diff} className="cd-slam" data-last={diff <= 10 ? "" : undefined} suppressHydrationWarning>
+          {diff}
+        </span>
+        <span className="cd-label">secondes</span>
+      </span>
+    );
+  }
   const d = Math.floor(diff / 86400);
   const h = Math.floor((diff % 86400) / 3600);
   const m = Math.floor((diff % 3600) / 60);
   const s = diff % 60;
   return (
-    <span className="inline-flex gap-1.5" role="timer" aria-label={`Dans ${d ? `${d} jours ` : ""}${h} heures ${m} minutes`}>
+    <span ref={self} data-stage={stage} className="inline-flex gap-1.5" role="timer" aria-label={`Dans ${d ? `${d} jours ` : ""}${h} heures ${m} minutes`}>
       {d > 0 && <Cell value={String(d)} label="jours" />}
       <Cell value={pad(h)} label="heures" />
       <Cell value={pad(m)} label="min" />

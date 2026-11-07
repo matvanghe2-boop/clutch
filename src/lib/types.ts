@@ -130,6 +130,8 @@ export interface Tournament {
   name: string;
   /** Champs de l'infobox : Start Date, End Date, Prize Pool, Location… */
   info: Record<string, string>;
+  /** L'affiche de la compétition, quand son infobox en a une. */
+  logo?: string;
   /** Dates de l'infobox, AAAA-MM-JJ, quand elles sont complètes. */
   startDate?: string;
   endDate?: string;

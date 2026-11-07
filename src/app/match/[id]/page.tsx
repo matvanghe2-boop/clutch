@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CountdownCells } from "@/components/Countdown";
+import { MatchDock } from "@/components/MatchDock";
+import { LiveScore, VictoryMoment } from "@/components/Moments";
 import { FormChips, FormSummary } from "@/components/form";
 import { StreamPlayer } from "@/components/StreamPlayer";
 import { Duel, rankFigure } from "@/components/team-stats";
@@ -17,6 +19,7 @@ import { loadSnapshot } from "@/lib/load-snapshot";
 import { loadPredictions } from "@/lib/prediction-store";
 import { judge, possibleScores, type Prediction } from "@/lib/predictions";
 import { embeddable, matchStreams } from "@/lib/streams";
+import { duelVars } from "@/lib/team-colors";
 import type { RankingRow, RosterEntry, TeamRef } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -91,10 +94,12 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         : "Sa fiche arrive avec la prochaine synchro.";
 
   return (
-    <div data-game={m.wiki} className="space-y-10">
+    <div data-game={m.wiki} style={duelVars(o.us, o.them)} className="space-y-10">
       <Versus
         game={m.wiki}
         live={st === "live"}
+        outcome={st === "done" ? (o.result ?? undefined) : undefined}
+        dock={<MatchDock us={o.us} them={o.them} mid={st === "done" || st === "live" ? `${o.usScore ?? 0} – ${o.themScore ?? 0}` : m.timestamp && !m.timeTbd ? clock(m.timestamp) : "—"} />}
         us={o.us}
         them={o.them}
         usHref={teamPath(snap, m.wiki, o.us)}
@@ -119,12 +124,9 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         center={
           st === "done" || st === "live" ? (
             <>
-              <div className="score text-5xl sm:text-6xl lg:text-8xl">
-                <span className={st === "done" && o.result !== "win" ? "text-dim" : undefined}>{o.usScore ?? 0}</span>
-                <span className="px-2 text-faint">–</span>
-                <span className={st === "done" && o.result !== "loss" ? "text-dim" : undefined}>{o.themScore ?? 0}</span>
-              </div>
+              <LiveScore us={o.usScore ?? 0} them={o.themScore ?? 0} dimUs={st === "done" && o.result !== "win"} dimThem={st === "done" && o.result !== "loss"} />
               {st === "done" && m.timestamp && <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>}
+              {st === "done" && o.result === "win" && <VictoryMoment id={m.id} />}
             </>
           ) : m.timestamp && m.timeTbd ? (
             <>
@@ -133,8 +135,10 @@ export default async function MatchPage({ params, searchParams }: { params: Para
             </>
           ) : m.timestamp ? (
             <>
-              <div className="score text-5xl sm:text-6xl lg:text-8xl">{clock(m.timestamp)}</div>
-              <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
+              <div className="arena-time">
+                <div className="score text-5xl sm:text-6xl lg:text-8xl">{clock(m.timestamp)}</div>
+                <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
+              </div>
               <div className="mt-3">
                 <CountdownCells ts={m.timestamp} initialNow={now} />
               </div>

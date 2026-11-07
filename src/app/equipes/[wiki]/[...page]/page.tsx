@@ -7,6 +7,7 @@ import { MatchRow } from "@/components/matches";
 import { IdentityCard, rankFigure } from "@/components/team-stats";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { TeamHero } from "@/components/versus";
+import { accentOf } from "@/lib/team-colors";
 import {
   competitionHref,
   findTeamRef,
@@ -83,7 +84,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
   const known = fiche || matches.length || standings.length || h2h.length || rank;
 
   return (
-    <div data-game={wiki} className="space-y-10">
+    <div data-game={wiki} style={accentOf(ref)} className="space-y-10">
       <TeamHero team={ref} game={wiki}>
         <GameTag game={wiki} long />
         <h1 className="display mt-2 break-words text-4xl sm:text-6xl">{ref.name}</h1>

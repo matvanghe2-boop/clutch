@@ -5,7 +5,7 @@ import { GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { RankingCard } from "@/components/ranking";
-import { EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
+import { EraMoment, EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
 import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { TeamHero } from "@/components/versus";
 import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
@@ -13,6 +13,7 @@ import { lineupSince, pickEra, playedSince, rosterEras } from "@/lib/eras";
 import { infoDate, shortDate, tenure } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { accentOf } from "@/lib/team-colors";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +48,20 @@ export default async function TeamPage({ params, searchParams }: { params: Param
   const since = lineupSince(data?.roster ?? []);
 
   return (
-    <div data-game={team.game} className="space-y-10">
-      <TeamHero team={{ name: team.page, logo: data?.logo }} game={team.game}>
+    <div data-game={team.game} style={accentOf({ name: team.page, page: team.page, logo: data?.logo })} className="space-y-10">
+      <TeamHero
+        team={{ name: team.page, page: team.page, logo: data?.logo }}
+        game={team.game}
+        dock={
+          <>
+            <span className="dock-side">
+              <Logo team={{ name: team.page, logo: data?.logo }} size={26} />
+              <span className="display truncate text-lg">{team.page}</span>
+            </span>
+            {form.last.length > 0 && <FormSummary form={form} />}
+          </>
+        }
+      >
         <GameTag game={team.game} long />
         <h1 className="display mt-2 break-words text-4xl sm:text-6xl">{team.page}</h1>
         {form.last.length > 0 && (
@@ -85,6 +98,8 @@ export default async function TeamPage({ params, searchParams }: { params: Param
           <RankingCard ranking={snap.rankings[team.game]!} team={team} now={now} />
         </section>
       )}
+
+      <EraMoment results={era ? era.results : history} label={era ? (era.current ? "avec l'effectif actuel" : `avec ${era.players.join(", ")}`) : "sur tout l'historique du club"} />
 
       <EraTable eras={eras} selected={era} total={history} palmares={palmares} base={`/equipe/${team.id}`} now={now} />
 

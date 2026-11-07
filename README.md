@@ -333,17 +333,33 @@ Clutch s'habille comme un direct : grande typographie condensée et inclinée, l
 éclairent la scène de leurs propres couleurs (`src/components/versus.tsx`), fil de résultats
 sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
 
-- **Surfaces** : `.panel`, `.lift` (se soulève au survol), `.sheen` (reflet), `.arena` (la scène).
-- **Entrées** : chaque `section` de `main` entre quand on l'atteint. `MotionRoot` lui pose `data-in`,
-  et le CSS fait le reste : `.stagger` pour une cascade, `.rate-fill` pour une barre qui se remplit,
-  `<Num>` pour un nombre qui défile, sans JavaScript.
+- **Couleurs d'équipe** : `src/lib/team-colors.ts`. Les clubs suivis ont les leurs, posées à la main ;
+  les autres viennent de leur logo, relevées par `npx tsx scripts/team-colors.ts` dans
+  `src/config/team-colors.json` (les logos de Liquipedia ne se lisent pas depuis le navigateur). Un logo
+  encore inconnu garde la couleur du jeu : relancer le script de temps en temps suffit. Le script note aussi
+  la plus grande vignette disponible : Liquipedia refuse une largeur supérieure à l'image d'origine.
+- **Surfaces** : `.panel`, `.lift`, `.sheen`, `.arena` (la scène : `.arena-duel` à deux camps, `.arena-solo` à un).
+- **Entre deux pages** (`src/lib/motion/nav.ts`, `intro.ts`) : le trait de progression, la carte et les
+  logos qui s'envolent vers la page suivante avant même qu'elle n'arrive, le squelette si le serveur tarde
+  (`data-nav-slow`). Rien de tout cela ne retient la navigation : Next navigue seul, tout vit dans
+  `#fx-layer` hors de React et s'efface au plus tard au bout de 12 s. L'intro se joue une fois par match à
+  venir ou en cours (`localStorage`, `clutch:intros`), jamais pour revoir un résultat.
+- **Une carte déclenche le passage** avec les attributs de `src/lib/morph-attrs.ts` ; la cible est la
+  première `.arena` de la page suivante, et les logos se retrouvent par leur nom de fichier.
+- **Moments de match** (`src/lib/motion/moments.ts`) : impact d'un changement de score, or de la victoire,
+  battement de la dernière minute. Ils suivent la donnée, donc le retard de Liquipedia.
+- **Fond vivant** (`src/lib/motion/scenes.ts`) : une scène par jeu sur un canvas, allégée sur téléphone,
+  arrêtée quand l'onglet est masqué, absente en économie de données.
+- **Relief** (`src/lib/motion/tilt.ts`) : inclinaison et lumière au curseur, à la souris seulement.
+- **Entrées** : chaque `section` de `main` entre quand on l'atteint. `watchSections` lui pose `data-in`,
+  et le CSS fait le reste : `.stagger` pour une cascade, `.rate-fill` pour une barre, `<Num>` pour des
+  chiffres à rouleaux, sans JavaScript.
 - **Garde-fous** : rien n'est caché sans `html.motion`, posé par un script avant le premier affichage
-  et retiré après 6 s si le JavaScript du site n'a pas démarré. Une section sans `data-in` est
-  invisible : `watchSections` (`src/lib/reveal.ts`) ne tient donc aucune liste à part. Tout est dans `prefers-reduced-motion: no-preference` : qui a coupé les animations voit tout, tout
-  de suite.
-
-Une entrée en cascade passe par une animation, jamais une transition : le délai d'une transition
-retarderait aussi le survol.
+  et retiré après 6 s si le JavaScript du site n'a pas démarré. Une section sans `data-in` est invisible :
+  `watchSections` (`src/lib/reveal.ts`) ne tient donc aucune liste à part. Tout ce qui bouge est dans
+  `prefers-reduced-motion: no-preference` : qui a coupé les animations voit tout, tout de suite.
+- **Pour contrôler** : toujours en cliquant, pas seulement en ouvrant une adresse, et dans un navigateur qui
+  rend de vraies images (un onglet masqué n'en rend aucune, donc aucune entrée ne s'y déclenche).
 
 ## Ce soir
 

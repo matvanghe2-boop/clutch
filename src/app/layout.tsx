@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist } from "next/font/google";
 import Script from "next/script";
 import { MotionRoot } from "@/components/Motion";
-import { SiteFooter, SiteHeader } from "@/components/site";
+import { NavSkeleton, SiteFooter, SiteHeader } from "@/components/site";
 import "./globals.css";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
@@ -43,8 +43,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${geist.variable} ${barlow.variable} min-h-dvh font-sans antialiased`}>
         {/* Avant le premier affichage : sans ce script, tout reste visible et rien n'est caché en attendant d'entrer. */}
         <script dangerouslySetInnerHTML={{ __html: MOTION_BOOT }} />
-        <div className="ambient" aria-hidden />
+        <div className="ambient" aria-hidden>
+          <canvas className="scene" />
+        </div>
         <MotionRoot />
+        <div id="fx-layer" aria-hidden />
         {/*
           Signature du réseau Orbit : écran d'ouverture et header, avec le
           pingouin esport. Copies servies depuis public/ (et mises en cache par
@@ -69,7 +72,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <orbit-header app-name="Clutch" theme="esport" compact static />
         </div>
         <SiteHeader />
-        <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-6 sm:px-6">{children}</main>
+        <main className="relative mx-auto w-full max-w-5xl px-4 pb-16 pt-6 sm:px-6">
+          <NavSkeleton />
+          {children}
+        </main>
         <SiteFooter />
       </body>
     </html>

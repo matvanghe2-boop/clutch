@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 interface Point {
   timestamp: number;
@@ -12,10 +12,28 @@ const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short
 const tickFmt = new Intl.DateTimeFormat("fr-FR", { month: "short", year: "2-digit", timeZone: "Europe/Paris" });
 const percent = (r: number) => `${Math.round(r * 100)} %`;
 
+/** Pour passer d'une courbe à une autre : la hauteur à intervalles réguliers, quel que soit le nombre de matchs. */
+const SAMPLES = 140;
+
+function sampled(points: Point[], first: number, span: number): number[] {
+  const out: number[] = [];
+  let i = 0;
+  for (let s = 0; s < SAMPLES; s++) {
+    const t = first + (span * s) / (SAMPLES - 1);
+    while (i < points.length - 1 && points[i + 1].timestamp <= t) i++;
+    out.push((1 - points[i].rate) * 100);
+  }
+  return out;
+}
+
+const lineOf = (ys: number[]) => ys.map((y, i) => `${i ? "L" : "M"}${((i / (SAMPLES - 1)) * 100).toFixed(2)} ${y.toFixed(2)}`).join(" ");
+const areaOf = (line: string) => `${line} L100 100 L0 100 Z`;
+
 /**
  * Taux de victoire glissant dans le temps. Une seule courbe, nommée par le titre
  * de la section : pas de légende. Le repère vertical suit le pointeur et se cale
- * sur le match le plus proche ; au clavier, les flèches le déplacent.
+ * sur le match le plus proche ; au clavier, les flèches le déplacent. Quand on change
+ * d'effectif, la courbe se transforme en la nouvelle au lieu d'être remplacée.
  *
  * Le tracé s'étire à la largeur (viewBox sans proportions) : ses traits gardent
  * leur épaisseur, et les textes sont en HTML pour rester lisibles sur téléphone.
@@ -28,6 +46,35 @@ export function FormCurve({ points, window: size }: { points: Point[]; window: n
   const yOf = (r: number) => (1 - r) * 100;
 
   const path = useMemo(() => points.map((p, i) => `${i ? "L" : "M"}${xOf(p.timestamp).toFixed(2)} ${yOf(p.rate).toFixed(2)}`).join(" "), [points]); // eslint-disable-line react-hooks/exhaustive-deps
+  const area = useMemo(() => `${path} L100 100 L0 100 Z`, [path]);
+  const fill = useId();
+
+  const line = useRef<SVGPathElement>(null);
+  const under = useRef<SVGPathElement>(null);
+  const before = useRef<number[] | null>(null);
+  useLayoutEffect(() => {
+    const next = sampled(points, first, span);
+    const from = before.current;
+    before.current = next;
+    if (!from || !line.current || !under.current || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    const start = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / 800);
+      const e = 1 - (1 - k) ** 4;
+      if (k < 1) {
+        const d = lineOf(from.map((y, i) => y + (next[i] - y) * e));
+        line.current?.setAttribute("d", d);
+        under.current?.setAttribute("d", areaOf(d));
+        frame = requestAnimationFrame(step);
+      } else {
+        line.current?.setAttribute("d", path);
+        under.current?.setAttribute("d", area);
+      }
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [points]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Repères de date répartis régulièrement.
   const ticks = useMemo(() => Array.from({ length: 5 }, (_, i) => first + (span * i) / 4), [first, span]);
@@ -83,8 +130,20 @@ export function FormCurve({ points, window: size }: { points: Point[]; window: n
               {[0, 50, 100].map((y) => (
                 <line key={y} x1="0" x2="100" y1={y} y2={y} stroke="var(--color-line)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
               ))}
-              <path className="curve-path" pathLength={1} d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="curve-svg absolute inset-0 size-full overflow-visible" aria-hidden>
+              <defs>
+                <linearGradient id={fill} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stopColor="var(--accent)" stopOpacity="0.28" />
+                  <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path ref={under} d={area} fill={`url(#${fill})`} />
+              <path ref={line} d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{ filter: "drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent))" }} />
+            </svg>
+
+            {/* Le point d'aujourd'hui, au bout de la courbe. */}
+            <span className="curve-head" style={{ top: `${yOf(current.rate)}%` }} aria-hidden />
 
             {shown && (
               <>
@@ -111,7 +170,7 @@ export function FormCurve({ points, window: size }: { points: Point[]; window: n
           <div className="relative mt-1.5 h-4 text-[11px] text-faint" aria-hidden>
             {ticks.map((t, i) => (
               <span
-                key={t}
+                key={i}
                 className="absolute whitespace-nowrap"
                 style={i === 0 ? { left: 0 } : i === ticks.length - 1 ? { right: 0 } : { left: `${xOf(t)}%`, transform: "translateX(-50%)" }}
               >

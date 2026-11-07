@@ -14,11 +14,12 @@ import type {
   TournamentRef,
 } from "../types";
 import { labelRounds } from "../bracket";
-import { type El, makeMatch, popupInfo, scoreWinner, teamFrom, text } from "./html";
+import { type El, logoFrom, makeMatch, popupInfo, scoreWinner, teamFrom, text } from "./html";
 
 export interface ParsedTournament {
   name: string;
   info: Record<string, string>;
+  logo?: string;
   startDate?: string;
   endDate?: string;
   participants: TeamRef[];
@@ -109,6 +110,7 @@ export function parseTournamentPage(html: string, wiki: GameId, page: string): P
   return {
     name,
     info,
+    logo: logoFrom($(".infobox-image").first()),
     startDate: isoDate(info["Start Date"]),
     endDate: isoDate(info["End Date"]) ?? isoDate(info["Start Date"]),
     participants: parseParticipants($),

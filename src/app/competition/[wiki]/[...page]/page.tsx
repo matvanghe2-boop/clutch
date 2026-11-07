@@ -8,6 +8,7 @@ import { infoDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { tournamentKey } from "@/lib/snapshot";
+import { accentOf } from "@/lib/team-colors";
 import { tournamentMatches } from "@/lib/tournament";
 import type { GameId, Match, StageBlock } from "@/lib/types";
 
@@ -62,6 +63,7 @@ export default async function CompetitionPage({
 
   const team = teamIn(teamsOf(snap), t);
   if (!team) return <Empty>Plus aucune équipe suivie dans ce jeu : cette compétition n&apos;est plus synchronisée.</Empty>;
+  const ownLogo = snap.teams[team.id]?.logo;
   const now = Date.now() / 1000;
 
   // Parcours de l'équipe : matchs de la page de compétition, complétés par ceux annoncés sur sa page.
@@ -83,8 +85,14 @@ export default async function CompetitionPage({
   const base = competitionHref(game, t.page);
 
   return (
-    <div data-game={game} className="space-y-10">
-      <header className="arena p-5 sm:p-8">
+    <div data-game={game} style={accentOf({ name: team.page, page: team.page, logo: ownLogo })} className="space-y-10">
+      <header className="arena arena-solo p-5 sm:p-8">
+        <span className="arena-half" aria-hidden>
+          {(t.logo ?? ownLogo) && (
+            // eslint-disable-next-line @next/next/no-img-element -- filigrane : le logo de Liquipedia, sans proxy
+            <img src={t.logo ?? ownLogo} alt="" referrerPolicy="no-referrer" className="watermark pointer-events-none absolute -right-8 top-1/2 size-64 -translate-y-1/2 -rotate-6 object-contain opacity-[0.1] sm:size-80" />
+          )}
+        </span>
         <div className="arena-left relative">
           <div className="flex items-center justify-between gap-3">
             <GameTag game={game} long />

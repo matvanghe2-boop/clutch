@@ -153,6 +153,28 @@ export function EraTable({ eras, selected, total, palmares, base, now }: { eras:
   );
 }
 
+/** Un chiffre qui occupe toute la largeur : le bilan de l'effectif choisi, pour rompre le rythme des tableaux. */
+export function EraMoment({ results, label }: { results: PastMatch[]; label: string }) {
+  const t = tally(results);
+  if (!t.played) return null;
+  return (
+    <section className="moment">
+      <div className="moment-inner">
+        <div className="moment-figure">
+          <Num value={Math.round(t.rate * 100)} />
+          <small>%</small>
+        </div>
+        <div className="min-w-0">
+          <div className="display text-3xl sm:text-5xl">de victoires</div>
+          <p className="mt-2 text-sm text-dim">
+            {pluralize(t.wins, "victoire")}, {pluralize(t.losses, "défaite")} {label}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** Bilans, courbe de forme, records et adversaires, sur l'effectif choisi. */
 export function TeamStatistics({ results, scope, now, teamHref }: { results: PastMatch[]; scope?: string; now: number; teamHref: (t: TeamRef) => string | undefined }) {
   if (!results.length)
@@ -347,14 +369,49 @@ export function PalmaresCard({ palmares, wiki, now }: { palmares: Palmares; wiki
       <span className="whitespace-nowrap text-right text-xs tabular-nums text-dim">{money(r.prize)}</span>
     </li>
   );
+  const trophies = palmares.rows.filter((r) => r.rank === 1).slice(0, 4);
   return (
     <section className="space-y-3">
       <SectionTitle aside={<span className="text-xs text-faint">{pluralize(palmares.events, "compétition")}</span>}>Palmarès</SectionTitle>
-      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile label="Titres" value={<Num value={palmares.titles} />} />
-        <Tile label="En S-Tier" value={<Num value={palmares.majorTitles} />} />
-        <Tile label="Finales perdues" value={<Num value={palmares.finals} />} />
-        <Tile label="Podiums" value={<Num value={palmares.podiums} />} />
+      <div className="vitrine p-5 sm:p-7">
+        <div className="grid items-center gap-6 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-9">
+          <div>
+            <div className="vitrine-count">
+              <Num value={palmares.titles} />
+            </div>
+            <div className="display mt-1 text-2xl text-[#f6c453]">{palmares.titles > 1 ? "Titres" : "Titre"}</div>
+            <dl className="mt-3 grid grid-cols-3 gap-4 text-xs text-faint sm:gap-5">
+              <div>
+                <dd className="score text-2xl text-ink">
+                  <Num value={palmares.majorTitles} />
+                </dd>
+                <dt>en S-Tier</dt>
+              </div>
+              <div>
+                <dd className="score text-2xl text-ink">
+                  <Num value={palmares.finals} />
+                </dd>
+                <dt>finales perdues</dt>
+              </div>
+              <div>
+                <dd className="score text-2xl text-ink">
+                  <Num value={palmares.podiums} />
+                </dd>
+                <dt>podiums</dt>
+              </div>
+            </dl>
+          </div>
+          {trophies.length > 0 && (
+            <ul className="stagger grid gap-2 sm:grid-cols-2">
+              {trophies.map((r, i) => (
+                <li key={i} className="trophy">
+                  <span className="display line-clamp-2 text-base leading-tight">{r.tournament.name}</span>
+                  <span className="text-xs text-dim">{[r.date ? infoDate(r.date, now) : null, money(r.prize)].filter(Boolean).join(" · ")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
       <div className="overflow-hidden panel">
         <ul className="divide-y divide-line">{palmares.rows.slice(0, 8).map(row)}</ul>

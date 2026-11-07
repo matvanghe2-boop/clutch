@@ -5,7 +5,7 @@ export function cn(...parts: (string | false | null | undefined)[]) {
   return parts.filter(Boolean).join(" ");
 }
 
-export function Logo({ team, size = 28, className }: { team: TeamRef | null; size?: number; className?: string }) {
+export function Logo({ team, size = 28, className, eager }: { team: TeamRef | null; size?: number; className?: string; eager?: boolean }) {
   if (team?.logo)
     return (
       // eslint-disable-next-line @next/next/no-img-element -- logos servis par Liquipedia, sans proxy
@@ -14,7 +14,7 @@ export function Logo({ team, size = 28, className }: { team: TeamRef | null; siz
         alt=""
         width={size}
         height={size}
-        loading="lazy"
+        loading={eager ? "eager" : "lazy"}
         decoding="async"
         referrerPolicy="no-referrer"
         className={cn("shrink-0 object-contain", className)}
@@ -116,22 +116,37 @@ export function StreamLinks({ streams, compact, max = 3 }: { streams: Stream[]; 
 
 export function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <div className="mb-4 flex items-end justify-between gap-3">
-      <h2 className="section-title">{children}</h2>
+    <div className="ghost-wrap mb-4 flex items-end justify-between gap-3">
+      <h2 className="section-title ghost-title" data-ghost={typeof children === "string" ? children : undefined}>
+        {children}
+      </h2>
       {aside}
     </div>
   );
 }
 
+const STRIP = "0123456789".split("").map((d) => <span key={d}>{d}</span>);
+
 /**
- * Un nombre entier qui défile jusqu'à sa valeur à son entrée à l'écran. Le lecteur d'écran
- * et le copier-coller gardent le texte ; sans animation, la valeur s'affiche d'emblée.
+ * Un entier à rouleaux : chaque chiffre fait défiler sa colonne à l'entrée à l'écran, et jusqu'à
+ * sa nouvelle valeur quand elle change. Rendu côté serveur ; le lecteur d'écran garde le nombre,
+ * et sans animation la valeur s'affiche d'emblée.
  */
 export function Num({ value, suffix }: { value: number; suffix?: string }) {
+  const digits = String(Math.abs(Math.trunc(value))).split("");
   return (
     <span className="whitespace-nowrap">
-      <span className="num" style={{ "--n": value } as React.CSSProperties}>
-        <span className="sr-only">{value}</span>
+      <span className="sr-only">{value}</span>
+      <span className="odo" aria-hidden>
+        {value < 0 && "−"}
+        {digits.map((d, i) => (
+          // La clé est la position depuis la droite : les unités restent les unités quand la valeur change de longueur.
+          <span key={digits.length - i} className="odo-digit">
+            <span className="odo-roll" style={{ "--d": Number(d), "--i": i } as React.CSSProperties}>
+              {STRIP}
+            </span>
+          </span>
+        ))}
       </span>
       {suffix}
     </span>

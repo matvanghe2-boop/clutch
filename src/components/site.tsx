@@ -4,9 +4,11 @@ import { GAMES } from "@/config/follow";
 import { liveSoon, matchHref, recentFeed, statusOf, teamsOf, upcomingFeed } from "@/lib/derive";
 import { clock, dayKey, relative, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { matchMorph, teamMorph } from "@/lib/morph-attrs";
 import { autoRefresh, STALE_MS } from "@/lib/sync/auto";
+import { accentOf } from "@/lib/team-colors";
 import { LiveRefresher } from "./LiveRefresher";
-import { NavLink } from "./Motion";
+import { NavIndicator, NavLink } from "./Motion";
 import { InstallButton } from "./Pwa";
 import { Logo } from "./ui";
 
@@ -22,9 +24,10 @@ function Ticker({ snap, now }: { snap: Awaited<ReturnType<typeof loadSnapshot>>;
   const items = (
     <div aria-hidden={false}>
       {upcoming.map((o) => {
-        const isLive = statusOf(o.match, now) === "live";
+        const status = statusOf(o.match, now);
+        const isLive = status === "live";
         return (
-          <Link key={o.match.id} href={matchHref(o.match)} data-game={o.match.wiki} className="flex shrink-0 items-center gap-2 text-xs text-dim transition-colors hover:text-ink">
+          <Link key={o.match.id} href={matchHref(o.match)} data-game={o.match.wiki} style={accentOf(o.us)} {...matchMorph(o.match, o.us, o.them, status)} className="flex shrink-0 items-center gap-2 text-xs text-dim transition-colors hover:text-ink">
             {isLive ? (
               <span className="flex items-center gap-1.5 font-display font-extrabold italic tracking-wider text-live">
                 <span className="live-dot size-1.5 rounded-full bg-live" />
@@ -58,7 +61,7 @@ function Ticker({ snap, now }: { snap: Awaited<ReturnType<typeof loadSnapshot>>;
           </>
         );
         return r.matchId ? (
-          <Link key={`${r.team.id}-${r.timestamp}`} href={`/match/${encodeURIComponent(r.matchId)}`} className="flex shrink-0 items-center gap-2 text-xs transition-opacity hover:opacity-80">
+          <Link key={`${r.team.id}-${r.timestamp}`} href={`/match/${encodeURIComponent(r.matchId)}`} {...matchMorph({ id: r.matchId }, { name: r.team.page, page: r.team.page }, r.opponent, "done")} className="flex shrink-0 items-center gap-2 text-xs transition-opacity hover:opacity-80">
             {body}
           </Link>
         ) : (
@@ -82,6 +85,9 @@ function Ticker({ snap, now }: { snap: Awaited<ReturnType<typeof loadSnapshot>>;
   );
 }
 
+/** Dans le menu, le nom court : la page de l'équipe garde le nom complet. */
+const NAV_LABELS: Record<string, string> = { "Paris Gentle Mates": "Paris", "Team Vitality": "Vitality" };
+
 export async function SiteHeader() {
   const snap = await loadSnapshot();
   const now = Date.now() / 1000;
@@ -97,12 +103,12 @@ export async function SiteHeader() {
     */}
     <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-30 h-[env(safe-area-inset-top)] bg-bg" />
     <header className="sticky top-[env(safe-area-inset-top)] z-20 border-b border-line/70 bg-bg/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2">
           <Mark className="size-7 transition-transform group-hover:-rotate-6" />
           <span className="brand-text display text-2xl tracking-[0.1em]">CLUTCH</span>
         </Link>
-        <nav className="scrollbar-thin -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+        <nav className="site-nav -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 py-1">
           <NavLink href="/ce-soir" title="Ce soir">
             <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" strokeLinejoin="round" />
@@ -128,15 +134,16 @@ export async function SiteHeader() {
           {teamsOf(snap).map((t) => {
             const data = snap.teams[t.id];
             return (
-              <NavLink key={t.id} href={`/equipe/${t.id}`} game={t.game} title={`${t.page} · ${GAMES[t.game].label}`}>
+              <NavLink key={t.id} href={`/equipe/${t.id}`} game={t.game} style={accentOf({ name: t.page, page: t.page, logo: data?.logo })} morph={teamMorph({ name: t.page, page: t.page, logo: data?.logo })} title={`${t.page} · ${GAMES[t.game].label}`}>
                 <Logo team={{ name: t.page, logo: data?.logo }} size={18} />
-                <span className="hidden md:inline">{t.page}</span>
+                <span className="hidden md:inline">{NAV_LABELS[t.page] ?? t.page}</span>
                 <span className="font-display text-[11px] font-bold tracking-wider text-[var(--accent)]">
                   {GAMES[t.game].short}
                 </span>
               </NavLink>
             );
           })}
+          <NavIndicator />
         </nav>
         <Freshness checkedAt={snap.checkedAt ?? snap.updatedAt} />
         <InstallButton />
@@ -203,6 +210,19 @@ function StaleBanner({ checkedAt, now }: { checkedAt?: string | null; now: numbe
     <div className="border-t border-cs/30 bg-cs/10 px-4 py-1.5 text-center text-xs text-cs">
       Données vérifiées {relative(ts, now)} : la synchronisation automatique a pris du retard. Une mise à jour vient
       d&apos;être lancée, recharge la page dans une minute.
+    </div>
+  );
+}
+
+/** La forme d'une page en attendant le serveur. Affiché seulement si la réponse tarde (voir fx.css). */
+export function NavSkeleton() {
+  return (
+    <div className="nav-skeleton" aria-hidden>
+      <div className="sk sk-arena" />
+      <div className="sk sk-title" />
+      <div className="sk sk-row" />
+      <div className="sk sk-row" />
+      <div className="sk sk-row" />
     </div>
   );
 }

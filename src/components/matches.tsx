@@ -2,8 +2,11 @@ import Link from "next/link";
 import { GAMES } from "@/config/follow";
 import { competitionHref, type HeadToHead, matchHref, type Oriented, type PastMatch, statusOf, type Tracked } from "@/lib/derive";
 import { clock, dayLabel, infoDate, relative, shortDate, shortDay } from "@/lib/format";
+import { competitionMorph, matchMorph } from "@/lib/morph-attrs";
 import { matchStreams } from "@/lib/streams";
+import { accentOf, teamColors } from "@/lib/team-colors";
 import { CountdownCells } from "./Countdown";
+import { LiveScore } from "./Moments";
 import { cn, GameTag, LiveBadge, Logo, ResultBadge, StreamLinks } from "./ui";
 import { Versus } from "./versus";
 
@@ -54,6 +57,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
       live={live}
       us={o.us}
       them={o.them}
+      morph={matchMorph(m, o.us, o.them, st)}
       top={
         <>
           <div className="flex min-w-0 items-center gap-2 text-dim">
@@ -65,11 +69,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
       }
       center={
         live ? (
-          <div className="score text-5xl sm:text-6xl lg:text-8xl">
-            {o.usScore ?? 0}
-            <span className="px-2 text-faint">–</span>
-            {o.themScore ?? 0}
-          </div>
+          <LiveScore us={o.usScore ?? 0} them={o.themScore ?? 0} />
         ) : m.timestamp && m.timeTbd ? (
           <>
             <div className="display text-3xl sm:text-5xl">{dayLabel(m.timestamp, now)}</div>
@@ -77,8 +77,10 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
           </>
         ) : m.timestamp ? (
           <>
-            <div className="score text-5xl sm:text-6xl lg:text-8xl">{clock(m.timestamp)}</div>
-            <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
+            <div className="arena-time">
+              <div className="score text-5xl sm:text-6xl lg:text-8xl">{clock(m.timestamp)}</div>
+              <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
+            </div>
             <div className="mt-3">
               <CountdownCells ts={m.timestamp} initialNow={now} />
             </div>
@@ -117,6 +119,8 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
   return (
     <div
       data-game={m.wiki}
+      style={accentOf(o.us)}
+      {...matchMorph(m, o.us, o.them, st)}
       className={cn("panel lift sheen relative grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3 py-2.5 pl-4 pr-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:pr-4", st === "live" && "live-ring")}
     >
       <span className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)] shadow-[0_0_14px_var(--accent)]" />
@@ -173,6 +177,8 @@ export function ResultRow({ r, now, showGame }: { r: PastMatch; now: number; sho
   return (
     <div
       data-game={r.team.game}
+      style={accentOf({ name: r.team.page, page: r.team.page })}
+      {...(r.matchId ? matchMorph({ id: r.matchId }, { name: r.team.page, page: r.team.page }, r.opponent, "done") : {})}
       className={cn(
         "row-hover grid grid-cols-[3.25rem_1.5rem_1fr_auto] items-center gap-3 border-l-2 px-3 py-2.5 sm:grid-cols-[4rem_1.5rem_1fr_auto] sm:px-4",
         r.result === "win" ? "border-l-win/70" : r.result === "loss" ? "border-l-loss/70" : "border-l-faint/40",
@@ -223,6 +229,8 @@ export function TournamentCard({ tr, now }: { tr: Tracked; now: number }) {
     <Link
       href={competitionHref(t.wiki, t.page)}
       data-game={t.wiki}
+      style={accentOf({ name: tr.team.page, page: tr.team.page })}
+      {...competitionMorph(teamColors({ name: tr.team.page, page: tr.team.page })?.a)}
       className="panel lift sheen group flex flex-col p-4"
     >
       <div className="flex items-center justify-between gap-2">

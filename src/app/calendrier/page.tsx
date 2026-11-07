@@ -207,7 +207,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
         <MonthGrid month={month} days={days} today={today} matchesByDay={byDay} competitions={visible} />
       )}
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className={display === "semaine" ? "hidden" : undefined}>
           <SectionTitle>Agenda</SectionTitle>
           {agenda.length === 0 ? (

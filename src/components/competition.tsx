@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { FollowedTeam } from "@/config/follow";
 import { isTeam, matchHref, statusOf, teamLink } from "@/lib/derive";
+import { matchMorph } from "@/lib/morph-attrs";
 import { matchStreams } from "@/lib/streams";
 import { clock, dayKey, dayLabel, shortDate, shortDay } from "@/lib/format";
 import { bracketLayout } from "@/lib/bracket";
@@ -128,31 +129,31 @@ function MatchOverlay({ m, label }: { m: Match; label: string }) {
 
 function Side({ team, score, won, decided, ours, followed }: { team: TeamRef | null; score: string | null; won: boolean; decided: boolean; ours: boolean; followed: FollowedTeam }) {
   return (
-    <div data-team={team?.page ?? team?.name} className={cn("flex h-8 items-center gap-2 px-2 transition-colors", ours && tint)}>
-      <Logo team={team} size={18} />
+    <div data-team={team?.page ?? team?.name} data-won={won ? "" : undefined} data-ours={ours ? "" : undefined} className={cn("bk-side flex h-9 items-center gap-2 px-2.5 transition-colors", ours && tint)}>
+      <Logo team={team} size={20} />
       <span className="flex min-w-0 flex-1">
         <TeamName
           wiki={followed.game}
           team={team}
           followed={followed}
-          className={cn("truncate", !team && "italic text-faint", decided && !won && "text-faint", won && "font-medium", ours && "text-[var(--accent)]")}
+          className={cn("truncate", !team && "italic text-faint", decided && !won && "text-faint", won && "font-semibold", ours && "text-[var(--accent)]")}
         />
       </span>
-      <span className={cn("score w-5 text-right text-lg", decided && !won && "text-faint")}>{score ?? ""}</span>
+      <span className={cn("score w-6 text-right text-xl", decided && !won && "text-faint")}>{score ?? ""}</span>
     </div>
   );
 }
 
-export function BracketMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number }) {
+export function BracketMatch({ m, team, now, column = 0, heat }: { m: Match; team: FollowedTeam; now: number; column?: number; heat?: Heat }) {
   const ours = m.opponents.some((o) => isTeam(o, team));
   const st = statusOf(m, now);
   return (
     <div
-      className={cn(
-        "relative overflow-hidden rounded-lg border bg-panel-2 text-sm",
-        ours ? "lift border-[color-mix(in_srgb,var(--accent)_55%,transparent)] shadow-[0_0_22px_-8px_var(--accent)]" : "border-line",
-        st === "live" && "live-ring",
-      )}
+      data-ours={ours ? "" : undefined}
+      data-heat={heat}
+      style={{ "--c": column } as React.CSSProperties}
+      {...(ours ? matchMorph(m, m.opponents[0], m.opponents[1], st) : {})}
+      className={cn("bk-card", ours && "lift", st === "live" && "live-ring")}
     >
       {ours && <MatchOverlay m={m} label="Feuille de match" />}
       {[0, 1].map((i) => (
@@ -177,30 +178,66 @@ export function BracketMatch({ m, team, now }: { m: Match; team: FollowedTeam; n
   );
 }
 
-/** Largeur d'une colonne de bracket : un match (w-52) et son raccord (w-6). */
-const COLUMN_REM = 13 + 1.5;
+/** Largeur d'une colonne de bracket : un match (w-56) et son raccord (1,75 rem). */
+const COLUMN_REM = 14 + 1.75;
+
+/** Le parcours qu'une liaison porte : celui de mon équipe, ou celui du vainqueur final. */
+type Heat = "ours" | "gold";
+
+function winnerOf(m: Match | null): TeamRef | null {
+  return m?.winner ? m.opponents[m.winner - 1] : null;
+}
+
+const sameTeam = (a: TeamRef | null, b: TeamRef | null) => Boolean(a && b && (a.page ?? a.name) === (b.page ?? b.name));
+
+/** Le vainqueur de ce match continue-t-il un parcours à éclairer ? */
+function heatOf(m: Match | null, team: FollowedTeam, champion: TeamRef | null): Heat | undefined {
+  const w = winnerOf(m);
+  if (!w) return undefined;
+  if (isTeam(w, team)) return "ours";
+  return sameTeam(w, champion) ? "gold" : undefined;
+}
+
+/** Le tour d'un match, en partant de la gauche : c'est lui qui règle la cascade et la lumière. */
+function columnOf(node: BracketNode): number {
+  return node.children.reduce((best, c) => Math.max(best, columnOf(c) + 1 + (c.skip ?? 0)), 0);
+}
 
 /** Colonnes sautées entre un match et son parent : le trait les traverse. */
-function Gap({ columns }: { columns: number }) {
+function Gap({ columns, column, heat }: { columns: number; column: number; heat?: Heat }) {
   return (
-    <div className="relative shrink-0 self-stretch" style={{ width: `${columns * COLUMN_REM}rem` }} aria-hidden>
-      <span className="absolute inset-x-0 top-1/2 border-t border-line" />
+    <div className="bk-link" style={{ width: `${columns * COLUMN_REM}rem`, "--c": column } as React.CSSProperties} aria-hidden>
+      <i className="bk-line bk-h inset-x-0 top-1/2" data-heat={heat} style={{ "--s": 3 } as React.CSSProperties} />
     </div>
   );
 }
 
-/** Relie les enfants (centrés dans des lignes de même hauteur) au match parent. */
-function Connector({ count }: { count: number }) {
-  const edge = `${100 / (2 * count)}%`;
+/**
+ * Relie les enfants (centrés dans des lignes de même hauteur) au match parent. Une liaison par
+ * enfant, chacune en deux morceaux : le morceau du parcours éclairé s'allume seul.
+ */
+function Connector({ heats, column }: { heats: (Heat | undefined)[]; column: number }) {
+  const count = heats.length;
+  const out = heats.find(Boolean);
   return (
-    <div className="relative w-6 shrink-0 self-stretch" aria-hidden>
-      {count > 1 && <span className="absolute left-0 w-1/2 rounded-r-sm border-y border-r border-line" style={{ top: edge, bottom: edge }} />}
-      <span className={cn("absolute right-0 top-1/2 border-t border-line", count > 1 ? "left-1/2" : "left-0")} />
+    <div className="bk-link" style={{ "--c": column } as React.CSSProperties} aria-hidden>
+      {count > 1 &&
+        heats.map((heat, i) => {
+          const y = ((2 * i + 1) / (2 * count)) * 100;
+          return (
+            <span key={i}>
+              <i className="bk-line bk-h left-0 w-1/2" data-heat={heat} style={{ top: `${y}%`, "--s": 0 } as React.CSSProperties} />
+              <i className="bk-line bk-v left-1/2" data-heat={heat} data-dir={y < 50 ? "down" : "up"} style={{ top: `${Math.min(y, 50)}%`, height: `${Math.abs(50 - y)}%`, "--s": 1 } as React.CSSProperties} />
+            </span>
+          );
+        })}
+      <i className={cn("bk-line bk-h right-0 top-1/2", count > 1 ? "left-1/2" : "left-0")} data-heat={out} style={{ "--s": 2 } as React.CSSProperties} />
     </div>
   );
 }
 
-function NodeView({ node, team, now }: { node: BracketNode; team: FollowedTeam; now: number }) {
+function NodeView({ node, team, now, champion }: { node: BracketNode; team: FollowedTeam; now: number; champion: TeamRef | null }) {
+  const column = columnOf(node);
   return (
     <div className="flex items-center">
       {node.children.length > 0 && (
@@ -209,42 +246,38 @@ function NodeView({ node, team, now }: { node: BracketNode; team: FollowedTeam; 
             {node.children.map((c, i) => (
               // Un sous-arbre plus court se range contre le match parent : les colonnes restent alignées sur les tours.
               <div key={i} className="flex items-center justify-end py-1.5">
-                <NodeView node={c} team={team} now={now} />
-                {c.skip ? <Gap columns={c.skip} /> : null}
+                <NodeView node={c} team={team} now={now} champion={champion} />
+                {c.skip ? <Gap columns={c.skip} column={column - 1} heat={heatOf(c.match, team, champion)} /> : null}
               </div>
             ))}
           </div>
-          <Connector count={node.children.length} />
+          <Connector heats={node.children.map((c) => heatOf(c.match, team, champion))} column={column - 1} />
         </>
       )}
-      <div className="w-52 shrink-0">
+      <div className="w-56 shrink-0">
         {node.match ? (
-          <BracketMatch m={node.match} team={team} now={now} />
+          <BracketMatch m={node.match} team={team} now={now} column={column} heat={heatOf(node.match, team, champion)} />
         ) : node.qualified ? (
-          <QualifiedCard teams={node.qualified} team={team} />
+          <QualifiedCard teams={node.qualified} team={team} column={column} />
         ) : (
-          <div className="h-16 rounded-lg border border-dashed border-line" />
+          <div className="bk-card h-16 border-dashed" style={{ "--c": column } as React.CSSProperties} />
         )}
       </div>
     </div>
   );
 }
 
-function QualifiedCard({ teams, team }: { teams: (TeamRef | null)[]; team: FollowedTeam }) {
+function QualifiedCard({ teams, team, column = 0, heat }: { teams: (TeamRef | null)[]; team: FollowedTeam; column?: number; heat?: Heat }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-panel-2 text-sm">
+    <div className="bk-card" data-heat={heat} style={{ "--c": column } as React.CSSProperties}>
       {teams.map((t, i) => (
-        <div key={i} className={cn("flex h-8 items-center gap-2 px-2", i > 0 && "border-t border-line", isTeam(t, team) && cn(tint, "text-[var(--accent)]"))}>
-          <Logo team={t} size={18} />
+        <div key={i} className={cn("flex h-9 items-center gap-2 px-2.5", i > 0 && "border-t border-line", isTeam(t, team) && cn(tint, "text-[var(--accent)]"))}>
+          <Logo team={t} size={20} />
           <span className={cn("truncate", !t && "italic text-faint")}>{t?.name ?? "À déterminer"}</span>
         </div>
       ))}
     </div>
   );
-}
-
-function winnerOf(m: Match | null): TeamRef | null {
-  return m?.winner ? m.opponents[m.winner - 1] : null;
 }
 
 export function BracketSectionView({ section, team, now }: { section: BracketSection; team: FollowedTeam; now: number }) {
@@ -258,27 +291,32 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
         {headers.length > 0 && (
           <div className="mb-2 flex">
             {headers.map((h, i) => (
-              <div key={i} className={cn("shrink-0 truncate text-[11px] font-medium uppercase tracking-wider text-faint", i === 0 ? "w-52" : "ml-6 w-52")} title={h ?? undefined}>
+              <div key={i} className={cn("display shrink-0 truncate text-sm tracking-wider text-dim", i === 0 ? "w-56" : "ml-7 w-56")} title={h ?? undefined}>
                 {h}
               </div>
             ))}
           </div>
         )}
         <div className="space-y-4">
-          {section.roots.map((root, i) => (
-            // Un arbre plus court que ses voisins se cale à droite, sous les bons en-têtes.
-            <div key={i} className="flex items-center" style={{ marginLeft: `${(width - rootWidths[i]) * COLUMN_REM}rem` }}>
-              <NodeView node={root} team={team} now={now} />
-              {trailing && (
-                <>
-                  <Connector count={1} />
-                  <div className="w-52 shrink-0">
-                    <QualifiedCard teams={[winnerOf(root.match)]} team={team} />
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+          {section.roots.map((root, i) => {
+            const champion = winnerOf(root.match);
+            const column = columnOf(root) + 1;
+            const heat = heatOf(root.match, team, champion);
+            return (
+              // Un arbre plus court que ses voisins se cale à droite, sous les bons en-têtes.
+              <div key={i} className="flex items-center" style={{ marginLeft: `${(width - rootWidths[i]) * COLUMN_REM}rem` }}>
+                <NodeView node={root} team={team} now={now} champion={champion} />
+                {trailing && (
+                  <>
+                    <Connector heats={[heat]} column={column - 1} />
+                    <div className="w-56 shrink-0">
+                      <QualifiedCard teams={[champion]} team={team} column={column} heat={heat} />
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
       </BracketHover>
