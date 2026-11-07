@@ -41,7 +41,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   return (
     <div className="space-y-10">
       <header>
-        <h1 className="font-display text-3xl font-bold sm:text-4xl">Réglages</h1>
+        <h1 className="brand-text display text-5xl sm:text-7xl">Réglages</h1>
         <p className="mt-1 text-sm text-dim">
           Les équipes suivies sont communes à tout le site ; les compétitions masquées ne valent que pour ce navigateur.
         </p>

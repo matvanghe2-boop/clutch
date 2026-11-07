@@ -111,7 +111,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold sm:text-4xl">{display === "semaine" ? weekTitle(week) : monthName(month)}</h1>
+          <h1 className="brand-text display text-5xl sm:text-7xl">{display === "semaine" ? weekTitle(week) : monthName(month)}</h1>
           <p className="mt-1 text-sm text-dim">
             {display === "semaine" ? weekMatches : monthMatches} match{(display === "semaine" ? weekMatches : monthMatches) > 1 ? "s" : ""} de
             mes équipes · {display === "semaine" ? weekComps : visible.length} compétition
@@ -153,7 +153,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
               href={href({ jeu: g ?? null })}
               data-game={g}
               className={cn(
-                "rounded-full border px-3 py-1 font-display text-sm font-semibold tracking-wide transition-colors",
+                "-skew-x-12 rounded border px-3 py-1 font-display text-sm font-bold italic tracking-wide transition-colors",
                 game === g
                   ? g
                     ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]"

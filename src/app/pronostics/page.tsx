@@ -44,7 +44,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
   return (
     <div className="space-y-10">
       <header>
-        <h1 className="font-display text-3xl font-bold sm:text-4xl">Pronostics</h1>
+        <h1 className="brand-text display text-5xl sm:text-7xl">Pronostics</h1>
         <p className="mt-1 text-sm text-dim">Score exact : 3 points. Bon vainqueur : 1 point. On pronostique depuis la page de chaque match, jusqu&apos;au coup d&apos;envoi.</p>
       </header>
 
@@ -62,7 +62,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
           <SectionTitle>Par jeu</SectionTitle>
           <div className="grid gap-3 sm:grid-cols-3">
             {byGame.map((g) => (
-              <div key={g.game} data-game={g.game} className="flex items-center justify-between gap-3 panel px-4 py-3 text-sm">
+              <div key={g.game} data-game={g.game} className="panel lift flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <GameTag game={g.game} long />
                 <span className="text-dim">
                   <b className="font-display text-lg text-ink">{g.points}</b> pts · {percent(g.winners, g.count)}
@@ -133,9 +133,9 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
 
 function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="panel px-4 py-3">
+    <div className="panel lift tile">
       <div className="text-xs text-faint">{label}</div>
-      <div className="mt-1 font-display text-3xl font-bold tabular-nums">{value}</div>
+      <div className="score mt-1.5 text-3xl">{value}</div>
       {detail && <div className="text-xs text-faint">{detail}</div>}
     </div>
   );
