@@ -13,6 +13,13 @@ const barlow = Barlow_Condensed({
   style: ["normal", "italic"],
 });
 
+/**
+ * Active les entrées avant le premier affichage, et les retire si le JavaScript du site ne
+ * démarre pas à temps (réseau coupé, erreur) : une animation ne doit jamais cacher le contenu.
+ */
+const MOTION_BOOT =
+  "(function(){var h=document.documentElement;h.classList.add('motion');setTimeout(function(){if(!h.hasAttribute('data-motion-ready'))h.classList.remove('motion')},6000)})()";
+
 /** La passe de secours tourne après l'envoi de la page (voir SiteHeader) : elle a besoin de temps. */
 export const maxDuration = 300;
 
@@ -35,7 +42,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="fr" suppressHydrationWarning>
       <body className={`${geist.variable} ${barlow.variable} min-h-dvh font-sans antialiased`}>
         {/* Avant le premier affichage : sans ce script, tout reste visible et rien n'est caché en attendant d'entrer. */}
-        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('motion')" }} />
+        <script dangerouslySetInnerHTML={{ __html: MOTION_BOOT }} />
         <div className="ambient" aria-hidden />
         <MotionRoot />
         {/*

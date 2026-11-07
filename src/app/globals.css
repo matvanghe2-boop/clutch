@@ -478,7 +478,8 @@ body:has(.page-enter > [data-game="callofduty"]) .ambient {
 /* ─────────────  Mouvement  ─────────────
 
    Tout ce qui bouge est ici, et rien ne bouge pour qui l'a désactivé. `html.motion` n'est
-   posé qu'à l'exécution du script : sans lui, tout reste visible et à sa valeur finale. */
+   posé qu'à l'exécution du script, et retiré si le site ne démarre pas (voir layout.tsx) :
+   sans lui, tout reste visible et à sa valeur finale. */
 
 @keyframes pulse-dot {
   0%,

@@ -3,40 +3,19 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect } from "react";
+import { watchSections } from "@/lib/reveal";
 import { cn } from "./ui";
 
 /**
- * Déclenche les entrées à l'écran : chaque section reçoit `data-in` quand on l'atteint,
- * et globals.css fait le reste. Un attribut plutôt qu'une classe : React réécrit
- * `className`, pas ce qu'il n'a pas posé, donc un rafraîchissement du direct ne rejoue rien.
+ * Lance les entrées à l'écran. Une seule surveillance pour toute la visite : elle voit arriver
+ * chaque nouvelle page d'elle-même, inutile de la relancer au changement d'adresse.
  */
 export function MotionRoot() {
-  const pathname = usePathname();
   useEffect(() => {
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          e.target.setAttribute("data-in", "");
-          io.unobserve(e.target);
-        }
-      },
-      { rootMargin: "0px 0px -6% 0px" },
-    );
-    const scan = () => {
-      for (const el of document.querySelectorAll("main section:not([data-in]):not([data-watched])")) {
-        el.setAttribute("data-watched", "");
-        io.observe(el);
-      }
-    };
-    scan();
-    const mo = new MutationObserver(scan);
-    mo.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      mo.disconnect();
-      io.disconnect();
-    };
-  }, [pathname]);
+    // Rassure le script de layout.tsx : les sections cachées seront bien révélées.
+    document.documentElement.setAttribute("data-motion-ready", "");
+    return watchSections();
+  }, []);
   return null;
 }
 

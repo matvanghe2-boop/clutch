@@ -337,8 +337,9 @@ sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
 - **Entrées** : chaque `section` de `main` entre quand on l'atteint. `MotionRoot` lui pose `data-in`,
   et le CSS fait le reste : `.stagger` pour une cascade, `.rate-fill` pour une barre qui se remplit,
   `<Num>` pour un nombre qui défile, sans JavaScript.
-- **Garde-fous** : rien n'est caché sans `html.motion`, posé par un script avant le premier affichage.
-  Tout est dans `prefers-reduced-motion: no-preference` : qui a coupé les animations voit tout, tout
+- **Garde-fous** : rien n'est caché sans `html.motion`, posé par un script avant le premier affichage
+  et retiré après 6 s si le JavaScript du site n'a pas démarré. Une section sans `data-in` est
+  invisible : `watchSections` (`src/lib/reveal.ts`) ne tient donc aucune liste à part. Tout est dans `prefers-reduced-motion: no-preference` : qui a coupé les animations voit tout, tout
   de suite.
 
 Une entrée en cascade passe par une animation, jamais une transition : le délai d'une transition
