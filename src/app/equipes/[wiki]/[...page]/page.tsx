@@ -5,8 +5,8 @@ import { GAME_IDS, GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow } from "@/components/matches";
 import { IdentityCard, rankFigure } from "@/components/team-stats";
-import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle } from "@/components/ui";
-import { TeamHero } from "@/components/versus";
+import { cn, Empty, LiveBadge, Logo, ResultBadge, SectionTitle } from "@/components/ui";
+import { TeamHero, TeamTitle } from "@/components/versus";
 import { accentOf } from "@/lib/team-colors";
 import {
   competitionHref,
@@ -86,8 +86,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
   return (
     <div data-game={wiki} style={accentOf(ref)} className="space-y-10">
       <TeamHero team={ref} game={wiki}>
-        <GameTag game={wiki} long />
-        <h1 className="display mt-2 break-words text-4xl sm:text-6xl">{ref.name}</h1>
+        <TeamTitle name={ref.name} game={wiki} />
         {form && form.last.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
             <FormChips form={form} />

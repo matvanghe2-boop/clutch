@@ -1181,6 +1181,8 @@ html[data-nav-slow][data-nav="intro"] .nav-skeleton {
 .tabbar-lead {
   display: flex;
   flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
   overflow: hidden;
   max-width: 0;
   opacity: 0;
@@ -1190,7 +1192,7 @@ html[data-nav-slow][data-nav="intro"] .nav-skeleton {
     margin 0.35s var(--ease-out-strong);
 }
 .tabbar[data-stuck] .tabbar-lead {
-  max-width: 2.25rem;
+  max-width: 5.5rem;
   margin-right: 0.5rem;
   opacity: 1;
 }
@@ -1932,4 +1934,49 @@ html[data-nav-slow][data-nav="intro"] .nav-skeleton {
   height: 0.45rem;
   border-radius: 50%;
   background: var(--accent);
+}
+
+/* ─────────────  Le jeu d'une équipe, à côté de son nom  ───────────── */
+
+.team-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+}
+.game-plate {
+  display: inline-flex;
+  flex-shrink: 0;
+  transform: skewX(-12deg);
+  border-radius: 4px;
+  padding: 0.28em 0.75em;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1rem, 2.1vw, 1.45rem);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #07090d;
+  background: var(--accent);
+  box-shadow: 0 0 24px -4px var(--accent);
+}
+.game-plate > span {
+  transform: skewX(12deg);
+}
+.game-plate-short {
+  padding: 0.2em 0.5em;
+  font-size: 0.8rem;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes plate-in {
+    from {
+      opacity: 0;
+      transform: skewX(-12deg) scale(1.7);
+    }
+  }
+  .team-title .game-plate {
+    animation: plate-in 0.42s var(--ease-out-strong) 0.4s backwards;
+  }
 }

@@ -7,8 +7,8 @@ import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
 import { RankingCard } from "@/components/ranking";
 import { TabsView, type Tab } from "@/components/Tabs";
 import { EraMoment, EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
-import { Empty, GameTag, Logo, ResultBadge, SectionTitle } from "@/components/ui";
-import { TeamHero } from "@/components/versus";
+import { Empty, Logo, ResultBadge, SectionTitle } from "@/components/ui";
+import { GamePlate, TeamHero, TeamTitle } from "@/components/versus";
 import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { lineupSince, pickEra, playedSince, rosterEras } from "@/lib/eras";
 import { infoDate, shortDate, tenure } from "@/lib/format";
@@ -237,8 +237,7 @@ export default async function TeamPage({ params, searchParams }: { params: Param
   return (
     <div data-game={team.game} style={accentOf({ name: team.page, page: team.page, logo: data?.logo })} className="space-y-10">
       <TeamHero team={{ name: team.page, page: team.page, logo: data?.logo }} game={team.game}>
-        <GameTag game={team.game} long />
-        <h1 className="display mt-2 break-words text-4xl sm:text-6xl">{team.page}</h1>
+        <TeamTitle name={team.page} game={team.game} />
         {form.last.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">
             <FormChips form={form} current={playedSince(history.slice(0, form.last.length), since)} />
@@ -252,7 +251,12 @@ export default async function TeamPage({ params, searchParams }: { params: Param
         </p>
       </TeamHero>
 
-      <TabsView tabs={tabs} initial={onglet} leading={<Logo team={{ name: team.page, logo: data?.logo }} size={24} />} />
+      <TabsView tabs={tabs} initial={onglet} leading={
+          <>
+            <Logo team={{ name: team.page, logo: data?.logo }} size={24} />
+            <GamePlate game={team.game} short />
+          </>
+        } />
     </div>
   );
 }

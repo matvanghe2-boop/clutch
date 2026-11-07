@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { GAMES } from "@/config/follow";
 import { accentOf, duelVars, largeLogo } from "@/lib/team-colors";
-import type { TeamRef } from "@/lib/types";
+import type { GameId, TeamRef } from "@/lib/types";
 import { ArenaCollapse, ArenaDock } from "./Dock";
 import { cn, Logo } from "./ui";
 
@@ -112,6 +113,25 @@ export function Versus({
       </div>
       {dock && <ArenaDock>{dock}</ArenaDock>}
     </section>
+  );
+}
+
+/** Le jeu d'une équipe, en plaque à sa couleur : la même structure existe souvent dans plusieurs jeux. */
+export function GamePlate({ game, short }: { game: GameId; short?: boolean }) {
+  return (
+    <span data-game={game} className={cn("game-plate", short && "game-plate-short")}>
+      <span>{short ? GAMES[game].short : GAMES[game].label}</span>
+    </span>
+  );
+}
+
+/** Le nom d'une équipe avec son jeu juste à côté : Vitality en Rocket League n'est pas Vitality en CS2. */
+export function TeamTitle({ name, game }: { name: string; game: GameId }) {
+  return (
+    <h1 className="team-title">
+      <span className="display min-w-0 break-words text-4xl sm:text-6xl">{name}</span>
+      <GamePlate game={game} />
+    </h1>
   );
 }
 
