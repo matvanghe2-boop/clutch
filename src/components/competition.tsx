@@ -6,6 +6,7 @@ import { matchStreams } from "@/lib/streams";
 import { clock, dayKey, dayLabel, shortDate, shortDay } from "@/lib/format";
 import { bracketLayout } from "@/lib/bracket";
 import type { BracketNode, BracketSection, Match, Matchlist, StandingRow, StandingTable, SwissRound, TeamRef } from "@/lib/types";
+import { BracketCamera } from "./Camera";
 import { BracketHover } from "./Motion";
 import { cn, LiveBadge, Logo, StreamLinks } from "./ui";
 
@@ -122,6 +123,12 @@ function TeamName({ wiki, team, followed, className }: { wiki: FollowedTeam["gam
   );
 }
 
+/** Pour le VS : mon équipe à gauche, comme sur la feuille de match où il mène. */
+function ownFirst(m: Match, team: FollowedTeam) {
+  const [a, b] = m.opponents;
+  return isTeam(b, team) && !isTeam(a, team) ? matchMorph(b, a) : matchMorph(a, b);
+}
+
 /** Toute la surface d'un match de mon équipe mène à sa feuille de match. */
 function MatchOverlay({ m, label }: { m: Match; label: string }) {
   return <Link href={matchHref(m)} className="absolute inset-0" aria-label={label} />;
@@ -150,9 +157,10 @@ export function BracketMatch({ m, team, now, column = 0, heat }: { m: Match; tea
   return (
     <div
       data-ours={ours ? "" : undefined}
+      data-at={m.timestamp}
       data-heat={heat}
       style={{ "--c": column } as React.CSSProperties}
-      {...(ours ? matchMorph(m, m.opponents[0], m.opponents[1], st) : {})}
+      {...(ours ? ownFirst(m, team) : {})}
       className={cn("bk-card", ours && "lift", st === "live" && "live-ring")}
     >
       {ours && <MatchOverlay m={m} label="Feuille de match" />}
@@ -284,8 +292,9 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
   const { width, rootWidths, columns, trailing } = bracketLayout(section);
   // Colonne finale « Qualified » : pas un nœud de l'arbre, on y montre le vainqueur de chaque racine.
   const headers = columns ? [...columns, ...(trailing ? [trailing] : [])] : [];
-  return (
-    <div className="scrollbar-thin overflow-x-auto pb-2">
+  const plays = section.roots.some((root) => involves(root, team));
+  const view = (
+    <div className="bk-scroll scrollbar-thin overflow-x-auto pb-2">
       <BracketHover>
       <div className="inline-block min-w-full">
         {headers.length > 0 && (
@@ -322,6 +331,12 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
       </BracketHover>
     </div>
   );
+  return plays ? <BracketCamera>{view}</BracketCamera> : view;
+}
+
+/** Mon équipe joue-t-elle dans cet arbre ? */
+function involves(node: BracketNode, team: FollowedTeam): boolean {
+  return Boolean(node.match?.opponents.some((o) => isTeam(o, team))) || node.children.some((c) => involves(c, team));
 }
 
 function ListMatch({ m, team, now, inDay, caption }: { m: Match; team: FollowedTeam; now: number; inDay?: boolean; caption?: string }) {
@@ -344,6 +359,7 @@ function ListMatch({ m, team, now, inDay, caption }: { m: Match; team: FollowedT
   };
   return (
     <div
+      {...(ours ? ownFirst(m, team) : {})}
       className={cn(
         "row-hover relative grid grid-cols-[3.75rem_1fr_auto_1fr] items-center gap-3 px-3 py-2 text-sm sm:grid-cols-[5.5rem_1fr_auto_1fr] sm:px-4",
         ours && cn(tint, "transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"),
@@ -405,8 +421,8 @@ function ListMatch({ m, team, now, inDay, caption }: { m: Match; team: FollowedT
  * de Paris. Un match dont aucune équipe n'est connue et sans horaire n'apprend
  * rien : il reste dans le bracket.
  */
-export function ScheduleView({ matches, team, now, onlyOurs }: { matches: Match[]; team: FollowedTeam; now: number; onlyOurs: boolean }) {
-  const planned = matches
+export function plannedMatches(matches: Match[], team: FollowedTeam, now: number, onlyOurs: boolean): Match[] {
+  return matches
     .filter((m) => {
       const st = statusOf(m, now);
       if (st !== "upcoming" && st !== "live") return false;
@@ -415,6 +431,10 @@ export function ScheduleView({ matches, team, now, onlyOurs }: { matches: Match[
     })
     .sort((a, b) => (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity))
     .slice(0, 40);
+}
+
+export function ScheduleView({ matches, team, now, onlyOurs }: { matches: Match[]; team: FollowedTeam; now: number; onlyOurs: boolean }) {
+  const planned = plannedMatches(matches, team, now, onlyOurs);
   if (!planned.length) return null;
   const days: { key: string; label: string; matches: Match[] }[] = [];
   for (const m of planned) {

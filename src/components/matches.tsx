@@ -57,7 +57,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
       live={live}
       us={o.us}
       them={o.them}
-      morph={matchMorph(m, o.us, o.them, st)}
+      morph={matchMorph(o.us, o.them)}
       top={
         <>
           <div className="flex min-w-0 items-center gap-2 text-dim">
@@ -69,7 +69,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
       }
       center={
         live ? (
-          <LiveScore us={o.usScore ?? 0} them={o.themScore ?? 0} />
+          <LiveScore us={o.usScore ?? 0} them={o.themScore ?? 0} bestOf={m.bestOf} />
         ) : m.timestamp && m.timeTbd ? (
           <>
             <div className="display text-3xl sm:text-5xl">{dayLabel(m.timestamp, now)}</div>
@@ -120,7 +120,8 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
     <div
       data-game={m.wiki}
       style={accentOf(o.us)}
-      {...matchMorph(m, o.us, o.them, st)}
+      {...matchMorph(o.us, o.them)}
+      data-flip={m.id}
       className={cn("panel lift sheen relative grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3 py-2.5 pl-4 pr-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:pr-4", st === "live" && "live-ring")}
     >
       <span className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)] shadow-[0_0_14px_var(--accent)]" />
@@ -178,7 +179,8 @@ export function ResultRow({ r, now, showGame }: { r: PastMatch; now: number; sho
     <div
       data-game={r.team.game}
       style={accentOf({ name: r.team.page, page: r.team.page })}
-      {...(r.matchId ? matchMorph({ id: r.matchId }, { name: r.team.page, page: r.team.page }, r.opponent, "done") : {})}
+      {...(r.matchId ? matchMorph({ name: r.team.page, page: r.team.page }, r.opponent) : {})}
+      data-flip={`${r.team.id}-${r.timestamp}`}
       className={cn(
         "row-hover grid grid-cols-[3.25rem_1.5rem_1fr_auto] items-center gap-3 border-l-2 px-3 py-2.5 sm:grid-cols-[4rem_1.5rem_1fr_auto] sm:px-4",
         r.result === "win" ? "border-l-win/70" : r.result === "loss" ? "border-l-loss/70" : "border-l-faint/40",
@@ -231,6 +233,7 @@ export function TournamentCard({ tr, now }: { tr: Tracked; now: number }) {
       data-game={t.wiki}
       style={accentOf({ name: tr.team.page, page: tr.team.page })}
       {...competitionMorph(teamColors({ name: tr.team.page, page: tr.team.page })?.a)}
+      data-flip={t.key}
       className="panel lift sheen group flex flex-col p-4"
     >
       <div className="flex items-center justify-between gap-2">

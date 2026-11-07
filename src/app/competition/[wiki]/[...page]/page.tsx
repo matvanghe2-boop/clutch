@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Suspense } from "react";
 import { GAME_IDS } from "@/config/follow";
-import { BracketSectionView, GroupTableView, MatchlistView, ScheduleView } from "@/components/competition";
+import { BracketSectionView, GroupTableView, MatchlistView, plannedMatches, ScheduleView } from "@/components/competition";
+import { OursToggle } from "@/components/Pills";
+import { type Tab, TabsView } from "@/components/Tabs";
 import { cn, Empty, GameTag } from "@/components/ui";
 import { competitionHref, isTeam, sameMatch, teamIn, teamsOf, upcomingFeed } from "@/lib/derive";
 import { infoDate } from "@/lib/format";
@@ -84,6 +86,77 @@ export default async function CompetitionPage({
 
   const base = competitionHref(game, t.page);
 
+  const toggle = (
+    <div className="flex justify-end">
+      <Suspense fallback={null}>
+        <OursToggle base={base} onlyOurs={onlyOurs} />
+      </Suspense>
+    </div>
+  );
+  // Un onglet par partie de la page : le programme, le parcours de l'équipe, puis chaque phase.
+  const tabs: Tab[] = [
+    ...(plannedMatches(tournamentMatches(t), team, now, onlyOurs).length
+      ? [
+          {
+            id: "programme",
+            label: "Programme",
+            panel: (
+              <>
+                {toggle}
+                <ScheduleView matches={tournamentMatches(t)} team={team} now={now} onlyOurs={onlyOurs} />
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...(journey.length
+      ? [
+          {
+            id: "parcours",
+            label: "Parcours",
+            badge: journey.length,
+            panel: (
+              <section>
+                <h2 className="section-title mb-4">Parcours de {team.page}</h2>
+                <MatchlistView list={{ title: `${journey.length} match${journey.length > 1 ? "s" : ""} de ${team.page}`, matches: journey }} team={team} now={now} onlyOurs={false} />
+              </section>
+            ),
+          },
+        ]
+      : []),
+    ...t.stages.map((s) => ({
+      id: s.anchor,
+      label: s.title,
+      panel: (
+        <>
+          {toggle}
+          <section id={s.anchor} className="scroll-mt-32 space-y-4">
+            <h2 className="section-title !text-3xl">{s.title}</h2>
+            {groupBlocks(s.blocks).map((chunk, i) =>
+              chunk.kind === "groups" ? (
+                <div key={i} className={cn("grid gap-3", chunk.tables.length > 1 && "md:grid-cols-2")}>
+                  {chunk.tables.map((table, j) => (
+                    <GroupTableView key={j} table={table} team={team} />
+                  ))}
+                </div>
+              ) : chunk.block.kind === "bracket" ? (
+                <div key={i} className="space-y-6 panel p-4">
+                  {chunk.block.bracket.sections.map((sec, j) => (
+                    <BracketSectionView key={j} section={sec} team={team} now={now} />
+                  ))}
+                </div>
+              ) : chunk.block.kind === "matchlist" ? (
+                <MatchlistView key={i} list={chunk.block.list} team={team} now={now} onlyOurs={onlyOurs} />
+              ) : null,
+            )}
+          </section>
+        </>
+      ),
+    })),
+  ];
+  const onglet = (await searchParams).onglet;
+  const wantedTab = typeof onglet === "string" ? onglet : undefined;
+
   return (
     <div data-game={game} style={accentOf({ name: team.page, page: team.page, logo: ownLogo })} className="space-y-10">
       <header className="arena arena-solo p-5 sm:p-8">
@@ -105,66 +178,7 @@ export default async function CompetitionPage({
         </div>
       </header>
 
-      <ScheduleView matches={tournamentMatches(t)} team={team} now={now} onlyOurs={onlyOurs} />
-
-      {journey.length > 0 && (
-        <section>
-          <h2 className="section-title mb-4">Parcours de {team.page}</h2>
-          <MatchlistView list={{ title: `${journey.length} match${journey.length > 1 ? "s" : ""} de ${team.page}`, matches: journey }} team={team} now={now} onlyOurs={false} />
-        </section>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav className="scrollbar-thin flex min-w-0 gap-1.5 overflow-x-auto" aria-label="Phases">
-          {t.stages.map((s) => (
-            <a
-              key={s.anchor}
-              href={`#${s.anchor}`}
-              className="shrink-0 rounded-full border border-line px-3 py-1 text-sm text-dim transition-colors hover:border-[var(--accent)] hover:text-ink"
-            >
-              {s.title}
-            </a>
-          ))}
-        </nav>
-        <div className="flex shrink-0 rounded-full border border-line p-0.5 text-sm">
-          {[
-            { label: "Tous les matchs", href: base, active: !onlyOurs },
-            { label: "Mes matchs", href: `${base}?mes=1`, active: onlyOurs },
-          ].map((o) => (
-            <Link
-              key={o.label}
-              href={o.href}
-              scroll={false}
-              className={cn("rounded-full px-3 py-1 transition-colors", o.active ? "bg-panel-2 text-ink" : "text-faint hover:text-dim")}
-            >
-              {o.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {t.stages.map((s) => (
-        <section key={s.anchor} id={s.anchor} className="scroll-mt-20 space-y-4">
-          <h2 className="section-title !text-3xl">{s.title}</h2>
-          {groupBlocks(s.blocks).map((chunk, i) =>
-            chunk.kind === "groups" ? (
-              <div key={i} className={cn("grid gap-3", chunk.tables.length > 1 && "md:grid-cols-2")}>
-                {chunk.tables.map((table, j) => (
-                  <GroupTableView key={j} table={table} team={team} />
-                ))}
-              </div>
-            ) : chunk.block.kind === "bracket" ? (
-              <div key={i} className="space-y-6 panel p-4">
-                {chunk.block.bracket.sections.map((sec, j) => (
-                  <BracketSectionView key={j} section={sec} team={team} now={now} />
-                ))}
-              </div>
-            ) : chunk.block.kind === "matchlist" ? (
-              <MatchlistView key={i} list={chunk.block.list} team={team} now={now} onlyOurs={onlyOurs} />
-            ) : null,
-          )}
-        </section>
-      ))}
+      <TabsView tabs={tabs} initial={wantedTab ?? tabs[0]?.id ?? ""} />
 
       <p className="text-xs text-faint">
         Mis à jour {new Date(t.fetchedAt).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "short", timeStyle: "short" })} ·{" "}

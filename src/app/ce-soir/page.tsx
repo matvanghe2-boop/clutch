@@ -4,9 +4,10 @@ import Link from "next/link";
 import { MatchRow, NextMatch, ResultRow } from "@/components/matches";
 import { StreamPlayer } from "@/components/StreamPlayer";
 import { cn, Empty, LiveBadge, Logo, SectionTitle, StreamLinks } from "@/components/ui";
-import { headToHead, matchHref, type Oriented, statusOf } from "@/lib/derive";
+import { headToHead, matchHref, type Oriented, statusOf, upcomingFeed } from "@/lib/derive";
 import { clock, dayLabel } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { matchMorph } from "@/lib/morph-attrs";
 import { embeddable, matchStreams } from "@/lib/streams";
 import { eveningOf, onAir } from "@/lib/tonight";
 
@@ -39,6 +40,8 @@ export default async function TonightPage() {
     next && !live ? `prochain à ${clock(next)}` : undefined,
   ].filter(Boolean);
   const nothing = !evening.matches.length && !evening.done.length;
+  // Tout est joué ce soir : la page annonce la suite au lieu de rester vide.
+  const after = evening.tonight && !evening.matches.length ? upcomingFeed(snap).find((o) => statusOf(o.match, now) === "upcoming") : undefined;
 
   return (
     <div className="space-y-8">
@@ -64,6 +67,13 @@ export default async function TonightPage() {
       )}
 
       {hero && <NextMatch o={hero} now={now} h2h={headToHead(snap, hero.team, hero.them)} />}
+
+      {after && (
+        <div className="space-y-4">
+          <h2 className="display text-2xl text-dim sm:text-3xl">Prochain rendez-vous</h2>
+          <NextMatch o={after} now={now} h2h={headToHead(snap, after.team, after.them)} />
+        </div>
+      )}
 
       {others.length > 0 && (
         <section>
@@ -104,7 +114,7 @@ function Screen({ o, now, host, streams, muted }: { o: Oriented; now: number; ho
   return (
     <div data-game={m.wiki} className="min-w-0 space-y-2">
       <div className="flex items-center justify-between gap-3 text-sm">
-        <Link href={matchHref(m)} className="flex min-w-0 items-center gap-2 font-medium hover:underline">
+        <Link href={matchHref(m)} {...matchMorph(o.us, o.them)} className="flex min-w-0 items-center gap-2 font-medium hover:underline">
           <Logo team={o.us} size={20} />
           <span className="truncate">{o.us.short ?? o.us.name}</span>
           <span className="text-xs text-faint">vs</span>

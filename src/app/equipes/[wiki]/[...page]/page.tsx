@@ -280,7 +280,7 @@ export default async function TeamFichePage({ params }: { params: Params }) {
                       <span className="text-xs text-faint">{m.bestOf ? `Bo${m.bestOf}` : "à venir"}</span>
                     )}
                     {ours && (
-                      <Link href={matchHref(m)} className="text-xs text-[var(--accent)] hover:underline">
+                      <Link href={matchHref(m)}  className="text-xs text-[var(--accent)] hover:underline">
                         Feuille →
                       </Link>
                     )}

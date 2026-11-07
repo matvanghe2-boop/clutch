@@ -161,19 +161,34 @@ export async function setTeamStreams(form: FormData) {
  * match, avec un mot sur ce qui s'est passé.
  */
 export async function predict(form: FormData) {
+  const { status, page } = await savePick(form);
+  if (!page) redirect("/pronostics?prono=introuvable");
+  redirect(`${page}?prono=${status}#pronostic`);
+}
+
+/**
+ * Le même pronostic, sans quitter la page : le choix d'un score sur la feuille de match. Une
+ * redirection viderait l'écran et le remonterait en haut, juste au moment du tampon.
+ */
+export async function predictScore(_previous: { status?: string; at?: number }, form: FormData): Promise<{ status?: string; at?: number }> {
+  const { status, page } = await savePick(form);
+  if (page) revalidatePath(page);
+  return { status, at: Date.now() };
+}
+
+async function savePick(form: FormData): Promise<{ status: string; page?: string }> {
   const id = String(form.get("id") ?? "");
   const snap = await loadSnapshot();
   const found = findMatch(snap, id);
-  if (!found) redirect("/pronostics?prono=introuvable");
-  const { o } = found!;
+  if (!found) return { status: "introuvable" };
+  const { o } = found;
   const m = o.match;
   const page = matchHref(m);
-  const to = (status: string): never => redirect(`${page}?prono=${status}#pronostic`);
-  if (!(await isAdmin())) to("verrouille");
-  if (statusOf(m, Date.now() / 1000) !== "upcoming") to("commence");
+  if (!(await isAdmin())) return { status: "verrouille", page };
+  if (statusOf(m, Date.now() / 1000) !== "upcoming") return { status: "commence", page };
   const picked = String(form.get("score") ?? "");
   const [us, them] = picked ? picked.split("-").map(Number) : [Number(form.get("us")), Number(form.get("them"))];
-  if (!validScore(us, them, m.bestOf)) to("invalide");
+  if (!validScore(us, them, m.bestOf)) return { status: "invalide", page };
   await savePrediction(id, {
     us,
     them,
@@ -185,5 +200,5 @@ export async function predict(form: FormData) {
     tournament: m.tournament?.name,
     bestOf: m.bestOf,
   });
-  to("enregistre");
+  return { status: "enregistre", page };
 }

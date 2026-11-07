@@ -27,7 +27,7 @@ function Ticker({ snap, now }: { snap: Awaited<ReturnType<typeof loadSnapshot>>;
         const status = statusOf(o.match, now);
         const isLive = status === "live";
         return (
-          <Link key={o.match.id} href={matchHref(o.match)} data-game={o.match.wiki} style={accentOf(o.us)} {...matchMorph(o.match, o.us, o.them, status)} className="flex shrink-0 items-center gap-2 text-xs text-dim transition-colors hover:text-ink">
+          <Link key={o.match.id} href={matchHref(o.match)} data-game={o.match.wiki} style={accentOf(o.us)} {...matchMorph(o.us, o.them)} className="flex shrink-0 items-center gap-2 text-xs text-dim transition-colors hover:text-ink">
             {isLive ? (
               <span className="flex items-center gap-1.5 font-display font-extrabold italic tracking-wider text-live">
                 <span className="live-dot size-1.5 rounded-full bg-live" />
@@ -61,7 +61,7 @@ function Ticker({ snap, now }: { snap: Awaited<ReturnType<typeof loadSnapshot>>;
           </>
         );
         return r.matchId ? (
-          <Link key={`${r.team.id}-${r.timestamp}`} href={`/match/${encodeURIComponent(r.matchId)}`} {...matchMorph({ id: r.matchId }, { name: r.team.page, page: r.team.page }, r.opponent, "done")} className="flex shrink-0 items-center gap-2 text-xs transition-opacity hover:opacity-80">
+          <Link key={`${r.team.id}-${r.timestamp}`} href={`/match/${encodeURIComponent(r.matchId)}`} {...matchMorph({ name: r.team.page, page: r.team.page }, r.opponent)} className="flex shrink-0 items-center gap-2 text-xs transition-opacity hover:opacity-80">
             {body}
           </Link>
         ) : (

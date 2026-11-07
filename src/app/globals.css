@@ -393,15 +393,6 @@ body:has(.page-enter > [data-game="callofduty"]) .ambient {
     background: rgb(255 255 255 / 0.035);
     padding: 0.3rem 0.35rem 0.2rem;
   }
-  .cd-value {
-    overflow: hidden;
-    font-family: var(--font-display);
-    font-style: italic;
-    font-weight: 800;
-    font-size: 1.5rem;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-  }
   .cd-label {
     margin-top: 0.1rem;
     font-size: 9px;
@@ -663,18 +654,6 @@ body:has(.page-enter > [data-game="callofduty"]) .ambient {
   }
   .live-pill {
     animation: live-breathe 1.8s ease-in-out infinite;
-  }
-
-  /* Un chiffre qui change tombe à sa place. */
-  @keyframes tick {
-    from {
-      opacity: 0;
-      transform: translateY(-65%);
-    }
-  }
-  .tick {
-    display: inline-block;
-    animation: tick 0.32s var(--ease-out-strong);
   }
 
   /* Le fil de résultats. */

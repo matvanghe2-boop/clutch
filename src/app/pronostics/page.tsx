@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GAME_IDS, GAMES } from "@/config/follow";
-import { cn, Empty, GameTag, SectionTitle } from "@/components/ui";
+import { ExactMoment } from "@/components/Moments";
+import { cn, Empty, GameTag, Num, SectionTitle } from "@/components/ui";
 import { findMatch, matchHref, predictionResult, teamById } from "@/lib/derive";
 import { shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { matchMorph } from "@/lib/morph-attrs";
 import { loadPredictions } from "@/lib/prediction-store";
 import { judge, type Verdict } from "@/lib/predictions";
 
@@ -51,10 +53,10 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
       {lost && <div className="rounded-xl border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss">Ce match n&apos;est plus connu du site.</div>}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Points" value={String(points)} />
-        <Stat label="Scores exacts" value={`${exact}`} detail={judged.length ? `sur ${judged.length}` : undefined} />
+        <Stat label="Points" value={<Num value={points} />} />
+        <Stat label="Scores exacts" value={<Num value={exact} />} detail={judged.length ? `sur ${judged.length}` : undefined} />
         <Stat label="Bons vainqueurs" value={percent(winners, judged.length)} detail={judged.length ? `${winners} sur ${judged.length}` : undefined} />
-        <Stat label="En attente" value={String(pending)} />
+        <Stat label="En attente" value={<Num value={pending} />} />
       </section>
 
       {byGame.length > 1 && (
@@ -86,7 +88,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" title={GAMES[p.wiki].label} />
                       {found ? (
-                        <Link href={matchHref(found.o.match)} className="truncate hover:text-white">
+                        <Link href={matchHref(found.o.match)} {...matchMorph(found.o.us, found.o.them)} className="truncate hover:text-white">
                           {label}
                         </Link>
                       ) : (
@@ -114,6 +116,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
                         )}
                       >
                         {verdict.exact ? "Exact · +3" : verdict.winner ? "Vainqueur · +1" : "Raté · 0"}
+                        {verdict.exact && <ExactMoment id={id} />}
                       </span>
                     ) : (
                       <span className="text-xs text-faint">{p.timestamp && p.timestamp > now ? "à venir" : "en attente"}</span>
@@ -131,7 +134,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
   );
 }
 
-function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
+function Stat({ label, value, detail }: { label: string; value: React.ReactNode; detail?: string }) {
   return (
     <div className="panel lift tile">
       <div className="text-xs text-faint">{label}</div>

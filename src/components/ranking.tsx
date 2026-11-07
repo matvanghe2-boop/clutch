@@ -16,6 +16,7 @@ export function RankingCard({ ranking, team, now }: { ranking: Ranking; team: Fo
   const top = ranking.rows.filter((r) => r.rank <= 10);
   const vrs = ranking.wiki === "counterstrike";
   const updated = ranking.updated ? infoDate(ranking.updated, now) : undefined;
+  const best = Math.max(...top.map((r) => Number(r.points) || 0), 0);
   return (
     <div className="overflow-hidden panel">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-3">
@@ -62,9 +63,9 @@ export function RankingCard({ ranking, team, now }: { ranking: Ranking; team: Fo
             )}
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
-          {top.map((r) => (
-            <Row key={r.rank} row={r} ranking={ranking} ours={isTeam(r.team, team)} />
+        <tbody className="rank-rows divide-y divide-line">
+          {top.map((r, i) => (
+            <Row key={r.rank} row={r} ranking={ranking} ours={isTeam(r.team, team)} index={i} total={top.length} best={best} />
           ))}
           {mine && mine.rank > 10 && (
             <>
@@ -73,7 +74,7 @@ export function RankingCard({ ranking, team, now }: { ranking: Ranking; team: Fo
                   ⋯
                 </td>
               </tr>
-              <Row row={mine} ranking={ranking} ours />
+              <Row row={mine} ranking={ranking} ours index={top.length} total={top.length + 1} best={best} />
             </>
           )}
         </tbody>
@@ -82,10 +83,16 @@ export function RankingCard({ ranking, team, now }: { ranking: Ranking; team: Fo
   );
 }
 
-function Row({ row, ranking, ours }: { row: RankingRow; ranking: Ranking; ours: boolean }) {
+function Row({ row, ranking, ours, index, total, best }: { row: RankingRow; ranking: Ranking; ours: boolean; index: number; total: number; best: number }) {
   const vrs = ranking.wiki === "counterstrike";
+  const points = Number(row.points) || 0;
   return (
-    <tr className={cn(ours && tint)}>
+    <tr
+      className={cn("rank-row", ours && tint)}
+      data-ours={ours ? "" : undefined}
+      // Les lignes arrivent l'une après l'autre ; celle de l'équipe remonte depuis le bas jusqu'à sa place.
+      style={{ "--i": index, "--climb": total - 1 - index, "--pts": best ? points / best : 0 } as React.CSSProperties}
+    >
       <td className="py-2 pl-4 font-display font-semibold tabular-nums text-dim">{row.rank}</td>
       <td className="py-2">
         <span className="flex min-w-0 items-center gap-2">

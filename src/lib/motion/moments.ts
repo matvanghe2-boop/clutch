@@ -44,8 +44,20 @@ export function scoreImpact(num: HTMLElement, side: "a" | "b") {
     ?.animate([{ scale: 1 }, { scale: 1.28, offset: 0.22 }, { scale: 1 }], { duration: 620, easing: "ease-out" });
 }
 
+/** Une manche de plus dans le récit d'une série : le chiffre s'imprime, sans ébranler la scène. */
+export function seriesStep(num: HTMLElement) {
+  if (quiet()) return;
+  num.animate(
+    [
+      { transform: "scale(1.9) skewX(-8deg)", filter: "brightness(2)" },
+      { transform: "none", filter: "none" },
+    ],
+    { duration: 380, easing: OUT },
+  );
+}
+
 /** Une pluie d'éclats dorés, depuis le logo du vainqueur. */
-function goldBurst(x: number, y: number) {
+export function goldBurst(x: number, y: number) {
   const layer = fxLayer();
   if (!layer) return;
   const { W } = screenSize();

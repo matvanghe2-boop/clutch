@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { GAME_IDS, GAMES } from "@/config/follow";
 import { AgendaMatch, competitionLink, MonthGrid, RELEVANCE_LABEL, WeekView } from "@/components/calendar";
+import { Pills } from "@/components/Pills";
 import { cn, Empty, GameTag, Logo, SectionTitle } from "@/components/ui";
 import { addDays, calendarData, type CalCompetition, type CalMatch, monthGrid, type Scope, shiftMonth } from "@/lib/calendar";
 import { dayKey, dayLabel, infoDate } from "@/lib/format";
@@ -120,25 +121,25 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
         </div>
         {display === "semaine" ? (
           <nav className="flex items-center gap-1.5" aria-label="Changer de semaine">
-            <Link href={href({ semaine: addDays(week, -7) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Semaine précédente">
+            <Link href={href({ semaine: addDays(week, -7) })} data-slide="prev" className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Semaine précédente">
               ←
             </Link>
             <Link href={href({ semaine: mondayOf(today) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink">
               Cette semaine
             </Link>
-            <Link href={href({ semaine: addDays(week, 7) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Semaine suivante">
+            <Link href={href({ semaine: addDays(week, 7) })} data-slide="next" className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Semaine suivante">
               →
             </Link>
           </nav>
         ) : (
         <nav className="flex items-center gap-1.5" aria-label="Changer de mois">
-          <Link href={href({ mois: shiftMonth(month, -1) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Mois précédent">
+          <Link href={href({ mois: shiftMonth(month, -1) })} data-slide="prev" className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Mois précédent">
             ←
           </Link>
           <Link href={href({ mois: today.slice(0, 7) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink">
             Aujourd&apos;hui
           </Link>
-          <Link href={href({ mois: shiftMonth(month, 1) })} className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Mois suivant">
+          <Link href={href({ mois: shiftMonth(month, 1) })} data-slide="next" className="rounded-lg border border-line px-3 py-1.5 text-sm text-dim hover:border-faint hover:text-ink" aria-label="Mois suivant">
             →
           </Link>
         </nav>
@@ -146,66 +147,49 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav className="flex gap-1.5" aria-label="Filtrer par jeu">
+        <Pills skew label="Filtrer par jeu">
           {[undefined, ...GAME_IDS].map((g) => (
-            <Link
-              key={g ?? "all"}
-              href={href({ jeu: g ?? null })}
-              data-game={g}
-              className={cn(
-                "-skew-x-12 rounded border px-3 py-1 font-display text-sm font-bold italic tracking-wide transition-colors",
-                game === g
-                  ? g
-                    ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]"
-                    : "border-ink bg-ink text-bg"
-                  : "border-line text-dim hover:border-faint hover:text-ink",
-              )}
-            >
+            <Link key={g ?? "all"} href={href({ jeu: g ?? null })} data-game={g} data-on={game === g ? "" : undefined} className="pill pill-game">
               {g ? GAMES[g].short : "Tout"}
             </Link>
           ))}
-        </nav>
+        </Pills>
         <div className="flex flex-wrap gap-2">
-        <div className="flex rounded-full border border-line p-0.5 text-sm">
+        <Pills label="Affichage" className="pills-round text-sm">
           {(
             [
               ["mois", "Mois"],
               ["semaine", "Semaine"],
             ] as const
           ).map(([a, label]) => (
-            <Link
-              key={a}
-              href={href({ affichage: a })}
-              className={cn("rounded-full px-3 py-1 transition-colors", display === a ? "bg-panel-2 text-ink" : "text-faint hover:text-dim")}
-            >
+            <Link key={a} href={href({ affichage: a })} data-on={display === a ? "" : undefined} className="pill">
               {label}
             </Link>
           ))}
-        </div>
-        <div className="flex rounded-full border border-line p-0.5 text-sm">
+        </Pills>
+        <Pills label="Équipes affichées" className="pills-round text-sm">
           {(
             [
               ["mes", "Mes équipes"],
               ["tout", "Tout le circuit"],
             ] as const
           ).map(([v, label]) => (
-            <Link
-              key={v}
-              href={href({ vue: v })}
-              className={cn("rounded-full px-3 py-1 transition-colors", scope === v ? "bg-panel-2 text-ink" : "text-faint hover:text-dim")}
-            >
+            <Link key={v} href={href({ vue: v })} data-on={scope === v ? "" : undefined} className="pill">
               {label}
             </Link>
           ))}
-        </div>
+        </Pills>
         </div>
       </div>
 
-      {display === "semaine" ? (
-        <WeekView days={weekDays} today={today} matchesByDay={byDay} competitions={competitions} />
-      ) : (
-        <MonthGrid month={month} days={days} today={today} matchesByDay={byDay} competitions={visible} />
-      )}
+      {/* La clé change avec la vue : la grille est remontée, donc son entrée se rejoue. */}
+      <div key={display === "semaine" ? `s-${week}` : `m-${month}`} className="cal-slide">
+        {display === "semaine" ? (
+          <WeekView days={weekDays} today={today} matchesByDay={byDay} competitions={competitions} />
+        ) : (
+          <MonthGrid month={month} days={days} today={today} matchesByDay={byDay} competitions={visible} />
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className={display === "semaine" ? "hidden" : undefined}>

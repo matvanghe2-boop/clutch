@@ -1,4 +1,6 @@
 import { logoFile } from "@/lib/logo-url";
+import { flyBack, rememberScroll } from "./back";
+import { flipPlay, flipRecord } from "./flip";
 import { flyTo, fxLayer, ghostLogo, OUT, quiet, type Rect, screenSize, SPRING } from "./fx";
 import { type IntroHandle, playIntro } from "./intro";
 
@@ -12,6 +14,9 @@ import { type IntroHandle, playIntro } from "./intro";
  *           s'envolent vers leur place dans la page suivante, avant même qu'elle n'arrive ;
  *   ~260 ms si le serveur tarde, le squelette de la page s'affiche ;
  *   arrivée la carte et les logos se posent exactement sur la vraie scène, puis s'effacent.
+ *
+ * Un lien vers un match, lui, ouvre toujours sur le VS (intro.ts). Le retour arrière fait le trajet
+ * inverse (back.ts).
  */
 
 const GIVE_UP_MS = 12_000;
@@ -92,6 +97,8 @@ interface Pending {
 }
 
 let pending: Pending | null = null;
+/** La page affichée : au retour arrière, c'est d'elle qu'on revient. */
+let shownPath = "";
 
 function startProgress(color: string): HTMLElement | undefined {
   const layer = fxLayer();
@@ -282,6 +289,7 @@ function abort() {
   pending = null;
   clearTimers(p);
   setNav(null);
+  document.documentElement.removeAttribute("data-slide");
   p.intro?.cancel();
   endProgress(p.progress);
   if (p.flight) {
@@ -296,8 +304,11 @@ function committed() {
   const p = pending;
   if (!p) return;
   pending = null;
+  shownPath = location.pathname;
   clearTimers(p);
   endProgress(p.progress);
+  flipPlay();
+  window.setTimeout(() => document.documentElement.removeAttribute("data-slide"), 700);
   if (p.soft || (!p.flight && !p.intro)) {
     setNav(null);
     return;
@@ -334,17 +345,18 @@ function linkOf(e: MouseEvent): HTMLAnchorElement | null {
 
 const SEEN_KEY = "clutch:intros";
 
+/** Un match déjà ouvert garde son VS, en version plus vive. */
 function introAlreadySeen(id: string): boolean {
   try {
     return (JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]") as string[]).includes(id);
   } catch {
-    return true;
+    return false;
   }
 }
 
 function rememberIntro(id: string) {
   try {
-    const seen = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]") as string[];
+    const seen = (JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]") as string[]).filter((s) => s !== id);
     localStorage.setItem(SEEN_KEY, JSON.stringify([id, ...seen].slice(0, 200)));
   } catch {
     // Sans stockage, l'intro se rejoue : rien de grave.
@@ -355,6 +367,7 @@ function onClick(e: MouseEvent) {
   const a = linkOf(e);
   if (!a) return;
   abort();
+  rememberScroll();
   const soft = a.pathname === location.pathname && a.pathname !== "/";
   const color = getComputedStyle(a).getPropertyValue("--accent").trim() || "#4c8dff";
   const p: Pending = { from: here(), soft, timers: [] };
@@ -363,22 +376,31 @@ function onClick(e: MouseEvent) {
   ripple(e.clientX, e.clientY, color);
   setNav(soft ? "soft" : "page");
   p.timers.push(window.setTimeout(abort, GIVE_UP_MS));
+  // Sur une même page, un filtre réarrange les cartes : on note où elles sont.
+  if (a.pathname === location.pathname) flipRecord();
+  // Le calendrier glisse dans le sens où l'on va.
+  const direction = a.getAttribute("data-slide");
+  if (direction && !quiet()) document.documentElement.setAttribute("data-slide", direction);
   // Un lien vers un endroit précis (« Regarder ») veut y être tout de suite : pas de mise en scène.
   if (soft || quiet() || a.hash) return;
 
   const kind = kindOf(a.pathname);
   const card = a.closest("[data-morph]");
   const sameKind = card && card.getAttribute("data-morph") === kind;
-  const introId = sameKind ? card.getAttribute("data-intro") : null;
 
-  if (kind && sameKind && introId && !introAlreadySeen(introId)) {
-    rememberIntro(introId);
+  if (kind === "match") {
+    // Le VS, à chaque feuille de match. L'adresse dit le jeu : match/<jeu>:<date>:<équipes>.
+    const id = decodeURIComponent(a.pathname.slice("/match/".length));
+    const short = introAlreadySeen(id);
+    rememberIntro(id);
     setNav("intro");
     p.intro = playIntro({
-      source: card,
-      colors: (card.getAttribute("data-colors") ?? ",").split(","),
-      names: (card.getAttribute("data-names") ?? "|").split("|"),
-      logos: (card.getAttribute("data-logos") ?? "|").split("|"),
+      source: sameKind ? card : a,
+      colors: ((sameKind && card.getAttribute("data-colors")) || ",").split(","),
+      names: ((sameKind && card.getAttribute("data-names")) || "|").split("|"),
+      logos: ((sameKind && card.getAttribute("data-logos")) || "|").split("|"),
+      game: id.split(":")[0] || null,
+      short,
     });
   } else if (kind) {
     const origin = sameKind ? card : a;
@@ -400,19 +422,29 @@ function onClick(e: MouseEvent) {
 
 /** Installe l'accompagnement ; renvoie de quoi tout retirer. */
 export function watchNavigation(): () => void {
+  shownPath = location.pathname;
   const check = () => {
     if (pending && here() !== pending.from) committed();
+  };
+  const onPop = () => {
+    const from = shownPath;
+    shownPath = location.pathname;
+    if (pending) {
+      check();
+      return;
+    }
+    if (from !== location.pathname) flyBack(from);
   };
   // Une mutation arrive avant la première image de la nouvelle page : c'est le bon moment.
   const mo = new MutationObserver(check);
   const main = document.querySelector("main");
   if (main) mo.observe(main, { childList: true, subtree: true });
   addEventListener("click", onClick, true);
-  addEventListener("popstate", check);
+  addEventListener("popstate", onPop);
   return () => {
     mo.disconnect();
     removeEventListener("click", onClick, true);
-    removeEventListener("popstate", check);
+    removeEventListener("popstate", onPop);
     abort();
   };
 }

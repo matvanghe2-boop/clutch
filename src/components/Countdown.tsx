@@ -39,13 +39,39 @@ export function Countdown({ ts, initialNow }: { ts: number; initialNow: number }
   );
 }
 
+/**
+ * Une case à palettes, comme sur un tableau d'aéroport : la moitié haute de l'ancien chiffre bascule,
+ * puis la moitié basse du nouveau se rabat. La clé change avec la valeur : les animations se rejouent.
+ */
 function Cell({ value, label }: { value: string; label: string }) {
+  const before = useRef(value);
+  const old = before.current;
+  useEffect(() => {
+    before.current = value;
+  }, [value]);
   return (
     <span className="cd-cell">
-      {/* La clé change avec la valeur : le chiffre est remonté, donc son entrée se rejoue. */}
-      <span className="cd-value" suppressHydrationWarning>
-        <span key={value} className="tick" suppressHydrationWarning>
+      <span className="flap" suppressHydrationWarning>
+        <b className="flap-size" suppressHydrationWarning>
           {value}
+        </b>
+        <span key={value} className="flap-set" suppressHydrationWarning>
+          <i className="flap-half flap-top">
+            <b suppressHydrationWarning>{value}</b>
+          </i>
+          <i className="flap-half flap-bottom">
+            <b suppressHydrationWarning>{old}</b>
+          </i>
+          {old !== value && (
+            <>
+              <i className="flap-half flap-fall-top">
+                <b>{old}</b>
+              </i>
+              <i className="flap-half flap-fall-bottom">
+                <b>{value}</b>
+              </i>
+            </>
+          )}
         </span>
       </span>
       <span className="cd-label">{label}</span>

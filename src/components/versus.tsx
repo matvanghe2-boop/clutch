@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { accentOf, duelVars, largeLogo } from "@/lib/team-colors";
 import type { TeamRef } from "@/lib/types";
-import { ArenaDock } from "./Dock";
+import { ArenaCollapse, ArenaDock } from "./Dock";
 import { cn, Logo } from "./ui";
 
 /** Un logo flou, derrière la scène : chaque équipe éclaire son côté de ses propres couleurs. */
@@ -33,6 +33,23 @@ function Fighter({ team, href, side, dim }: { team: TeamRef | null; href?: strin
         {team?.short && team.short !== name && <div className="mt-1 text-xs tracking-[0.2em] text-faint">{team.short}</div>}
       </div>
     </div>
+  );
+}
+
+/** L'affiche : les noms des équipes en très grand, qui défilent derrière elles en sens opposés. */
+function Poster({ us, them }: { us: TeamRef | null; them: TeamRef | null }) {
+  const row = (team: TeamRef | null, cls: string) => (
+    <span className={`poster-row ${cls}`}>
+      {Array.from({ length: 8 }, (_, i) => (
+        <span key={i}>{team?.name ?? "À déterminer"}</span>
+      ))}
+    </span>
+  );
+  return (
+    <span className="poster" aria-hidden>
+      {row(us, "poster-a")}
+      {row(them, "poster-b")}
+    </span>
   );
 }
 
@@ -83,6 +100,7 @@ export function Versus({
         <Backlight team={them} side="right" />
       </span>
       <span className="arena-seam" aria-hidden />
+      <Poster us={us} them={them} />
       <div className="relative p-4 sm:p-7">
         <div className="arena-top flex items-center justify-between gap-3 text-xs">{top}</div>
         <div className="mt-6 grid grid-cols-2 items-center gap-x-3 gap-y-5 sm:mt-8 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-6">
@@ -98,7 +116,7 @@ export function Versus({
 }
 
 /** Le décor d'une page d'équipe : son logo en filigrane, et sa lumière. */
-export function TeamHero({ team, game, children, dock }: { team: TeamRef; game: string; children: React.ReactNode; dock?: React.ReactNode }) {
+export function TeamHero({ team, game, children }: { team: TeamRef; game: string; children: React.ReactNode }) {
   return (
     <section data-game={game} style={accentOf(team)} className="arena arena-solo">
       {team.logo && (
@@ -120,7 +138,7 @@ export function TeamHero({ team, game, children, dock }: { team: TeamRef; game: 
         </span>
         <div className="arena-name min-w-0">{children}</div>
       </div>
-      {dock && <ArenaDock>{dock}</ArenaDock>}
+      <ArenaCollapse />
     </section>
   );
 }

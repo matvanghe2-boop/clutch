@@ -4,12 +4,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CountdownCells } from "@/components/Countdown";
 import { MatchDock } from "@/components/MatchDock";
-import { LiveScore, VictoryMoment } from "@/components/Moments";
+import { ExactMoment, LiveScore, VictoryMoment } from "@/components/Moments";
+import { ScorePicker } from "@/components/ScorePicker";
 import { FormChips, FormSummary } from "@/components/form";
 import { StreamPlayer } from "@/components/StreamPlayer";
 import { Duel, rankFigure } from "@/components/team-stats";
 import { Versus } from "@/components/versus";
-import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle, StreamLinks } from "@/components/ui";
+import { cn, Empty, GameTag, LiveBadge, Logo, Num, ResultBadge, SectionTitle, StreamLinks } from "@/components/ui";
 import { predict } from "@/app/actions";
 import { isAdmin } from "@/lib/admin";
 import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, matchHref, type MatchStatus, opponentKey, ordinal, predictionResult, rankOf, statusOf, teamPath, undatedId } from "@/lib/derive";
@@ -73,6 +74,10 @@ export default async function MatchPage({ params, searchParams }: { params: Para
     won: g.winner === undefined ? undefined : g.winner === (reversed ? 2 : 1),
   }));
 
+  // Le fil de la série, si les manches connues racontent bien le score final.
+  const decided = games.flatMap((g) => (g.won === undefined ? [] : [g.won ? ("a" as const) : ("b" as const)]));
+  const story = st === "done" && decided.filter((w) => w === "a").length === Number(o.usScore) && decided.filter((w) => w === "b").length === Number(o.themScore) ? decided : undefined;
+
   const h2h = headToHead(snap, o.team, o.them);
   const opp = o.them?.page ? snap.opponents?.[opponentKey(m.wiki, o.them.page)] : undefined;
   const usHistory = historyOf(snap, o.team);
@@ -124,9 +129,9 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         center={
           st === "done" || st === "live" ? (
             <>
-              <LiveScore us={o.usScore ?? 0} them={o.themScore ?? 0} dimUs={st === "done" && o.result !== "win"} dimThem={st === "done" && o.result !== "loss"} />
+              <LiveScore us={o.usScore ?? 0} them={o.themScore ?? 0} dimUs={st === "done" && o.result !== "win"} dimThem={st === "done" && o.result !== "loss"} bestOf={m.bestOf} story={story} storyKey={`clutch:serie:${m.id}`} />
               {st === "done" && m.timestamp && <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>}
-              {st === "done" && o.result === "win" && <VictoryMoment id={m.id} />}
+              {st === "done" && o.result === "win" && <VictoryMoment id={m.id} games={story?.length} />}
             </>
           ) : m.timestamp && m.timeTbd ? (
             <>
@@ -362,20 +367,26 @@ function PredictionPanel({
   return (
     <section id="pronostic" className="scroll-mt-24">
       <SectionTitle aside={<Link href="/pronostics" className="text-xs text-faint hover:text-dim">Mes pronostics →</Link>}>Pronostic</SectionTitle>
-      <div className="space-y-4 panel p-4">
+      <div className="relative space-y-4 overflow-hidden panel p-4">
+        {message === "enregistre" && (
+          <span className="prono-stamp display" aria-hidden>
+            Validé
+          </span>
+        )}
         {note && <p className={cn("text-sm", note.ok ? "text-win" : "text-loss")}>{note.text}</p>}
         {prediction ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <span className="text-dim">
               Ton pronostic : {usName}{" "}
-              <b className="font-display text-xl text-ink tabular-nums">
-                {prediction.us}–{prediction.them}
+              <b className="score text-2xl text-ink">
+                <Num value={prediction.us} />–<Num value={prediction.them} />
               </b>{" "}
               {themName}
             </span>
             {verdict ? (
               <span className={cn("rounded px-2 py-0.5 text-xs font-semibold", verdict.points === 3 ? "bg-win/15 text-win" : verdict.points === 1 ? "bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]" : "bg-loss/15 text-loss")}>
                 {verdict.exact ? "Score exact · +3" : verdict.winner ? "Bon vainqueur · +1" : "Raté · 0"}
+                {verdict.exact && <ExactMoment id={id} />}
               </span>
             ) : (
               !open && <span className="text-xs text-faint">en attente du résultat</span>
@@ -387,33 +398,7 @@ function PredictionPanel({
         {open &&
           (admin ? (
             scores ? (
-              // Un formulaire par score : le score voyage dans un champ caché, sans dépendre du bouton cliqué.
-              <div className="flex flex-wrap items-center gap-2">
-                {scores.map(([a, b]) => {
-                  const picked = prediction?.us === a && prediction?.them === b;
-                  return (
-                    <form key={`${a}-${b}`} action={predict}>
-                      <input type="hidden" name="id" value={id} />
-                      <input type="hidden" name="score" value={`${a}-${b}`} />
-                      <button
-                        className={cn(
-                          "rounded-lg border px-3 py-1.5 font-display text-base font-semibold tabular-nums transition-colors",
-                          picked
-                            ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]"
-                            : a > b
-                              ? "border-line text-ink hover:border-win/60"
-                              : a < b
-                                ? "border-line text-dim hover:border-loss/60"
-                                : "border-line text-dim hover:border-faint",
-                        )}
-                        title={a > b ? `Victoire de ${usName}` : a < b ? `Victoire de ${themName}` : "Match nul"}
-                      >
-                        {a}–{b}
-                      </button>
-                    </form>
-                  );
-                })}
-              </div>
+              <ScorePicker id={id} scores={scores} initial={prediction ? [prediction.us, prediction.them] : undefined} usName={usName} themName={themName} />
             ) : (
               <form action={predict} className="flex flex-wrap items-center gap-2">
                 <input type="hidden" name="id" value={id} />

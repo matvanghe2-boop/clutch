@@ -155,6 +155,9 @@ export function Num({ value, suffix }: { value: number; suffix?: string }) {
 
 export function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-faint">{children}</div>
+    <div className="empty-state rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-faint">
+      <span className="empty-radar" aria-hidden />
+      {children}
+    </div>
   );
 }

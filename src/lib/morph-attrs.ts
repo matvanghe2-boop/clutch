@@ -1,23 +1,17 @@
 import { largeLogo, teamColors } from "./team-colors";
-import type { Match, TeamRef } from "./types";
+import type { TeamRef } from "./types";
 
 type Attrs = Record<`data-${string}`, string>;
 
-/**
- * Ce qu'une carte de match dit à la transition de page (src/lib/motion/nav.ts) : ses couleurs,
- * ses grands logos, et si l'intro de match a du sens. Seulement pour un match à venir ou en
- * cours, et contre un adversaire connu : revoir des résultats passés doit rester instantané.
- */
-export function matchMorph(m: Pick<Match, "id">, us: TeamRef | null, them: TeamRef | null, status: string): Attrs {
+/** Ce qu'une carte de match dit à l'intro (src/lib/motion/intro.ts) : ses couleurs, ses grands logos, ses noms. */
+export function matchMorph(us: TeamRef | null, them: TeamRef | null): Attrs {
   const a = teamColors(us);
   const b = teamColors(them);
-  const coming = status === "upcoming" || status === "live";
   return {
     "data-morph": "match",
     "data-colors": `${a?.a ?? ""},${b?.a ?? ""}`,
     "data-names": `${us?.name ?? ""}|${them?.name ?? ""}`,
     "data-logos": `${largeLogo(us) ?? ""}|${largeLogo(them) ?? ""}`,
-    ...(coming && us && them ? { "data-intro": m.id } : {}),
   };
 }
 

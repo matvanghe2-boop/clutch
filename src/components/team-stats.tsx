@@ -6,6 +6,7 @@ import { pageToPath } from "@/lib/liquipedia/html";
 import { byMap, byPeriod, byTier, formCurve, gamesSummary, type MapTally, recordsOf, type Rival, rivals, type Tally, tally } from "@/lib/stats";
 import type { FormerPlayer, GameId, MapSample, Palmares, RankingRow, TeamAward, TeamInfo, TeamRef } from "@/lib/types";
 import { FormCurve } from "./FormCurve";
+import { FriseScroller } from "./FriseScroller";
 import { cn, Logo, Num, SectionTitle } from "./ui";
 
 const percent = (r: number) => `${Math.round(r * 100)} %`;
@@ -136,7 +137,7 @@ export function EraTable({ eras, selected, total, palmares, base, now }: { eras:
       <ul className="stagger divide-y divide-line overflow-hidden panel">
         {eras.map((era) =>
           line(
-            era.current ? base : `${base}?effectif=${era.from}`,
+            era.current ? base : `${base}&effectif=${era.from}`,
             selected?.from === era.from,
             <>
               {era.current && <span className="mr-2 rounded bg-panel-2 px-1.5 py-0.5 text-[11px] font-medium text-[var(--accent)]">Actuel</span>}
@@ -147,7 +148,7 @@ export function EraTable({ eras, selected, total, palmares, base, now }: { eras:
             titlesIn(era, palmares),
           ),
         )}
-        {line(`${base}?effectif=tout`, !selected, "Tout l'historique du club", pluralize(total.length, "match"), total)}
+        {line(`${base}&effectif=tout`, !selected, "Tout l'historique du club", pluralize(total.length, "match"), total)}
       </ul>
     </section>
   );
@@ -350,6 +351,37 @@ export function GamesStats({ samples, game, now }: { samples: MapSample[]; game:
 
 const placeColor = (rank?: number) => (rank === 1 ? "text-[var(--accent)]" : rank && rank <= 3 ? "text-ink" : "text-dim");
 
+/** Les titres sur une ligne du temps qu'on fait défiler, du plus ancien au plus récent. */
+function PalmaresFrise({ rows, wiki, now }: { rows: Palmares["rows"]; wiki: GameId; now: number }) {
+  const titles = rows.filter((r) => r.rank === 1 && r.date).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  if (titles.length < 2) return null;
+  return (
+    <FriseScroller>
+      <ol className="frise-track">
+        {titles.map((r, i) => {
+          const year = r.date?.slice(0, 4);
+          const fresh = i === 0 || titles[i - 1].date?.slice(0, 4) !== year;
+          const name = <span className="line-clamp-2 text-xs leading-tight text-ink">{r.tournament.name}</span>;
+          return (
+            <li key={i} className="frise-item" style={{ "--i": Math.min(titles.length - 1 - i, 14) } as React.CSSProperties}>
+              <span className="frise-year display">{fresh ? year : ""}</span>
+              <span className={cn("frise-dot", r.tier === "S-Tier" && "frise-dot-major")} />
+              {r.tournament.page ? (
+                <a href={`https://liquipedia.net/${wiki}/${pageToPath(r.tournament.page)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {name}
+                </a>
+              ) : (
+                name
+              )}
+              <span className="mt-0.5 block text-[11px] text-faint">{r.date ? infoDate(r.date, now) : ""}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </FriseScroller>
+  );
+}
+
 /** Palmarès : le décompte, puis les compétitions récentes, le reste à déplier. */
 export function PalmaresCard({ palmares, wiki, now }: { palmares: Palmares; wiki: GameId; now: number }) {
   const row = (r: Palmares["rows"][number], i: number) => (
@@ -413,6 +445,7 @@ export function PalmaresCard({ palmares, wiki, now }: { palmares: Palmares; wiki
           )}
         </div>
       </div>
+      <PalmaresFrise rows={palmares.rows} wiki={wiki} now={now} />
       <div className="overflow-hidden panel">
         <ul className="divide-y divide-line">{palmares.rows.slice(0, 8).map(row)}</ul>
         {palmares.rows.length > 8 && (
@@ -577,9 +610,13 @@ export function Duel({ us, them }: { us: DuelSide; them: DuelSide }) {
                 <dd className={cn("text-right", strong(l.them, l.us))}>{l.right ?? "—"}</dd>
               </div>
               {l.share !== undefined && (
-                <div className="mt-1.5 flex h-1 gap-0.5 overflow-hidden rounded-full" aria-hidden>
-                  <span className="reveal-line rounded-full bg-[var(--accent)]" style={{ width: `${l.share * 100}%` }} />
-                  <span className="flex-1 rounded-full bg-panel-2" />
+                <div className="tug" aria-hidden>
+                  <span className="tug-side tug-a">
+                    <i className="reveal-line" style={{ width: `${l.share * 100}%` }} />
+                  </span>
+                  <span className="tug-side tug-b">
+                    <i className="reveal-line" style={{ width: `${(1 - l.share) * 100}%` }} />
+                  </span>
                 </div>
               )}
             </div>

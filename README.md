@@ -339,18 +339,30 @@ sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
   encore inconnu garde la couleur du jeu : relancer le script de temps en temps suffit. Le script note aussi
   la plus grande vignette disponible : Liquipedia refuse une largeur supérieure à l'image d'origine.
 - **Surfaces** : `.panel`, `.lift`, `.sheen`, `.arena` (la scène : `.arena-duel` à deux camps, `.arena-solo` à un).
-- **Entre deux pages** (`src/lib/motion/nav.ts`, `intro.ts`) : le trait de progression, la carte et les
-  logos qui s'envolent vers la page suivante avant même qu'elle n'arrive, le squelette si le serveur tarde
+- **Entre deux pages** (`src/lib/motion/nav.ts`) : le trait de progression, la carte et les logos qui
+  s'envolent vers la page suivante avant même qu'elle n'arrive, le squelette si le serveur tarde
   (`data-nav-slow`). Rien de tout cela ne retient la navigation : Next navigue seul, tout vit dans
-  `#fx-layer` hors de React et s'efface au plus tard au bout de 12 s. L'intro se joue une fois par match à
-  venir ou en cours (`localStorage`, `clutch:intros`), jamais pour revoir un résultat.
+  `#fx-layer` hors de React et s'efface au plus tard au bout de 12 s.
+- **Le VS** (`intro.ts`, `intro-fx.ts`) : joué à chaque lien vers un match, quel que soit son état, sauf les
+  liens vers un endroit précis (« Regarder »). Un match déjà ouvert a droit à une version plus vive
+  (`localStorage`, `clutch:intros`). Chaque jeu a sa signature. Un lien sans attributs marche aussi : le
+  VS lit sur la vraie page ce qu'il ne savait pas.
+- **Retour arrière** (`back.ts`) : la scène redescend dans la carte d'où elle vient. Le VS remonte la page
+  avant de partir : `rememberScroll` garde la position, que le navigateur ne pourrait plus retrouver.
+- **Onglets** (`components/Tabs.tsx`) : pages d'équipe et de compétition. Tout arrive d'un coup, comme une
+  page unique : changer d'onglet ne demande rien au serveur. L'adresse suit (`?onglet=stats`), le serveur la lit
+  pour ouvrir le bon onglet, et un lien `#ancre` ouvre l'onglet qui la contient.
 - **Une carte déclenche le passage** avec les attributs de `src/lib/morph-attrs.ts` ; la cible est la
   première `.arena` de la page suivante, et les logos se retrouvent par leur nom de fichier.
-- **Moments de match** (`src/lib/motion/moments.ts`) : impact d'un changement de score, or de la victoire,
-  battement de la dernière minute. Ils suivent la donnée, donc le retard de Liquipedia.
+- **Moments de match** (`src/lib/motion/moments.ts`, `components/Moments.tsx`) : impact d'un changement de
+  score, récit de la série à la première ouverture d'un match fini, jetons de Bo, or de la victoire, battement
+  de la dernière minute. Ils suivent la donnée, donc le retard de Liquipedia.
 - **Fond vivant** (`src/lib/motion/scenes.ts`) : une scène par jeu sur un canvas, allégée sur téléphone,
   arrêtée quand l'onglet est masqué, absente en économie de données.
-- **Relief** (`src/lib/motion/tilt.ts`) : inclinaison et lumière au curseur, à la souris seulement.
+- **Relief et survol** (`src/lib/motion/tilt.ts`, `glide.ts`) : inclinaison et lumière au curseur, surlignage qui
+  glisse d'une ligne à l'autre, à la souris seulement.
+- **Filtres** (`components/Pills.tsx`, `src/lib/motion/flip.ts`) : la pastille glisse dès le clic, et les cartes
+  rejoignent leur nouvelle place au lieu de sauter.
 - **Entrées** : chaque `section` de `main` entre quand on l'atteint. `watchSections` lui pose `data-in`,
   et le CSS fait le reste : `.stagger` pour une cascade, `.rate-fill` pour une barre, `<Num>` pour des
   chiffres à rouleaux, sans JavaScript.

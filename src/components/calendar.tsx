@@ -51,14 +51,15 @@ export const RELEVANCE_LABEL = {
   other: "",
 } as const;
 
-function Band({ c, day, weekStart }: { c: CalCompetition; day: string; weekStart: boolean }) {
+function Band({ c, day, weekStart, index }: { c: CalCompetition; day: string; weekStart: boolean; index: number }) {
   const first = day === c.start || weekStart;
   return (
     <div
       data-game={c.game}
       title={`${c.name} · ${GAMES[c.game].short}${c.relevance === "watched" ? " · inscription à confirmer" : ""}`}
+      style={{ "--i": index } as React.CSSProperties}
       className={cn(
-        "-mx-1.5 h-1.5 truncate px-1.5 text-[10px] font-medium leading-4 sm:h-4",
+        "cal-band -mx-1.5 h-1.5 truncate px-1.5 text-[10px] font-medium leading-4 sm:h-4",
         RELEVANCE_STYLE[c.relevance],
         day === c.start && "ml-0 rounded-l",
         day === c.end && "mr-0 rounded-r",
@@ -137,7 +138,7 @@ export function MonthGrid({
               <span
                 className={cn(
                   "grid size-6 place-items-center rounded-full text-xs tabular-nums",
-                  day === today ? "bg-ink font-bold text-bg" : inMonth ? "text-dim" : "text-faint/60",
+                  day === today ? "cal-today bg-ink font-bold text-bg" : inMonth ? "text-dim" : "text-faint/60",
                 )}
               >
                 {Number(day.slice(8))}
@@ -146,7 +147,7 @@ export function MonthGrid({
                 <div className="mt-1 space-y-0.5">
                   {Array.from({ length: laneCount }, (_, lane) => {
                     const c = covering.find((x) => lanes.get(x.key) === lane);
-                    return c ? <Band key={c.key} c={c} day={day} weekStart={i % 7 === 0} /> : <div key={lane} className="h-1.5 sm:h-4" />;
+                    return c ? <Band key={c.key} c={c} day={day} weekStart={i % 7 === 0} index={i} /> : <div key={lane} className="h-1.5 sm:h-4" />;
                   })}
                 </div>
               )}

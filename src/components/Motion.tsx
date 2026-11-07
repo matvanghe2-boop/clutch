@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense, useEffect, useLayoutEffect, useRef } from "react";
+import { watchGlide } from "@/lib/motion/glide";
 import { navigationSettled, watchNavigation } from "@/lib/motion/nav";
 import { watchBackground } from "@/lib/motion/scenes";
 import { watchTilt } from "@/lib/motion/tilt";
@@ -25,7 +26,7 @@ export function MotionRoot() {
   useEffect(() => {
     // Rassure le script de layout.tsx : les sections cachées seront bien révélées.
     document.documentElement.setAttribute("data-motion-ready", "");
-    const stops = [watchSections(), watchNavigation(), watchTilt(), watchBackground()];
+    const stops = [watchSections(), watchNavigation(), watchTilt(), watchBackground(), watchGlide()];
     return () => stops.forEach((stop) => stop());
   }, []);
   return (

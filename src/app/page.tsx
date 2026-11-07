@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { GAME_IDS, GAMES } from "@/config/follow";
 import { MatchRow, NextMatch, ResultRow, TournamentCard } from "@/components/matches";
-import { cn, Empty, SectionTitle } from "@/components/ui";
+import { Pills } from "@/components/Pills";
+import { Empty, SectionTitle } from "@/components/ui";
 import { headToHead, recentFeed, statusOf, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { clock, dayKey, dayLabel } from "@/lib/format";
 import { readHidden } from "@/lib/hidden";
@@ -63,25 +64,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
   return (
     <div className="space-y-10">
-      <nav className="flex gap-1.5" aria-label="Filtrer par jeu">
+      <Pills skew label="Filtrer par jeu">
         {[undefined, ...GAME_IDS].map((g) => (
-          <Link
-            key={g ?? "all"}
-            href={g ? `/?jeu=${GAMES[g].short.toLowerCase()}` : "/"}
-            data-game={g}
-            className={cn(
-              "-skew-x-12 rounded border px-3 py-1 font-display text-sm font-bold italic tracking-wide transition-colors",
-              game === g
-                ? g
-                  ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]"
-                  : "border-ink bg-ink text-bg"
-                : "border-line text-dim hover:border-faint hover:text-ink",
-            )}
-          >
+          <Link key={g ?? "all"} href={g ? `/?jeu=${GAMES[g].short.toLowerCase()}` : "/"} data-game={g} data-on={game === g ? "" : undefined} className="pill pill-game">
             {g ? GAMES[g].short : "Tout"}
           </Link>
         ))}
-      </nav>
+      </Pills>
 
       {!game && <TonightBanner evening={evening} now={now} />}
 
