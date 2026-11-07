@@ -448,6 +448,8 @@ function lineupRecord(side: DuelSide): { text: string; wins: number } | undefine
   const oldest = results.at(-1)?.timestamp;
   if (side.partial && results.length >= 10 && oldest !== undefined && new Date(oldest * 1000).toISOString().slice(0, 10) > since) return undefined;
   const t = tally(results.filter((r) => new Date(r.timestamp * 1000).toISOString().slice(0, 10) >= since));
+  // La fiche d'un adversaire a jusqu'à un jour de retard : « 0 V · 0 D » ferait croire qu'il n'a pas joué.
+  if (side.partial && !t.played) return undefined;
   return { text: `${t.wins} V · ${t.losses} D`, wins: t.played ? t.rate : 0 };
 }
 
