@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toFollowed } from "@/config/follow";
 import type { PastMatch } from "@/lib/derive";
 import { money, monthYearOf, placeFr, tenure } from "@/lib/format";
 import { byMap, byPeriod, byTier, formCurve, gamesSummary, recordsOf, rivals, tally } from "@/lib/stats";
-import { isDue } from "@/lib/sync/engine";
-import type { MapSample } from "@/lib/types";
+import { isDue, tournamentState } from "@/lib/sync/engine";
+import type { MapSample, Match, Snapshot, Tournament } from "@/lib/types";
 
 const team = toFollowed({ id: "x", game: "counterstrike", page: "X" });
 const NOW = Date.parse("2026-11-06T12:00:00Z") / 1000;
@@ -167,5 +167,64 @@ describe("formats", () => {
   it("mois et année", () => {
     expect(monthYearOf("2024-01-04")).toBe("janvier 2024");
     expect(monthYearOf("?")).toBeUndefined();
+  });
+});
+
+describe("rythme de lecture d'une compétition", () => {
+  const cdl = toFollowed({ id: "m8-cdl", game: "callofduty", page: "Paris Gentle Mates" });
+  const paris = { name: "Paris Gentle Mates", page: "Paris Gentle Mates" };
+  const other = { name: "G2 Minnesota", page: "G2 Minnesota" };
+  const now = Date.parse("2026-11-07T05:00:00Z");
+  const match = (over: Partial<Match>): Match => ({ id: "x", wiki: "callofduty", streams: [], games: [], finished: false, opponents: [paris, other], scores: [null, null], ...over });
+  const tournament = (matches: Match[], over: Partial<Tournament> = {}): Tournament =>
+    ({
+      key: "k",
+      wiki: "callofduty",
+      page: "P",
+      name: "P",
+      info: {},
+      startDate: "2026-11-06",
+      endDate: "2026-11-08",
+      stages: [{ title: "Playoffs", anchor: "Playoffs", blocks: [{ kind: "matchlist", list: { title: "T", matches } }] }],
+      fetchedAt: "2026-11-07T04:00:00Z",
+      ...over,
+    }) as Tournament;
+  const snap = { teams: {} } as unknown as Snapshot;
+  const at = (hours: number) => now / 1000 + hours * 3600;
+  const state = (t: Tournament) => tournamentState(t, snap, [cdl]);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now, toFake: ["Date"] });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("guette l'horaire tant que le match de mon équipe n'en a pas", () => {
+    expect(state(tournament([match({})]))).toBe("scheduling");
+    expect(state(tournament([match({ timestamp: at(20), timeTbd: true })]))).toBe("scheduling");
+  });
+
+  it("guette aussi un match d'ici 24 h, qui peut bouger, et le tour qui suit un match joué", () => {
+    expect(state(tournament([match({ timestamp: at(15) })]))).toBe("scheduling");
+    expect(state(tournament([match({ timestamp: at(-5), finished: true })]))).toBe("scheduling");
+  });
+
+  it("suit le direct dès qu'un match approche", () => {
+    expect(state(tournament([match({ timestamp: at(2) })]))).toBe("live");
+  });
+
+  it("ne relit pas toutes les 10 min pour un match lointain, ou une compétition d'autres équipes", () => {
+    expect(state(tournament([match({ timestamp: at(72) })], { endDate: "2026-11-30" }))).toBe("active");
+    expect(state(tournament([match({ opponents: [other, { name: "Riyadh Falcons" }] })]))).toBe("active");
+  });
+
+  it("hors de ses dates, un match sans horaire ne fait plus guetter la compétition", () => {
+    expect(state(tournament([match({})], { startDate: "2026-12-01", endDate: "2026-12-05" }))).toBe("active");
+    expect(state(tournament([match({})], { startDate: "2026-10-01", endDate: "2026-10-05" }))).toBe("active");
+  });
+
+  it("le créneau du cron relit alors la page toutes les 10 min", () => {
+    const start = Date.parse("2026-11-07T00:00:00Z");
+    const slots = Array.from({ length: 12 }, (_, i) => isDue("cron", "callofduty:P", 1e12, 10 * 60_000, start + i * 5 * 60_000)).filter(Boolean);
+    expect(slots.length).toBe(6);
   });
 });

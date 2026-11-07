@@ -52,6 +52,8 @@ function ttls(profile: Profile) {
     /** Page d'équipe quand elle joue dans les trois heures (ou joue) : on suit le score. */
     teamLive: frequent ? 4 * MIN : 12 * MIN,
     live: frequent ? 4 * MIN : profile === "ci" ? 12 * MIN : 10 * MIN,
+    /** Une équipe suivie y attend son horaire, ou y joue d'ici 24 h : Liquipedia peut l'annoncer ou le déplacer à tout moment. */
+    scheduling: frequent ? 10 * MIN : 30 * MIN,
     active: 3 * HOUR,
     /** Pas encore commencée, une équipe suivie inscrite. */
     planned: 12 * HOUR,
@@ -162,17 +164,39 @@ function discover(snap: Snapshot, teams: FollowedTeam[]): Map<string, Discovered
   return out;
 }
 
-function tournamentState(t: Tournament, snap: Snapshot, teams: FollowedTeam[]): "live" | "active" | "planned" | "done" {
+export function tournamentState(t: Tournament, snap: Snapshot, teams: FollowedTeam[]): "live" | "scheduling" | "active" | "planned" | "done" {
   const now = nowS();
   const followed = teams.flatMap((f) => snap.teams[f.id]?.upcoming ?? []).filter((m) => m.tournament?.page === t.page);
   const soon = (m: Match) => m.timestamp !== undefined && m.timestamp - now < 3 * 3600 && now - m.timestamp < 6 * 3600;
   const matches = tournamentMatches(t);
   if (followed.some(soon) || matches.some((m) => !m.finished && soon(m))) return "live";
+  if (awaitsSchedule(t, matches, teams, now)) return "scheduling";
   if (followed.length || matches.some((m) => !m.finished)) return "active";
   if (matches.some((m) => m.timestamp !== undefined && now - m.timestamp < 2 * 86400)) return "active";
   // Pas encore commencée (ou sans matchs programmés) : à relire de temps en temps.
   if ((t.endDate ?? t.startDate ?? "") >= today()) return "planned";
   return "done";
+}
+
+/**
+ * Une équipe suivie dispute la compétition en ce moment, et son prochain horaire
+ * peut tomber à tout moment : son match n'a pas encore d'heure, il se joue d'ici
+ * 24 h, ou elle vient de jouer et le tour suivant se prépare.
+ *
+ * Seule la page de la compétition le dit à temps : celle de l'équipe peut garder
+ * des heures un match déjà joué (constaté en CDL : 9 h après la fin d'un match).
+ */
+function awaitsSchedule(t: Tournament, matches: Match[], teams: FollowedTeam[], now: number): boolean {
+  const DAY_S = 86400;
+  const day = (ts: number) => new Date(ts * 1000).toISOString().slice(0, 10);
+  const [from, to] = [t.startDate, t.endDate ?? t.startDate];
+  if ((from && from > day(now + DAY_S)) || (to && to < day(now - DAY_S))) return false;
+  const ours = matches.filter((m) => teams.some((f) => f.game === t.wiki && m.opponents.some((o) => isTeam(o, f))));
+  return ours.some((m) =>
+    m.finished
+      ? m.timestamp !== undefined && now - m.timestamp < DAY_S
+      : m.timestamp === undefined || Boolean(m.timeTbd) || m.timestamp - now < DAY_S,
+  );
 }
 
 /** Une équipe suivie y joue : inscrite, présente dans un match ou un classement, ou annoncée par sa propre page. */
@@ -499,17 +523,19 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
           : t.outsider
         : state === "live"
           ? t.live
-          : state === "planned"
-            ? t.planned
-            : t.active;
+          : state === "scheduling"
+            ? t.scheduling
+            : state === "planned"
+              ? t.planned
+              : t.active;
     const age = ageOf(current?.fetchedAt);
     if (!due(key, age, ttl)) continue;
     tasks.push({
       key,
-      label: `compétition ${ref.page} (${ref.wiki})${state === "live" ? " · en direct" : ""}`,
+      label: `compétition ${ref.page} (${ref.wiki})${state === "live" ? " · en direct" : state === "scheduling" ? " · horaires" : ""}`,
       // Une compétition découverte par une liste passe après les équipes et les
       // matchs en cours : elle ne doit jamais retarder un score.
-      priority: !current ? (ref.origin === "team" ? 1 : 2.8) : state === "live" ? 1.5 : 3,
+      priority: !current ? (ref.origin === "team" ? 1 : 2.8) : state === "live" ? 1.5 : state === "scheduling" ? 1.6 : 3,
       staleness: age,
       run: async (s) => {
         const page = await parsePage(ref.wiki, ref.page, onWait);

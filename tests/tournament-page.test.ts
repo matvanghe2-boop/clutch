@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { bracketLayout } from "@/lib/bracket";
 import { parseTournamentPage } from "@/lib/liquipedia/tournament-page";
+import { tournamentMatches } from "@/lib/tournament";
 import type { Bracket, BracketNode, Match, Stage } from "@/lib/types";
 import { atCaptureDate, fixture } from "./fixtures";
 
@@ -145,5 +146,16 @@ describe("Monster Launch Invitational (CDL, double élimination)", () => {
       "Grand Final",
     ]);
     expect(bracketLayout(lower).width).toBe(4);
+  });
+});
+
+describe("horaires du bracket (Monster Launch, 2e jour)", () => {
+  const t = parseTournamentPage(fixture("tournament-cod-monster-launch-day2.html"), "callofduty", "Call of Duty League/Season 8/Monster Launch Invitational");
+
+  it("lit l'heure d'un match du bracket dès que Liquipedia la publie", () => {
+    const match = tournamentMatches(t).find((m) => m.opponents[0]?.name === "Paris Gentle Mates" && m.opponents[1]?.name === "G2 Minnesota");
+    expect(match?.timestamp).toBe(Date.parse("2026-11-07T20:00:00Z") / 1000);
+    expect(match?.timeTbd).toBeFalsy();
+    expect(match?.round).toBe("Upper Bracket Quarterfinals");
   });
 });

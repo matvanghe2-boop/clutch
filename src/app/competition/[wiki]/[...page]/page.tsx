@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GAME_IDS } from "@/config/follow";
-import { BracketSectionView, GroupTableView, MatchlistView } from "@/components/competition";
+import { BracketSectionView, GroupTableView, MatchlistView, ScheduleView } from "@/components/competition";
 import { cn, Empty, GameTag } from "@/components/ui";
 import { competitionHref, isTeam, sameMatch, teamIn, teamsOf, upcomingFeed } from "@/lib/derive";
 import { infoDate } from "@/lib/format";
@@ -97,6 +97,8 @@ export default async function CompetitionPage({
           {meta.length > 0 && <p className="mt-2 text-sm text-dim">{meta.join(" · ")}</p>}
         </div>
       </header>
+
+      <ScheduleView matches={tournamentMatches(t)} team={team} now={now} onlyOurs={onlyOurs} />
 
       {journey.length > 0 && (
         <section>

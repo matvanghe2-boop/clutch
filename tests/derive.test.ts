@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headToHead, recentFeed, upcomingFeed } from "@/lib/derive";
+import { findMatch, headToHead, recentFeed, undatedId, upcomingFeed } from "@/lib/derive";
 import { emptySnapshot } from "@/lib/snapshot";
 import type { Match, RecentMatch, Snapshot, TeamRef } from "@/lib/types";
 
@@ -111,5 +111,31 @@ describe("chaînes françaises", () => {
       "rocketleague",
     ]);
     expect(matchStreams(toFollowed({ id: "x", game: "rocketleague", page: "X", streams: [] }), official)).toEqual(official);
+  });
+});
+
+describe("un match qui reçoit son horaire", () => {
+  it("garde son ancien lien", () => {
+    const m = {
+      id: "callofduty:1794081600:g2-minnesota~paris-gentle-mates",
+      wiki: "callofduty",
+      timestamp: 1794081600,
+      finished: false,
+      streams: [],
+      games: [],
+      scores: [null, null],
+      opponents: [
+        { name: "Paris Gentle Mates", page: "Paris Gentle Mates" },
+        { name: "G2 Minnesota", page: "G2 Minnesota" },
+      ],
+    } as unknown as Match;
+    const snap = {
+      teams: {},
+      tournaments: { k: { wiki: "callofduty", page: "P", participating: true, stages: [{ blocks: [{ kind: "matchlist", list: { title: "T", matches: [m] } }] }] } },
+    } as unknown as Snapshot;
+    expect(undatedId(m)).toBe("callofduty:nodate:g2-minnesota~paris-gentle-mates");
+    expect(findMatch(snap, undatedId(m))?.o.match.id).toBe(m.id);
+    expect(findMatch(snap, "callofduty:nodate:autre~paris-gentle-mates")).toBeUndefined();
+    expect(findMatch(snap, "callofduty:1:g2-minnesota~paris-gentle-mates")).toBeUndefined();
   });
 });

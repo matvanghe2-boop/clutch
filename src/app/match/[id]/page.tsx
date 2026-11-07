@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Countdown } from "@/components/Countdown";
 import { FormChips, FormSummary } from "@/components/form";
 import { StreamPlayer } from "@/components/StreamPlayer";
@@ -9,7 +9,7 @@ import { Duel, rankFigure } from "@/components/team-stats";
 import { cn, Empty, GameTag, LiveBadge, Logo, ResultBadge, SectionTitle, StreamLinks } from "@/components/ui";
 import { predict } from "@/app/actions";
 import { isAdmin } from "@/lib/admin";
-import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, type MatchStatus, opponentKey, ordinal, predictionResult, rankOf, statusOf, teamPath } from "@/lib/derive";
+import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, matchHref, type MatchStatus, opponentKey, ordinal, predictionResult, rankOf, statusOf, teamPath, undatedId } from "@/lib/derive";
 import { clock, dayLabel, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { loadPredictions } from "@/lib/prediction-store";
@@ -45,10 +45,12 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   const found = findMatch(snap, id);
   if (!found) notFound();
   const { o, tournament } = found;
+  const m = o.match;
+  // Le match a reçu son horaire depuis ce lien : on rejoint son adresse définitive.
+  if (id.includes(":nodate:") && m.id !== id) redirect(matchHref(m));
   const prono = (await searchParams).prono;
   const [predictions, admin] = await Promise.all([loadPredictions(), isAdmin()]);
-  const prediction = predictions[id];
-  const m = o.match;
+  const prediction = predictions[id] ?? predictions[undatedId(m)];
   const now = Date.now() / 1000;
   const st = statusOf(m, now);
 

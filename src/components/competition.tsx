@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { FollowedTeam } from "@/config/follow";
 import { isTeam, matchHref, statusOf, teamLink } from "@/lib/derive";
 import { matchStreams } from "@/lib/streams";
-import { clock, shortDate, shortDay } from "@/lib/format";
+import { clock, dayKey, dayLabel, shortDate, shortDay } from "@/lib/format";
 import { bracketLayout } from "@/lib/bracket";
 import type { BracketNode, BracketSection, Match, Matchlist, StandingRow, StandingTable, SwissRound, TeamRef } from "@/lib/types";
 import { cn, LiveBadge, Logo, StreamLinks } from "./ui";
@@ -158,20 +158,19 @@ export function BracketMatch({ m, team, now }: { m: Match; team: FollowedTeam; n
           <Side team={m.opponents[i]} score={m.scores[i]} won={m.winner === i + 1} decided={m.winner !== undefined} ours={isTeam(m.opponents[i], team)} followed={team} />
         </div>
       ))}
-      {((st !== "done" && m.timestamp) || ours) && (
-        <div className="flex items-center justify-between gap-2 border-t border-line px-2 py-1 text-[11px] text-faint">
-          {st === "live" ? (
-            <LiveBadge />
-          ) : st !== "done" && m.timestamp ? (
-            <span>
-              {shortDay(m.timestamp, now)} · {m.timeTbd ? "heure à conf." : clock(m.timestamp)}
-            </span>
-          ) : (
-            <span />
-          )}
-          {ours ? <span className="text-[var(--accent)]">Feuille de match →</span> : m.bestOf && <span>Bo{m.bestOf}</span>}
-        </div>
-      )}
+      <div className="flex min-h-6 items-center justify-between gap-2 border-t border-line px-2 py-1 text-[11px] text-faint">
+        {st === "live" ? (
+          <LiveBadge />
+        ) : m.timestamp ? (
+          <span className="truncate">
+            {st === "done" ? shortDate(m.timestamp, now) : shortDay(m.timestamp, now)} ·{" "}
+            <span className={st === "done" ? undefined : "font-semibold text-ink"}>{m.timeTbd ? "heure à conf." : clock(m.timestamp)}</span>
+          </span>
+        ) : (
+          <span>{st === "done" ? "" : "Horaire à venir"}</span>
+        )}
+        {ours ? <span className="shrink-0 text-[var(--accent)]">Feuille →</span> : m.bestOf && <span className="shrink-0">Bo{m.bestOf}</span>}
+      </div>
     </div>
   );
 }
@@ -283,7 +282,7 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
   );
 }
 
-function ListMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number }) {
+function ListMatch({ m, team, now, inDay, caption }: { m: Match; team: FollowedTeam; now: number; inDay?: boolean; caption?: string }) {
   const st = statusOf(m, now);
   const ours = m.opponents.some((o) => isTeam(o, team));
   const side = (i: 0 | 1) => {
@@ -312,14 +311,26 @@ function ListMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number
       <span className="text-[11px] leading-tight text-faint">
         {st === "live" ? (
           <LiveBadge />
+        ) : m.timestamp && inDay ? (
+          // Le jour est dans l'intertitre : l'heure seule, bien lisible.
+          m.timeTbd ? (
+            "heure à conf."
+          ) : (
+            <b className="font-display text-base font-semibold text-ink tabular-nums">{clock(m.timestamp)}</b>
+          )
         ) : m.timestamp ? (
           <>
             {st === "done" ? shortDate(m.timestamp, now) : shortDay(m.timestamp, now)}
             <br />
-            {m.timeTbd ? "heure à conf." : clock(m.timestamp)}
+            <span className={st === "done" ? undefined : "font-semibold text-ink"}>{m.timeTbd ? "heure à conf." : clock(m.timestamp)}</span>
           </>
-        ) : (
+        ) : st === "done" ? (
           "—"
+        ) : (
+          <>
+            Horaire
+            <br />à venir
+          </>
         )}
       </span>
       {side(0)}
@@ -342,7 +353,53 @@ function ListMatch({ m, team, now }: { m: Match; team: FollowedTeam; now: number
           </span>
         )}
       </span>
+      {caption && <span className="col-start-2 col-end-5 -mt-1.5 truncate text-center text-[11px] text-faint">{caption}</span>}
     </div>
+  );
+}
+
+/**
+ * Le programme de la compétition : ses prochains matchs, jour par jour, à l'heure
+ * de Paris. Un match dont aucune équipe n'est connue et sans horaire n'apprend
+ * rien : il reste dans le bracket.
+ */
+export function ScheduleView({ matches, team, now, onlyOurs }: { matches: Match[]; team: FollowedTeam; now: number; onlyOurs: boolean }) {
+  const planned = matches
+    .filter((m) => {
+      const st = statusOf(m, now);
+      if (st !== "upcoming" && st !== "live") return false;
+      if (onlyOurs && !m.opponents.some((o) => isTeam(o, team))) return false;
+      return m.timestamp !== undefined || m.opponents.some(Boolean);
+    })
+    .sort((a, b) => (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity))
+    .slice(0, 40);
+  if (!planned.length) return null;
+  const days: { key: string; label: string; matches: Match[] }[] = [];
+  for (const m of planned) {
+    const key = m.timestamp === undefined ? "?" : dayKey(m.timestamp);
+    const last = days.at(-1);
+    if (last?.key === key) last.matches.push(m);
+    else days.push({ key, label: m.timestamp === undefined ? "Horaire à venir" : dayLabel(m.timestamp, now), matches: [m] });
+  }
+  return (
+    <section>
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-dim">Programme</h2>
+        <span className="text-xs text-faint">à l&apos;heure de Paris</span>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-line bg-panel">
+        {days.map((d) => (
+          <div key={d.key}>
+            <div className="border-b border-line bg-panel-2 px-4 py-1.5 text-xs font-medium text-dim">{d.label}</div>
+            <div className="divide-y divide-line/50">
+              {d.matches.map((m) => (
+                <ListMatch key={m.id} m={m} team={team} now={now} inDay caption={[m.tournament?.anchor, m.round].filter(Boolean).join(" · ") || undefined} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

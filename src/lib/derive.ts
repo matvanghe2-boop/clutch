@@ -423,23 +423,36 @@ export const matchHref = (m: Match) => `/match/${encodeURIComponent(m.id)}`;
  * terminé ou non. Vu du côté de l'équipe suivie.
  */
 export function findMatch(snap: Snapshot, id: string): { o: Oriented; tournament?: Tournament } | undefined {
+  const exact = locateMatch(snap, (m) => m.id === id);
+  if (exact || !id.includes(":nodate:")) return exact;
+  // L'identifiant d'un match contient son heure : celui d'un match d'abord sans
+  // horaire change quand Liquipedia la publie. L'ancien lien mène au même match.
+  const pair = (matchId: string) => matchId.split(":").slice(2).join(":");
+  const same = (m: Match) => m.wiki === id.split(":")[0] && pair(m.id) === pair(id);
+  return locateMatch(snap, (m) => same(m) && !m.finished) ?? locateMatch(snap, same);
+}
+
+function locateMatch(snap: Snapshot, test: (m: Match) => boolean): { o: Oriented; tournament?: Tournament } | undefined {
   const teams = teamsOf(snap);
   for (const team of teams)
     for (const m of snap.teams[team.id]?.upcoming ?? [])
-      if (m.id === id) {
+      if (test(m)) {
         const e = enrich(snap, m);
         return { o: orient(e, team), tournament: findTournament(snap, e.wiki, e.tournament?.page) };
       }
   for (const t of Object.values(snap.tournaments)) {
     if (t.participating === false) continue;
     for (const m of tournamentMatches(t)) {
-      if (m.id !== id) continue;
+      if (!test(m)) continue;
       const team = teams.find((f) => f.game === t.wiki && m.opponents.some((o) => isTeam(o, f)));
       if (team) return { o: orient(m, team), tournament: t };
     }
   }
   return undefined;
 }
+
+/** L'identifiant qu'avait ce match avant de recevoir son horaire. */
+export const undatedId = (m: Match) => m.id.replace(/^([^:]+):[^:]+:/, "$1:nodate:");
 
 /**
  * Adversaires des matchs des 7 prochains jours (8 au plus), dont la page

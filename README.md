@@ -71,6 +71,7 @@ Elle choisit à chaque tour la page la plus urgente :
 |---|---|
 | équipe | toutes les 30 min ; de 3 h avant à 5 h après un de ses matchs, à chaque passe de la synchro régulière (5 min) |
 | compétition avec un match en cours ou imminent | à chaque passe de la synchro régulière (5 min) |
+| compétition où mon équipe attend son horaire, joue d'ici 24 h ou vient de jouer | toutes les 10 min |
 | compétition en cours | toutes les 3 h |
 | compétition terminée | jamais |
 | historique complet | chaque semaine |
@@ -80,6 +81,14 @@ Elle choisit à chaque tour la page la plus urgente :
 
 **Pendant un match**, la page se recharge seule chaque minute (tant qu'elle
 est visible) pour suivre le score.
+
+**Les horaires viennent de la page de la compétition.** Liquipedia y publie l'heure
+d'un tour au fil de la compétition, souvent peu avant. Celle de l'équipe peut garder
+des heures un match déjà joué : elle ne suffit pas à suivre un tournoi rapide. Dès
+qu'une équipe suivie attend un horaire, la page de la compétition est donc relue toutes
+les 10 min. Elle affiche ensuite les heures à trois endroits : le **programme** en haut
+(jour par jour, à l'heure de Paris), le **bracket** et le **parcours** de l'équipe. Un
+match sans heure indique « Horaire à venir ».
 
 ## Règles de Liquipedia
 
