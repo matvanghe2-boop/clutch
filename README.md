@@ -349,16 +349,21 @@ sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
   VS lit sur la vraie page ce qu'il ne savait pas.
 - **Retour arrière** (`back.ts`) : la scène redescend dans la carte d'où elle vient. Le VS remonte la page
   avant de partir : `rememberScroll` garde la position, que le navigateur ne pourrait plus retrouver.
-- **Onglets** (`components/Tabs.tsx`) : pages d'équipe et de compétition. Tout arrive d'un coup, comme une
-  page unique : changer d'onglet ne demande rien au serveur. L'adresse suit (`?onglet=stats`), le serveur la lit
-  pour ouvrir le bon onglet, et un lien `#ancre` ouvre l'onglet qui la contient.
+- **Onglets** (`components/Tabs.tsx`) : pages d'équipe et de compétition. Tout arrive dans la même réponse :
+  changer d'onglet ne demande rien au serveur. L'onglet ouvert part en premier, les autres suivent juste
+  derrière (`components/Later.tsx`, une frontière `Suspense`). L'adresse suit (`?onglet=stats`), le serveur
+  la lit pour ouvrir le bon onglet, et un lien `#ancre` ouvre l'onglet qui la contient, même encore en route.
 - **Une carte déclenche le passage** avec les attributs de `src/lib/morph-attrs.ts` ; la cible est la
   première `.arena` de la page suivante, et les logos se retrouvent par leur nom de fichier.
 - **Moments de match** (`src/lib/motion/moments.ts`, `components/Moments.tsx`) : impact d'un changement de
   score, récit de la série à la première ouverture d'un match fini, jetons de Bo, or de la victoire, battement
   de la dernière minute. Ils suivent la donnée, donc le retard de Liquipedia.
-- **Fond vivant** (`src/lib/motion/scenes.ts`) : une scène par jeu sur un canvas, allégée sur téléphone,
-  arrêtée quand l'onglet est masqué, absente en économie de données.
+- **Fond vivant** (`src/lib/motion/scenes.ts`) : une scène par jeu sur un canvas (boost et balle pour RL, radar,
+  fumigènes et traçantes pour CS2, balayage et mini-carte du drone pour CoD), allégée sur téléphone, arrêtée
+  quand l'onglet est masqué, absente en économie de données.
+- **Intensité des effets** (Réglages, `components/EffectsSetting.tsx`) : « Sobre » pose `html[data-effects="sobre"]`
+  avant le premier affichage (stockage local `clutch:effets`) : VS court, ni curseur, ni inclinaison, fond immobile
+  (`sober()` dans `motion/fx.ts`).
 - **Relief et survol** (`src/lib/motion/tilt.ts`, `glide.ts`) : inclinaison et lumière au curseur, surlignage qui
   glisse d'une ligne à l'autre, à la souris seulement.
 - **Filtres** (`components/Pills.tsx`, `src/lib/motion/flip.ts`) : la pastille glisse dès le clic, et les cartes
@@ -378,8 +383,18 @@ sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
   cache une minute), curseur de visée (`motion/cursor.ts`, à la souris), cartes retournables (`Flip.tsx`),
   accueil réorganisable (`Arrange.tsx`, ordre dans le cookie `clutch_accueil`), équipe préférée
   (`Favorite.tsx`, stockage local `clutch:fav`, posée avant le premier affichage par `layout.tsx`).
-- **Pages d'équipe** : la saison en récit (`SeasonStory.tsx`, les douze derniers mois) et « Remonter le temps »
-  (`TimeMachine.tsx`, les matchs de l'effectif choisi).
+- **Pages d'équipe** : la saison en récit (`SeasonStory.tsx`, les douze derniers mois), « Remonter le temps »
+  (`TimeMachine.tsx`, les matchs de l'effectif choisi) et l'effectif en cartes à collectionner (`RosterCards.tsx`).
+- **Compétitions** : le format en vignettes animées (`FormatStrip.tsx`, déduit des phases par
+  `lib/format-kind.ts`), la route qui reste à mon équipe dans le bracket (pointillés) et le zoom
+  (`BracketZoom.tsx` : boutons, pincement, Ctrl + molette).
+- **Suivre ses équipes** : « Depuis ta dernière visite » sur l'accueil (`SinceVisit.tsx`, cookie `clutch_visite`
+  posé en quittant le site par `VisitClock.tsx`), « Heure changée » et « En même temps que » sur les matchs
+  (`lib/schedule.ts` : la synchro compare l'horaire avant et après chaque lecture et garde les déplacements dans
+  `snapshot.moves`), le score qui suit sur toutes les pages pendant un direct (`ScoreToast.tsx`), le stream en
+  fenêtre flottante (`lib/pip.ts`, Chrome et Edge sur ordinateur) et « Rejouer le VS » (`ReplayVs.tsx`).
+- **Carte des LAN** (calendrier, `LanMap.tsx`) : terres en points (`scripts/world-dots.ts`, Natural Earth),
+  villes et pays dans `config/places.ts` ; un lieu inconnu est listé sans point.
 - **Pour contrôler** : toujours en cliquant, pas seulement en ouvrant une adresse, et dans un navigateur qui
   rend de vraies images (un onglet masqué n'en rend aucune, donc aucune entrée ne s'y déclenche).
 
@@ -458,6 +473,13 @@ format (en Bo5 : 3-0, 3-1, 3-2, 2-3, 1-3, 0-3), modifiable jusqu'au coup
 d'envoi. Score exact : 3 points, bon vainqueur : 1 point. La page
 **Pronostics** (`/pronostics`) tient le bilan : points, scores exacts, taux de
 bons vainqueurs, par jeu.
+
+En tête de cette page, les matchs de la semaine sans pronostic forment un tas de
+cartes (`PickDeck.tsx`) : on glisse à droite si mon équipe gagne, à gauche sinon,
+puis on choisit le score (Bo3, Bo5 et Bo7 quand le format n'est pas encore connu).
+Une pastille sur l'icône du menu compte ceux des prochaines 24 h. Un verdict
+récent arrive face cachée et se retourne une fois (`PronoReveal.tsx`, cookie
+`clutch_revele`).
 
 Le site étant public, pronostiquer demande le même code que les réglages
 (navigateur déverrouillé). Les pronostics sont enregistrés dans Blob

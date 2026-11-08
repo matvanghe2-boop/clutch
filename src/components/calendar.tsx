@@ -59,7 +59,7 @@ function Band({ c, day, weekStart, index }: { c: CalCompetition; day: string; we
       title={`${c.name} · ${GAMES[c.game].short}${c.relevance === "watched" ? " · inscription à confirmer" : ""}`}
       style={{ "--i": index } as React.CSSProperties}
       className={cn(
-        "cal-band -mx-1.5 h-1.5 truncate px-1.5 text-[10px] font-medium leading-4 sm:h-4",
+        "cal-band -mx-1.5 h-1.5 truncate px-1.5 text-[11px] font-medium leading-4 sm:h-4",
         RELEVANCE_STYLE[c.relevance],
         day === c.start && "ml-0 rounded-l",
         day === c.end && "mr-0 rounded-r",
@@ -151,14 +151,14 @@ export function MonthGrid({
                   })}
                 </div>
               )}
-              {hidden > 0 && <div className="mt-0.5 hidden text-[10px] text-faint sm:block">+{hidden} compét.</div>}
+              {hidden > 0 && <div className="mt-0.5 hidden text-[11px] text-faint sm:block">+{hidden} compét.</div>}
               {ours.length > 0 && (
                 <>
                   <ul className="mt-1 hidden space-y-0.5 sm:block">
                     {ours.slice(0, 3).map((m) => (
                       <Chip key={m.id} m={m} />
                     ))}
-                    {ours.length > 3 && <li className="text-[10px] text-faint">+{ours.length - 3}</li>}
+                    {ours.length > 3 && <li className="text-[11px] text-faint">+{ours.length - 3}</li>}
                   </ul>
                   <div className="mt-1 flex flex-wrap gap-0.5 sm:hidden">
                     {ours.slice(0, 4).map((m) => (
@@ -167,7 +167,7 @@ export function MonthGrid({
                   </div>
                 </>
               )}
-              {others > 0 && <div className="mt-0.5 hidden text-[10px] text-faint sm:block">{others} autre{others > 1 ? "s" : ""}</div>}
+              {others > 0 && <div className="mt-0.5 hidden text-[11px] text-faint sm:block">{others} autre{others > 1 ? "s" : ""}</div>}
             </a>
           );
         })}
@@ -260,8 +260,18 @@ function WeekMatch({ m }: { m: CalMatch }) {
         <Logo team={b} size={14} />
         <span className="truncate">{b?.short ?? b?.name ?? "À déterminer"}</span>
       </div>
+      {m.movedFrom !== undefined && m.status !== "done" && (
+        <div className="note-tag note-moved mt-1" title="Liquipedia a déplacé ce match">
+          avant <s>{clock(m.movedFrom)}</s>
+        </div>
+      )}
+      {m.clash && m.status !== "done" && (
+        <div className="note-tag note-clash mt-1" title="Un autre de tes matchs se joue en même temps">
+          + {m.clash.join(", ")}
+        </div>
+      )}
       {m.tournament?.page ? (
-        <Link href={competitionHref(m.game, m.tournament.page, m.tournament.anchor)} className="mt-1 block truncate text-[10px] text-faint hover:text-dim">
+        <Link href={competitionHref(m.game, m.tournament.page, m.tournament.anchor)} className="mt-1 block truncate text-[11px] text-faint hover:text-dim">
           {m.tournament.name}
         </Link>
       ) : null}
@@ -303,7 +313,7 @@ export function WeekView({
           >
             <h3 className="mb-2 flex items-baseline justify-between gap-2 text-sm">
               <span className={cn("font-medium", day === today ? "text-ink" : "text-dim")}>{weekdayFmt.format(new Date(`${day}T12:00:00Z`))}</span>
-              {day === today && <span className="text-[10px] uppercase tracking-wider text-faint">Aujourd&apos;hui</span>}
+              {day === today && <span className="text-[11px] uppercase tracking-wider text-faint">Aujourd&apos;hui</span>}
             </h3>
             {comps.length > 0 && (
               <div className="space-y-1">
@@ -312,7 +322,7 @@ export function WeekView({
                     key={c.key}
                     data-game={c.game}
                     title={`${c.name}${c.relevance === "watched" ? " · inscription à confirmer" : ""}`}
-                    className={cn("truncate rounded px-1.5 py-0.5 text-[10px] font-medium", RELEVANCE_STYLE[c.relevance])}
+                    className={cn("truncate rounded px-1.5 py-0.5 text-[11px] font-medium", RELEVANCE_STYLE[c.relevance])}
                   >
                     {c.name}
                   </div>

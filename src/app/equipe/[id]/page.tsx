@@ -8,13 +8,15 @@ import { FavoriteStar } from "@/components/Favorite";
 import { RankingCard } from "@/components/ranking";
 import { SeasonStory, type Story } from "@/components/SeasonStory";
 import { type TimePoint, TimeMachine } from "@/components/TimeMachine";
+import { Later } from "@/components/Later";
+import { RosterCards } from "@/components/RosterCards";
 import { TabsView, type Tab } from "@/components/Tabs";
 import { EraMoment, EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
 import { Empty, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { GamePlate, TeamHero, TeamTitle } from "@/components/versus";
 import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { lineupSince, pickEra, playedSince, rosterEras } from "@/lib/eras";
-import { clock, dayLabel, infoDate, money, shortDate, tenure } from "@/lib/format";
+import { clock, dayLabel, infoDate, money, shortDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { recordsOf, rivals, tally } from "@/lib/stats";
@@ -230,49 +232,24 @@ export default async function TeamPage({ params, searchParams }: { params: Param
 
   const roster = (
     <>
-      {(data?.roster?.length || data?.timeline?.length) && (
-        <div className="grid gap-10 lg:grid-cols-2">
-          {data?.roster?.length ? (
-            <section>
-              <SectionTitle>Effectif</SectionTitle>
-              <ul className="stagger divide-y divide-line overflow-hidden panel">
-                {data.roster.map((p) => (
-                  <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                    <span className="min-w-0 flex-1">
-                      <span className="font-medium">{p.id}</span>
-                      {p.captain && (
-                        <span className="ml-1.5 text-[var(--accent)]" title="Capitaine">
-                          ©
-                        </span>
-                      )}
-                      {p.name && <span className="ml-2 text-faint">{p.name}</span>}
-                    </span>
-                    {p.role && <span className="shrink-0 rounded bg-panel-2 px-1.5 py-0.5 text-[11px] text-dim">{p.role}</span>}
-                    <span className="hidden w-28 shrink-0 text-right text-xs text-faint sm:block">{p.country}</span>
-                    {p.joined && (
-                      <span className="w-24 shrink-0 text-right text-xs text-faint" title={`Arrivée dans l'équipe : ${infoDate(p.joined, now)}`}>
-                        {tenure(p.joined, undefined, now) ?? infoDate(p.joined, now)}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-          {data?.timeline?.length ? (
-            <section>
-              <SectionTitle>Derniers mouvements</SectionTitle>
-              <ul className="space-y-2 panel p-4 text-sm text-dim">
-                {data.timeline.map((line, i) => (
-                  <li key={i} className="border-l-2 border-[color-mix(in_srgb,var(--accent)_50%,transparent)] pl-3 leading-snug">
-                    {line}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </div>
-      )}
+      {data?.roster?.length ? (
+        <section>
+          <SectionTitle>Effectif</SectionTitle>
+          <RosterCards players={data.roster} team={{ name: team.page, page: team.page, logo: data.logo }} now={now} />
+        </section>
+      ) : null}
+      {data?.timeline?.length ? (
+        <section>
+          <SectionTitle>Derniers mouvements</SectionTitle>
+          <ul className="space-y-2 panel p-4 text-sm text-dim">
+            {data.timeline.map((line, i) => (
+              <li key={i} className="border-l-2 border-[color-mix(in_srgb,var(--accent)_50%,transparent)] pl-3 leading-snug">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <FormerRoster players={data?.former ?? []} now={now} />
     </>
   );
@@ -285,6 +262,9 @@ export default async function TeamPage({ params, searchParams }: { params: Param
     { id: "effectif", label: "Effectif", panel: roster },
   ];
   const onglet = typeof query.onglet === "string" ? query.onglet : wanted ? "stats" : "apercu";
+  // L'onglet demandé part en premier ; les autres suivent dans la même réponse.
+  const opened = tabs.some((t) => t.id === onglet) ? onglet : tabs[0].id;
+  for (const t of tabs) if (t.id !== opened) t.panel = <Later>{t.panel}</Later>;
 
   return (
     <div data-game={team.game} style={accentOf({ name: team.page, page: team.page, logo: data?.logo })} className="space-y-10">

@@ -1,7 +1,7 @@
 import { logoFile } from "@/lib/logo-url";
 import { flyBack, rememberScroll } from "./back";
 import { flipPlay, flipRecord } from "./flip";
-import { flyTo, fxLayer, ghostLogo, OUT, quiet, type Rect, screenSize, SPRING } from "./fx";
+import { flyTo, fxLayer, ghostLogo, OUT, quiet, type Rect, screenSize, sober, SPRING } from "./fx";
 import { type IntroHandle, playIntro } from "./intro";
 
 /**
@@ -391,7 +391,7 @@ function onClick(e: MouseEvent) {
   if (kind === "match") {
     // Le VS, à chaque feuille de match. L'adresse dit le jeu : match/<jeu>:<date>:<équipes>.
     const id = decodeURIComponent(a.pathname.slice("/match/".length));
-    const short = introAlreadySeen(id);
+    const short = introAlreadySeen(id) || sober();
     rememberIntro(id);
     setNav("intro");
     p.intro = playIntro({

@@ -9,6 +9,9 @@ export const SPRING = typeof CSS !== "undefined" && CSS.supports("animation-timi
 
 export const quiet = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** Effets « sobres », choisis dans Réglages (html[data-effects]) : VS court, ni curseur, ni inclinaison, fond immobile. */
+export const sober = () => document.documentElement.dataset.effects === "sobre";
+
 /** La taille de l'écran, telle que la voit #fx-layer. */
 export const screenSize = () => ({ W: document.documentElement.clientWidth, H: document.documentElement.clientHeight });
 

@@ -3,6 +3,7 @@ import { isOtherTitle, isTeam, orient, recentFeed, sameTeam, statusOf, teamsOf, 
 import { dayKey } from "./format";
 import { tournamentMatches } from "./tournament";
 import type { GameId, Match, PortalEntry, Snapshot, Stream, TeamRef, Tournament, TournamentRef } from "./types";
+import { notesFor } from "./schedule";
 
 /** « mes » : mes équipes seulement ; « tout » : aussi les autres matchs et compétitions du jeu. */
 export type Scope = "mes" | "tout";
@@ -25,6 +26,10 @@ export interface CalMatch {
   bestOf?: number;
   round?: string;
   streams: Stream[];
+  /** L'heure qu'avait ce match avant que Liquipedia le déplace (voir schedule.ts). */
+  movedFrom?: number;
+  /** Mes autres équipes qui jouent en même temps. */
+  clash?: string[];
 }
 
 /**
@@ -45,6 +50,8 @@ export interface CalCompetition {
   relevance: Relevance;
   location?: string;
   prize?: string;
+  /** Jouée en ligne (infobox « Type : Online »). */
+  online?: boolean;
 }
 
 /** Un de mes matchs dont l'affiche est connue mais pas encore la date. */
@@ -132,7 +139,13 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
   };
 
   // Mes matchs à venir (page d'équipe, complétée par la compétition), puis mes résultats.
-  for (const o of upcomingFeed(snap, game)) add(fromMatch(o.match, now, teams));
+  const notes = notesFor(snap, upcomingFeed(snap));
+  for (const o of upcomingFeed(snap, game)) {
+    const c = fromMatch(o.match, now, teams);
+    const note = notes.get(o.match.id);
+    if (c && note) Object.assign(c, { movedFrom: note.moved?.from, clash: note.clash });
+    add(c);
+  }
   for (const r of recentFeed(snap, game)) {
     add({
       id: `${r.team.id}:${r.timestamp}`,
@@ -189,6 +202,7 @@ export function calendarData(snap: Snapshot, now: number, scope: Scope, game?: G
         t.participating !== false ? "confirmed" : !closed && watchingTeam(teams, t.wiki, t.page, tier) ? "watched" : "other",
       location: t.info["Location"],
       prize: t.info["Prize Pool"],
+      online: /online/i.test(t.info["Type"] ?? ""),
     });
   }
   // Compétitions connues par les listes seulement : pas encore lues en détail,

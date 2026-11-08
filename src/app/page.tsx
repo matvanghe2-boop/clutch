@@ -4,6 +4,7 @@ import { MatchRow, NextMatch, ResultRow, TournamentCard } from "@/components/mat
 import { Arrange, type Block } from "@/components/Arrange";
 import { FormChips } from "@/components/form";
 import { Pills } from "@/components/Pills";
+import { SinceVisit } from "@/components/SinceVisit";
 import { Empty, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { formOf, type HeadToHead, headToHead, historyOf, opponentKey, type Oriented, recentFeed, statusOf, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { ORDER_COOKIE, parseOrder } from "@/lib/home-order";
@@ -185,6 +186,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
   return (
     <div className="space-y-10">
+      {/* Le titre de la page, pour la lecture à voix haute : l'affiche du prochain match en tient lieu à l'écran. */}
+      <h1 className="sr-only">Clutch : les matchs de mes équipes{game ? `, ${GAMES[game].label}` : ""}</h1>
+      {!game && <SinceVisit now={now} />}
       <Pills skew label="Filtrer par jeu">
         {[undefined, ...GAME_IDS].map((g) => (
           <Link key={g ?? "all"} href={g ? `/?jeu=${GAMES[g].short.toLowerCase()}` : "/"} data-game={g} data-on={game === g ? "" : undefined} className="pill pill-game">

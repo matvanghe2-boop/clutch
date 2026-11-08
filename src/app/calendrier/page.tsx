@@ -3,7 +3,10 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { GAME_IDS, GAMES } from "@/config/follow";
 import { AgendaMatch, competitionLink, MonthGrid, RELEVANCE_LABEL, WeekView } from "@/components/calendar";
+import { type LanPin, LanMap } from "@/components/LanMap";
 import { Pills } from "@/components/Pills";
+import { placeOf } from "@/config/places";
+import { competitionHref } from "@/lib/derive";
 import { cn, Empty, GameTag, Logo, SectionTitle } from "@/components/ui";
 import { addDays, calendarData, type CalCompetition, type CalMatch, monthGrid, type Scope, shiftMonth } from "@/lib/calendar";
 import { dayKey, dayLabel, infoDate } from "@/lib/format";
@@ -74,7 +77,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
   };
 
   const snap = await loadSnapshot();
-  const { matches, competitions, unscheduled } = calendarData(snap, now, scope, game, await readHidden());
+  const hidden = await readHidden();
+  const { matches, competitions, unscheduled } = calendarData(snap, now, scope, game, hidden);
   const days = monthGrid(month);
   const visible = competitions.filter((c) => c.end >= days[0] && c.start <= days.at(-1)!);
 
@@ -281,8 +285,36 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
           </section>
         </aside>
       </div>
+
+      <section>
+        <SectionTitle aside={<span className="text-xs text-faint">les mois qui viennent</span>}>La carte des LAN</SectionTitle>
+        <LanMap {...lanPins(calendarData(snap, now, "mes", game, hidden).competitions, today)} />
+      </section>
     </div>
   );
+}
+
+const lanDay = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
+
+/** Les compétitions de mes équipes à placer sur la carte : du mois dernier aux huit prochains. */
+function lanPins(competitions: CalCompetition[], today: string) {
+  const from = addDays(today, -30);
+  const to = addDays(today, 240);
+  const pins: LanPin[] = [];
+  const elsewhere: { key: string; game: string; name: string; href?: string; dates: string; place: string }[] = [];
+  for (const c of [...competitions].sort((a, b) => a.start.localeCompare(b.start))) {
+    if (c.relevance === "other" || c.end < from || c.start > to) continue;
+    const day = (d: string) => lanDay.format(new Date(`${d}T12:00:00Z`));
+    const dates = c.start === c.end ? day(c.start) : `${day(c.start)} – ${day(c.end)}`;
+    const href = competitionHref(c.game, c.page);
+    const spot = c.online ? undefined : placeOf(c.location);
+    if (!spot) {
+      if (c.end >= today) elsewhere.push({ key: c.key, game: c.game, name: c.name, href, dates, place: c.online ? "En ligne" : c.location && !/^(tba|tbd|world)$/i.test(c.location) ? c.location : "Lieu à venir" });
+      continue;
+    }
+    pins.push({ key: c.key, game: c.game, name: c.name, href, place: c.location ?? "", dates, status: c.end < today ? "past" : c.start <= today ? "live" : "next", lat: spot.lat, lon: spot.lon });
+  }
+  return { pins, elsewhere };
 }
 
 function AgendaDay({

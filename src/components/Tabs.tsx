@@ -121,16 +121,28 @@ export function TabsView({ tabs, initial, leading }: { tabs: Tab[]; initial: str
     };
   }, []);
 
+  // Les noms des onglets, lus par l'écoute de l'ancre sans la relancer à chaque mise à jour de la page.
+  const ids = useRef(tabs.map((t) => t.id));
+  ids.current = tabs.map((t) => t.id);
+
   // Un lien vers un endroit précis de la page ouvre l'onglet qui le contient.
   useEffect(() => {
     const open = () => {
       const id = decodeURIComponent(location.hash.slice(1));
       if (!id) return;
       const target = document.getElementById(id);
-      const owner = target?.closest<HTMLElement>("[data-panel]")?.getAttribute("data-panel");
-      if (!target || !owner || !panels.current?.contains(target)) return;
+      // Un onglet envoyé après le reste de la page (voir Later) n'est peut-être pas encore arrivé :
+      // l'onglet qui porte ce nom s'ouvre quand même, et on rejoint l'endroit dès qu'il est là.
+      const owner = (target && panels.current?.contains(target) ? target.closest<HTMLElement>("[data-panel]")?.getAttribute("data-panel") : null) ?? (ids.current.includes(id) ? id : null);
+      if (!owner) return;
       setActive(owner);
-      requestAnimationFrame(() => target.scrollIntoView({ block: "start" }));
+      let tries = 0;
+      const reach = () => {
+        const el = document.getElementById(id);
+        if (el && panels.current?.contains(el)) el.scrollIntoView({ block: "start" });
+        else if (++tries < 120) requestAnimationFrame(reach);
+      };
+      requestAnimationFrame(reach);
     };
     open();
     addEventListener("hashchange", open);

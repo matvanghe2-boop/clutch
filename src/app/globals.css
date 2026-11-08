@@ -386,7 +386,7 @@ body:has(.page-enter > [data-game="callofduty"]) .ambient {
   /* Compte à rebours en cases. */
   .cd-cell {
     display: grid;
-    min-width: 2.6rem;
+    min-width: 2.9rem;
     justify-items: center;
     border-radius: 8px;
     border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--color-line));
@@ -395,8 +395,9 @@ body:has(.page-enter > [data-game="callofduty"]) .ambient {
   }
   .cd-label {
     margin-top: 0.1rem;
-    font-size: 9px;
-    letter-spacing: 0.1em;
+    /* 11 px au moins : en dessous, illisible sur téléphone. */
+    font-size: 11px;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--color-faint);
   }

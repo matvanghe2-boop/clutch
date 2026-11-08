@@ -105,7 +105,7 @@ export function StreamLinks({ streams, compact, max = 3 }: { streams: Stream[]; 
             )}
           >
             <Icon />
-            {s.fr && <span className="text-[10px] font-bold tracking-wide text-[var(--accent)]">FR</span>}
+            {s.fr && <span className="text-[11px] font-bold tracking-wide text-[var(--accent)]">FR</span>}
             {!compact && <span>{s.channel}</span>}
           </a>
         );

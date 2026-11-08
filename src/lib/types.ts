@@ -250,8 +250,20 @@ export interface Snapshot {
   opponents?: Record<string, OpponentSnapshot>;
   /** Classements de saison par jeu (clé : le wiki). */
   rankings?: Partial<Record<GameId, Ranking>>;
+  /**
+   * Horaires déplacés par Liquipedia depuis qu'on les affichait, par affiche
+   * (« équipe:adversaire ») : voir src/lib/schedule.ts.
+   */
+  moves?: Record<string, ScheduleMove>;
   /** Échecs récents par clé de tâche, pour espacer les nouvelles tentatives. */
   failures: Record<string, { at: string; message: string }>;
+}
+
+/** Un horaire déplacé : l'heure qu'on affichait, la nouvelle (secondes), et quand on l'a vu. */
+export interface ScheduleMove {
+  from: number;
+  to: number;
+  at: string;
 }
 
 /** Carte d'identité d'une équipe, lue dans l'infobox de sa page. */

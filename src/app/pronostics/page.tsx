@@ -2,23 +2,38 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GAME_IDS, GAMES } from "@/config/follow";
 import { ExactMoment } from "@/components/Moments";
+import { type DeckCard, PickDeck } from "@/components/PickDeck";
+import { PronoReveal } from "@/components/PronoReveal";
 import { cn, Empty, GameTag, Num, SectionTitle } from "@/components/ui";
 import { findMatch, matchHref, predictionResult, teamById } from "@/lib/derive";
-import { shortDate } from "@/lib/format";
+import { isAdmin } from "@/lib/admin";
+import { clock, dayLabel, shortDate } from "@/lib/format";
+import { awaitingPick } from "@/lib/picks";
+import { revealedIds } from "@/lib/reveal-store";
+import { largeLogo, teamColors } from "@/lib/team-colors";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { matchMorph } from "@/lib/morph-attrs";
 import { loadPredictions } from "@/lib/prediction-store";
-import { judge, type Verdict } from "@/lib/predictions";
+import { judge, possibleScores, type Verdict } from "@/lib/predictions";
 
 export const metadata: Metadata = { title: "Pronostics" };
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+const ANY_FORMAT: [number, number][] = [3, 5, 7]
+  .flatMap((bo) => possibleScores(bo) ?? [])
+  .filter(([a, b], i, all) => all.findIndex(([x, y]) => x === a && y === b) === i)
+  // Rangés par format : 2–0 2–1, puis 3–0 3–1 3–2, puis 4–0 … 4–3.
+  .sort((p, q) => Math.max(...p) - Math.max(...q) || Math.min(...p) - Math.min(...q));
+
+/** Un verdict plus vieux que ça est déjà connu : on ne le cache plus derrière une carte à retourner. */
+const REVEAL_WINDOW_S = 4 * 86400;
+
 const percent = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)} %` : "—");
 
 export default async function PredictionsPage({ searchParams }: { searchParams: SearchParams }) {
-  const [snap, predictions] = await Promise.all([loadSnapshot(), loadPredictions()]);
+  const [snap, predictions, admin, revealed] = await Promise.all([loadSnapshot(), loadPredictions(), isAdmin(), revealedIds()]);
   const lost = (await searchParams).prono === "introuvable";
   const now = Date.now() / 1000;
 
@@ -38,6 +53,17 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
   const winners = judged.filter((r) => r.verdict!.winner).length;
   const pending = rows.length - judged.length;
 
+  // Le tas de la semaine : les matchs sans pronostic dont le format est connu (il dit les scores possibles).
+  const deck: DeckCard[] = admin
+    ? awaitingPick(snap, predictions, now, 7 * 86400).flatMap(({ match: m, us, them }) => {
+        // Format inconnu (Liquipedia ne l'a pas encore écrit) : les scores d'un Bo3, d'un Bo5 et d'un Bo7.
+        const scores = possibleScores(m.bestOf) ?? ANY_FORMAT;
+        if (!them || m.timestamp === undefined) return [];
+        const side = (ref: typeof us) => ({ name: ref.name, short: ref.short ?? ref.name, logo: largeLogo(ref), color: teamColors(ref)?.a });
+        return [{ id: m.id, us: side(us), them: side(them), when: `${dayLabel(m.timestamp, now)}${m.timeTbd ? "" : ` · ${clock(m.timestamp)}`}`, tournament: m.tournament?.name, scores, format: m.bestOf ? `Bo${m.bestOf}` : undefined }];
+      })
+    : [];
+
   const byGame = GAME_IDS.map((g) => {
     const of = judged.filter((r) => r.p.wiki === g);
     return { game: g, count: of.length, points: of.reduce((n, r) => n + r.verdict!.points, 0), winners: of.filter((r) => r.verdict!.winner).length };
@@ -47,10 +73,17 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
     <div className="space-y-10">
       <header>
         <h1 className="brand-text display text-5xl sm:text-7xl">Pronostics</h1>
-        <p className="mt-1 text-sm text-dim">Score exact : 3 points. Bon vainqueur : 1 point. On pronostique depuis la page de chaque match, jusqu&apos;au coup d&apos;envoi.</p>
+        <p className="mt-1 text-sm text-dim">Score exact : 3 points. Bon vainqueur : 1 point. On pronostique ici, en glissant les cartes, ou depuis la page de chaque match, jusqu&apos;au coup d&apos;envoi.</p>
       </header>
 
       {lost && <div className="rounded-xl border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss">Ce match n&apos;est plus connu du site.</div>}
+
+      {deck.length > 0 && (
+        <section>
+          <SectionTitle aside={<span className="hidden text-xs text-faint sm:inline">← → au clavier · ↓ pour passer</span>}>À pronostiquer</SectionTitle>
+          <PickDeck cards={deck} />
+        </section>
+      )}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Points" value={<Num value={points} />} />
@@ -109,6 +142,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
                   </span>
                   <span className="col-span-3 justify-self-end sm:col-span-1">
                     {verdict ? (
+                      <PronoReveal id={id} covered={Boolean(result && p.timestamp && now - p.timestamp < REVEAL_WINDOW_S && !revealed.has(id))} verdict={verdict}>
                       <span
                         className={cn(
                           "rounded px-2 py-0.5 text-xs font-semibold",
@@ -118,6 +152,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
                         {verdict.exact ? "Exact · +3" : verdict.winner ? "Vainqueur · +1" : "Raté · 0"}
                         {verdict.exact && <ExactMoment id={id} />}
                       </span>
+                      </PronoReveal>
                     ) : (
                       <span className="text-xs text-faint">{p.timestamp && p.timestamp > now ? "à venir" : "en attente"}</span>
                     )}

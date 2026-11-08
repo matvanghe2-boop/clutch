@@ -79,7 +79,8 @@ export async function autoRefresh(seen: Snapshot, { always = false } = {}): Prom
     const reason = stale ? "synchro régulière en retard" : teamsChanged ? "équipes modifiées" : "match en cours";
     if (!(await takeLock(liveOnly ? 4 * MIN : 10 * MIN, reason))) return;
 
-    const snap = (await readPublished()) ?? seen;
+    // Une copie : l'instantané affiché est partagé par les pages de l'instance (voir loadSnapshot).
+    const snap = (await readPublished()) ?? structuredClone(seen);
     const before = stateOf(snap);
     const result = await runPass(snap, {
       profile: "visit",

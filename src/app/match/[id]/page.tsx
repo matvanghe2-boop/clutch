@@ -4,7 +4,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CountdownCells } from "@/components/Countdown";
 import { MatchDock } from "@/components/MatchDock";
+import { matchNotes, NoteTags } from "@/components/matches";
 import { ExactMoment, LiveScore, VictoryMoment } from "@/components/Moments";
+import { PronoReveal } from "@/components/PronoReveal";
+import { ReplayVs } from "@/components/ReplayVs";
 import { ScorePicker } from "@/components/ScorePicker";
 import { FormChips, FormSummary } from "@/components/form";
 import { StreamPlayer } from "@/components/StreamPlayer";
@@ -18,9 +21,10 @@ import { lineupSince, playedSince } from "@/lib/eras";
 import { clock, dayLabel, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { loadPredictions } from "@/lib/prediction-store";
+import { revealedIds } from "@/lib/reveal-store";
 import { judge, possibleScores, type Prediction } from "@/lib/predictions";
 import { embeddable, matchStreams } from "@/lib/streams";
-import { duelVars } from "@/lib/team-colors";
+import { duelVars, largeLogo, teamColors } from "@/lib/team-colors";
 import type { RankingRow, RosterEntry, TeamRef } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -55,10 +59,11 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   // Le match a reçu son horaire depuis ce lien : on rejoint son adresse définitive.
   if (id.includes(":nodate:") && m.id !== id) redirect(matchHref(m));
   const prono = (await searchParams).prono;
-  const [predictions, admin] = await Promise.all([loadPredictions(), isAdmin()]);
+  const [predictions, admin, revealed] = await Promise.all([loadPredictions(), isAdmin(), revealedIds()]);
   const prediction = predictions[id] ?? predictions[undatedId(m)];
   const now = Date.now() / 1000;
   const st = statusOf(m, now);
+  const note = st === "upcoming" ? (await matchNotes()).get(m.id) : undefined;
 
   const streams = matchStreams(o.team, m.streams);
   const players = embeddable(streams, (await headers()).get("host") ?? "localhost");
@@ -100,6 +105,10 @@ export default async function MatchPage({ params, searchParams }: { params: Para
 
   return (
     <div data-game={m.wiki} style={duelVars(o.us, o.them)} className="space-y-10">
+      <h1 className="sr-only">
+        {o.us.name} contre {o.them?.name ?? "un adversaire à déterminer"}
+        {t?.name ? `, ${t.name}` : ""}
+      </h1>
       <Versus
         game={m.wiki}
         live={st === "live"}
@@ -144,6 +153,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
                 <div className="score text-5xl sm:text-6xl lg:text-8xl">{clock(m.timestamp)}</div>
                 <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
               </div>
+              <NoteTags note={note} now={now} className="mt-2 justify-center" />
               <div className="mt-3">
                 <CountdownCells ts={m.timestamp} initialNow={now} />
               </div>
@@ -164,11 +174,14 @@ export default async function MatchPage({ params, searchParams }: { params: Para
                 <span className="text-faint">Première rencontre connue</span>
               )}
             </div>
-            {tournament && (
-              <Link href={competitionHref(m.wiki, tournament.page, t?.anchor)} className="text-faint hover:text-dim">
-                Voir dans la compétition →
-              </Link>
-            )}
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <ReplayVs game={m.wiki} />
+              {tournament && (
+                <Link href={competitionHref(m.wiki, tournament.page, t?.anchor)} className="text-faint hover:text-dim">
+                  Voir dans la compétition →
+                </Link>
+              )}
+            </span>
           </>
         }
       />
@@ -177,7 +190,16 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         <section id="regarder" className="scroll-mt-24">
           <SectionTitle>Regarder</SectionTitle>
           {showPlayer ? (
-            <StreamPlayer streams={players} />
+            <StreamPlayer
+              streams={players}
+              board={{
+                id: m.id,
+                us: { name: o.us.short ?? o.us.name, logo: largeLogo(o.us), color: teamColors(o.us)?.a },
+                them: { name: o.them?.short ?? o.them?.name ?? "?", logo: o.them ? largeLogo(o.them) : undefined, color: o.them ? teamColors(o.them)?.a : undefined },
+                score: st === "live" ? `${o.usScore ?? 0} – ${o.themScore ?? 0}` : m.timestamp ? clock(m.timestamp) : "VS",
+                live: st === "live",
+              }}
+            />
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3 panel px-4 py-3 text-sm text-dim">
               <span>{players.length ? "Le lecteur s'affiche ici une heure avant le début du match." : "Les streams du match :"}</span>
@@ -228,6 +250,7 @@ export default async function MatchPage({ params, searchParams }: { params: Para
           result={prediction ? predictionResult(snap, id, prediction) : undefined}
           admin={admin}
           message={typeof prono === "string" ? prono : undefined}
+          covered={st === "done" && m.timestamp !== undefined && now - m.timestamp < 4 * 86400 && !revealed.has(id)}
           usName={o.us.short ?? o.us.name}
           themName={o.them?.short ?? o.them?.name ?? "?"}
         />
@@ -349,7 +372,9 @@ function PredictionPanel({
   message,
   usName,
   themName,
+  covered,
 }: {
+  covered?: boolean;
   id: string;
   status: MatchStatus;
   bestOf?: number;
@@ -384,10 +409,12 @@ function PredictionPanel({
               {themName}
             </span>
             {verdict ? (
+              <PronoReveal id={id} covered={Boolean(covered)} verdict={verdict}>
               <span className={cn("rounded px-2 py-0.5 text-xs font-semibold", verdict.points === 3 ? "bg-win/15 text-win" : verdict.points === 1 ? "bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]" : "bg-loss/15 text-loss")}>
                 {verdict.exact ? "Score exact · +3" : verdict.winner ? "Bon vainqueur · +1" : "Raté · 0"}
                 {verdict.exact && <ExactMoment id={id} />}
               </span>
+              </PronoReveal>
             ) : (
               !open && <span className="text-xs text-faint">en attente du résultat</span>
             )}

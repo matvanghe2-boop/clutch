@@ -6,6 +6,7 @@ import { currentTeams, isAdmin } from "@/lib/admin";
 import { readHidden } from "@/lib/hidden";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import type { GameId } from "@/lib/types";
+import { EffectsSetting } from "@/components/EffectsSetting";
 
 export const metadata: Metadata = { title: "Réglages" };
 export const dynamic = "force-dynamic";
@@ -46,6 +47,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           Les équipes suivies sont communes à tout le site ; les compétitions masquées ne valent que pour ce navigateur.
         </p>
       </header>
+
+      <section>
+        <SectionTitle aside={<span className="text-xs text-faint">sur ce navigateur</span>}>Intensité des effets</SectionTitle>
+        <EffectsSetting />
+      </section>
 
       {ok && <div className="rounded-xl border border-win/30 bg-win/10 px-4 py-3 text-sm text-win">{ok}</div>}
       {error && <div className="rounded-xl border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss">{error}</div>}

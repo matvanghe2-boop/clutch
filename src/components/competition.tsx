@@ -7,6 +7,7 @@ import { clock, dayKey, dayLabel, shortDate, shortDay } from "@/lib/format";
 import { bracketLayout } from "@/lib/bracket";
 import type { BracketNode, BracketSection, Match, Matchlist, StandingRow, StandingTable, SwissRound, TeamRef } from "@/lib/types";
 import { BracketCamera } from "./Camera";
+import { BracketZoom } from "./BracketZoom";
 import { BracketHover } from "./Motion";
 import { cn, LiveBadge, Logo, StreamLinks } from "./ui";
 
@@ -151,12 +152,13 @@ function Side({ team, score, won, decided, ours, followed }: { team: TeamRef | n
   );
 }
 
-export function BracketMatch({ m, team, now, column = 0, heat }: { m: Match; team: FollowedTeam; now: number; column?: number; heat?: Heat }) {
+export function BracketMatch({ m, team, now, column = 0, heat, ahead }: { m: Match; team: FollowedTeam; now: number; column?: number; heat?: Heat; ahead?: boolean }) {
   const ours = m.opponents.some((o) => isTeam(o, team));
   const st = statusOf(m, now);
   return (
     <div
       data-ours={ours ? "" : undefined}
+      data-ahead={ahead ? "" : undefined}
       data-at={m.timestamp}
       data-heat={heat}
       style={{ "--c": column } as React.CSSProperties}
@@ -206,6 +208,32 @@ function heatOf(m: Match | null, team: FollowedTeam, champion: TeamRef | null): 
   return sameTeam(w, champion) ? "gold" : undefined;
 }
 
+/**
+ * La route qui reste à mon équipe dans cet arbre : le match où elle en est (`current`), puis
+ * chaque match jusqu'à la finale. Vide si elle y est éliminée ou n'y joue pas.
+ */
+interface Route {
+  current: BracketNode | null;
+  ahead: Set<BracketNode>;
+}
+
+function routeOf(root: BracketNode, team: FollowedTeam): Route {
+  let best: { node: BracketNode; trail: BracketNode[] } | null = null;
+  const walk = (node: BracketNode, trail: BracketNode[]) => {
+    // Le plus haut match où elle apparaît : c'est là qu'elle en est.
+    if (node.match?.opponents.some((o) => isTeam(o, team)) && (!best || trail.length < best.trail.length)) best = { node, trail };
+    for (const c of node.children) walk(c, [node, ...trail]);
+  };
+  walk(root, []);
+  const found = best as { node: BracketNode; trail: BracketNode[] } | null;
+  if (!found) return { current: null, ahead: new Set() };
+  const w = winnerOf(found.node.match);
+  if (w && !isTeam(w, team)) return { current: null, ahead: new Set() };
+  return { current: found.node, ahead: new Set(found.trail) };
+}
+
+const NO_ROUTE: Route = { current: null, ahead: new Set() };
+
 /** Le tour d'un match, en partant de la gauche : c'est lui qui règle la cascade et la lumière. */
 function columnOf(node: BracketNode): number {
   return node.children.reduce((best, c) => Math.max(best, columnOf(c) + 1 + (c.skip ?? 0)), 0);
@@ -224,9 +252,11 @@ function Gap({ columns, column, heat }: { columns: number; column: number; heat?
  * Relie les enfants (centrés dans des lignes de même hauteur) au match parent. Une liaison par
  * enfant, chacune en deux morceaux : le morceau du parcours éclairé s'allume seul.
  */
-function Connector({ heats, column }: { heats: (Heat | undefined)[]; column: number }) {
+function Connector({ heats, column, ahead = [] }: { heats: (Heat | undefined)[]; column: number; ahead?: boolean[] }) {
   const count = heats.length;
   const out = heats.find(Boolean);
+  // La route à venir de mon équipe : en pointillés, là où aucun résultat n'éclaire encore le trait.
+  const outAhead = !out && ahead.some(Boolean);
   return (
     <div className="bk-link" style={{ "--c": column } as React.CSSProperties} aria-hidden>
       {count > 1 &&
@@ -234,18 +264,19 @@ function Connector({ heats, column }: { heats: (Heat | undefined)[]; column: num
           const y = ((2 * i + 1) / (2 * count)) * 100;
           return (
             <span key={i}>
-              <i className="bk-line bk-h left-0 w-1/2" data-heat={heat} style={{ top: `${y}%`, "--s": 0 } as React.CSSProperties} />
-              <i className="bk-line bk-v left-1/2" data-heat={heat} data-dir={y < 50 ? "down" : "up"} style={{ top: `${Math.min(y, 50)}%`, height: `${Math.abs(50 - y)}%`, "--s": 1 } as React.CSSProperties} />
+              <i className="bk-line bk-h left-0 w-1/2" data-heat={heat} data-ahead={!heat && ahead[i] ? "" : undefined} style={{ top: `${y}%`, "--s": 0 } as React.CSSProperties} />
+              <i className="bk-line bk-v left-1/2" data-heat={heat} data-ahead={!heat && ahead[i] ? "" : undefined} data-dir={y < 50 ? "down" : "up"} style={{ top: `${Math.min(y, 50)}%`, height: `${Math.abs(50 - y)}%`, "--s": 1 } as React.CSSProperties} />
             </span>
           );
         })}
-      <i className={cn("bk-line bk-h right-0 top-1/2", count > 1 ? "left-1/2" : "left-0")} data-heat={out} style={{ "--s": 2 } as React.CSSProperties} />
+      <i className={cn("bk-line bk-h right-0 top-1/2", count > 1 ? "left-1/2" : "left-0")} data-heat={out} data-ahead={outAhead ? "" : undefined} style={{ "--s": 2 } as React.CSSProperties} />
     </div>
   );
 }
 
-function NodeView({ node, team, now, champion }: { node: BracketNode; team: FollowedTeam; now: number; champion: TeamRef | null }) {
+function NodeView({ node, team, now, champion, route = NO_ROUTE }: { node: BracketNode; team: FollowedTeam; now: number; champion: TeamRef | null; route?: Route }) {
   const column = columnOf(node);
+  const onRoute = (c: BracketNode) => c === route.current || route.ahead.has(c);
   return (
     <div className="flex items-center">
       {node.children.length > 0 && (
@@ -254,21 +285,21 @@ function NodeView({ node, team, now, champion }: { node: BracketNode; team: Foll
             {node.children.map((c, i) => (
               // Un sous-arbre plus court se range contre le match parent : les colonnes restent alignées sur les tours.
               <div key={i} className="flex items-center justify-end py-1.5">
-                <NodeView node={c} team={team} now={now} champion={champion} />
+                <NodeView node={c} team={team} now={now} champion={champion} route={route} />
                 {c.skip ? <Gap columns={c.skip} column={column - 1} heat={heatOf(c.match, team, champion)} /> : null}
               </div>
             ))}
           </div>
-          <Connector heats={node.children.map((c) => heatOf(c.match, team, champion))} column={column - 1} />
+          <Connector heats={node.children.map((c) => heatOf(c.match, team, champion))} ahead={node.children.map((c) => onRoute(c) && route.ahead.has(node))} column={column - 1} />
         </>
       )}
       <div className="w-56 shrink-0">
         {node.match ? (
-          <BracketMatch m={node.match} team={team} now={now} column={column} heat={heatOf(node.match, team, champion)} />
+          <BracketMatch m={node.match} team={team} now={now} column={column} heat={heatOf(node.match, team, champion)} ahead={route.ahead.has(node)} />
         ) : node.qualified ? (
           <QualifiedCard teams={node.qualified} team={team} column={column} />
         ) : (
-          <div className="bk-card h-16 border-dashed" style={{ "--c": column } as React.CSSProperties} />
+          <div className="bk-card h-16 border-dashed" data-ahead={route.ahead.has(node) ? "" : undefined} style={{ "--c": column } as React.CSSProperties} />
         )}
       </div>
     </div>
@@ -311,13 +342,14 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
             const champion = winnerOf(root.match);
             const column = columnOf(root) + 1;
             const heat = heatOf(root.match, team, champion);
+            const route = routeOf(root, team);
             return (
               // Un arbre plus court que ses voisins se cale à droite, sous les bons en-têtes.
               <div key={i} className="flex items-center" style={{ marginLeft: `${(width - rootWidths[i]) * COLUMN_REM}rem` }}>
-                <NodeView node={root} team={team} now={now} champion={champion} />
+                <NodeView node={root} team={team} now={now} champion={champion} route={route} />
                 {trailing && (
                   <>
-                    <Connector heats={[heat]} column={column - 1} />
+                    <Connector heats={[heat]} ahead={[route.current === root || route.ahead.has(root)]} column={column - 1} />
                     <div className="w-56 shrink-0">
                       <QualifiedCard teams={[champion]} team={team} column={column} heat={heat} />
                     </div>
@@ -331,7 +363,8 @@ export function BracketSectionView({ section, team, now }: { section: BracketSec
       </BracketHover>
     </div>
   );
-  return plays ? <BracketCamera>{view}</BracketCamera> : view;
+  const zoomable = <BracketZoom>{view}</BracketZoom>;
+  return plays ? <BracketCamera>{zoomable}</BracketCamera> : zoomable;
 }
 
 /** Mon équipe joue-t-elle dans cet arbre ? */

@@ -3,6 +3,8 @@ import { Suspense } from "react";
 import { GAME_IDS } from "@/config/follow";
 import { BracketSectionView, GroupTableView, MatchlistView, plannedMatches, ScheduleView } from "@/components/competition";
 import { OursToggle } from "@/components/Pills";
+import { FormatStrip } from "@/components/FormatStrip";
+import { Later } from "@/components/Later";
 import { type Tab, TabsView } from "@/components/Tabs";
 import { cn, Empty, GameTag } from "@/components/ui";
 import { competitionHref, isTeam, sameMatch, teamIn, teamsOf, upcomingFeed } from "@/lib/derive";
@@ -156,6 +158,9 @@ export default async function CompetitionPage({
   ];
   const onglet = (await searchParams).onglet;
   const wantedTab = typeof onglet === "string" ? onglet : undefined;
+  // L'onglet demandé part en premier ; les autres suivent dans la même réponse (voir Later).
+  const opened = tabs.some((tab) => tab.id === wantedTab) ? wantedTab : tabs[0]?.id;
+  for (const tab of tabs) if (tab.id !== opened) tab.panel = <Later>{tab.panel}</Later>;
 
   return (
     <div data-game={game} style={accentOf({ name: team.page, page: team.page, logo: ownLogo })} className="space-y-10">
@@ -177,6 +182,8 @@ export default async function CompetitionPage({
           {meta.length > 0 && <p className="mt-2 text-sm text-dim">{meta.join(" · ")}</p>}
         </div>
       </header>
+
+      <FormatStrip stages={t.stages} format={t.info.Format} />
 
       <TabsView tabs={tabs} initial={wantedTab ?? tabs[0]?.id ?? ""} />
 

@@ -3,13 +3,17 @@ import { after } from "next/server";
 import { GAMES } from "@/config/follow";
 import { liveSoon, matchHref, recentFeed, statusOf, teamsOf, upcomingFeed } from "@/lib/derive";
 import { clock, dayKey, relative, shortDate } from "@/lib/format";
+import { isAdmin } from "@/lib/admin";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { awaitingPick, PICK_SOON_S } from "@/lib/picks";
+import { loadPredictions } from "@/lib/prediction-store";
 import { markSvg } from "@/lib/brand-mark";
 import { matchMorph, teamMorph } from "@/lib/morph-attrs";
 import { autoRefresh, STALE_MS } from "@/lib/sync/auto";
-import { accentOf } from "@/lib/team-colors";
+import { accentOf, largeLogo, teamColors } from "@/lib/team-colors";
 import { LiveRefresher } from "./LiveRefresher";
 import { LiveSignal } from "./LiveSignal";
+import { ScoreToast } from "./ScoreToast";
 import { NavIndicator, NavLink } from "./Motion";
 import { InstallButton } from "./Pwa";
 import { Logo } from "./ui";
@@ -94,6 +98,8 @@ export async function SiteHeader() {
   const snap = await loadSnapshot();
   const now = Date.now() / 1000;
   const live = liveSoon(snap, now);
+  // Les pronostics à faire d'ici demain : seul le navigateur déverrouillé peut pronostiquer.
+  const toPick = (await isAdmin()) ? awaitingPick(snap, await loadPredictions(), now, PICK_SOON_S).length : 0;
   // Après l'envoi de la page : synchro de secours ou mode « match en cours », si besoin.
   after(() => autoRefresh(snap).catch((e) => console.error("[clutch] passe de secours :", e)));
   return (
@@ -124,13 +130,18 @@ export async function SiteHeader() {
             </svg>
             <span className="hidden lg:inline">Calendrier</span>
           </NavLink>
-          <NavLink href="/pronostics" title="Pronostics">
+          <NavLink href="/pronostics" title={toPick ? `Pronostics · ${toPick} à faire d'ici demain` : "Pronostics"}>
             <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               <circle cx="12" cy="12" r="8.5" />
               <circle cx="12" cy="12" r="4.5" />
               <circle cx="12" cy="12" r="1" fill="currentColor" />
             </svg>
             <span className="hidden lg:inline">Pronos</span>
+            {toPick > 0 && (
+              <span className="nav-badge" aria-label={`${toPick} à faire`}>
+                {toPick}
+              </span>
+            )}
           </NavLink>
           <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden />
           {teamsOf(snap).map((t) => {
@@ -167,6 +178,33 @@ export async function SiteHeader() {
           .map((o) => ({ label: `${o.us.short ?? o.us.name}–${o.them?.short ?? o.them?.name ?? "?"}`, score: `${o.usScore ?? 0}–${o.themScore ?? 0}` }))}
       />
     </header>
+    <ScoreToast
+      live={upcomingFeed(snap)
+        .filter((o) => statusOf(o.match, now) === "live")
+        .map((o) => ({
+          id: o.match.id,
+          href: matchHref(o.match),
+          us: { name: o.us.short ?? o.us.name, logo: largeLogo(o.us) },
+          them: { name: o.them?.short ?? o.them?.name ?? "?", logo: o.them ? largeLogo(o.them) : undefined },
+          usScore: Number(o.usScore ?? 0),
+          themScore: Number(o.themScore ?? 0),
+          color: teamColors(o.us)?.a,
+        }))}
+      done={recentFeed(snap)
+        .filter((r) => now - r.timestamp < 8 * 3600)
+        .map((r) => {
+          const us = { name: r.team.page, page: r.team.page, logo: snap.teams[r.team.id]?.logo };
+          return {
+            id: r.matchId ?? `${r.team.id}:${r.timestamp}`,
+            href: r.matchId ? `/match/${encodeURIComponent(r.matchId)}` : undefined,
+            us: { name: NAV_LABELS[r.team.page] ?? r.team.page, logo: largeLogo(us) },
+            them: { name: r.opponent?.short ?? r.opponent?.name ?? "?", logo: r.opponent ? largeLogo(r.opponent) : undefined },
+            score: `${r.usScore}–${r.themScore}`,
+            result: r.result,
+            color: teamColors(us)?.a,
+          };
+        })}
+    />
     <Ticker snap={snap} now={now} />
     </>
   );

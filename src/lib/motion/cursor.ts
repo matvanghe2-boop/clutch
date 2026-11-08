@@ -1,4 +1,4 @@
-import { fxLayer, quiet } from "./fx";
+import { fxLayer, quiet, sober } from "./fx";
 
 /**
  * Le curseur de visée, à la souris seulement : un point qui suit exactement la souris, et un
@@ -8,7 +8,7 @@ import { fxLayer, quiet } from "./fx";
 const TARGETS = 'a[href], button:not([disabled]), [role="tab"], summary, label, select, input[type="range"], [data-tab-go]';
 
 export function watchCursor(): () => void {
-  if (quiet() || !matchMedia("(hover: hover) and (pointer: fine)").matches) return () => undefined;
+  if (quiet() || sober() || !matchMedia("(hover: hover) and (pointer: fine)").matches) return () => undefined;
   const layer = fxLayer();
   if (!layer) return () => undefined;
   const dot = document.createElement("div");

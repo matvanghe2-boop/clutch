@@ -16,6 +16,7 @@ import { parsePortal } from "../liquipedia/portal";
 import { parseSeasonStandings, parseVrs } from "../liquipedia/rankings";
 import { parseMatchHistory, parsePalmares, parseTeamPage } from "../liquipedia/team-page";
 import { parseTournamentPage } from "../liquipedia/tournament-page";
+import { recordMoves, scheduleOf } from "../schedule";
 import { tournamentKey } from "../snapshot";
 import { hasDatabase } from "../store";
 import { tournamentMatches } from "../tournament";
@@ -607,8 +608,11 @@ export async function runPass(snap: Snapshot, opts: PassOptions): Promise<PassRe
     log(`↻ ${task.label}…`);
     done.add(task.key);
     pages++;
+    // L'horaire avant la lecture : s'il bouge, le site le signalera (« heure changée »).
+    const schedule = scheduleOf(snap);
     try {
       const summary = await task.run(snap);
+      recordMoves(snap, schedule);
       delete snap.failures[task.key];
       log(`  ✓ ${summary}`);
     } catch (e) {

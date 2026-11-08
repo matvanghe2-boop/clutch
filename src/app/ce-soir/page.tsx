@@ -8,8 +8,10 @@ import { headToHead, matchHref, type Oriented, statusOf, upcomingFeed } from "@/
 import { clock, dayLabel } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import { matchMorph } from "@/lib/morph-attrs";
+import { largeLogo, teamColors } from "@/lib/team-colors";
 import { embeddable, matchStreams } from "@/lib/streams";
 import { eveningOf, onAir } from "@/lib/tonight";
+import { overlapsOf } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Ce soir" };
@@ -42,6 +44,9 @@ export default async function TonightPage() {
   const nothing = !evening.matches.length && !evening.done.length;
   // Tout est joué ce soir : la page annonce la suite au lieu de rester vide.
   const after = evening.tonight && !evening.matches.length ? upcomingFeed(snap).find((o) => statusOf(o.match, now) === "upcoming") : undefined;
+  // Deux de mes équipes en même temps ce soir : la page le dit avant qu'on le découvre.
+  const clashes = overlapsOf(evening.matches);
+  const clashing = evening.matches.filter((o) => clashes.has(o.match.id));
 
   return (
     <div className="space-y-8">
@@ -54,6 +59,24 @@ export default async function TonightPage() {
       </header>
 
       {nothing && <Empty>Aucun match annoncé pour tes équipes pour le moment.</Empty>}
+
+      {clashing.length > 1 && (
+        <div className="clash-banner panel">
+          <span className="clash-icons" aria-hidden>
+            {clashing.slice(0, 3).map((o) => (
+              <Logo key={o.match.id} team={o.us} size={26} />
+            ))}
+          </span>
+          <p className="min-w-0 text-sm">
+            <b className="text-ink">Matchs en même temps</b>
+            <span className="text-dim">
+              {" "}
+              · {clashing.map((o) => `${o.us.short ?? o.us.name} à ${o.match.timestamp ? clock(o.match.timestamp) : "?"}`).join(", ")}.{" "}
+              Les lecteurs s&apos;affichent côte à côte une heure avant le début.
+            </span>
+          </p>
+        </div>
+      )}
 
       {players.length > 0 && (
         <section>
@@ -123,7 +146,16 @@ function Screen({ o, now, host, streams, muted }: { o: Oriented; now: number; ho
         </Link>
         {statusOf(m, now) === "live" ? <LiveBadge className="shrink-0" /> : <span className="shrink-0 font-display font-semibold">{m.timestamp ? clock(m.timestamp) : ""}</span>}
       </div>
-      <StreamPlayer streams={embeddable(streams, host, { muted })} />
+      <StreamPlayer
+        streams={embeddable(streams, host, { muted })}
+        board={{
+          id: m.id,
+          us: { name: o.us.short ?? o.us.name, logo: largeLogo(o.us), color: teamColors(o.us)?.a },
+          them: { name: o.them?.short ?? o.them?.name ?? "?", logo: o.them ? largeLogo(o.them) : undefined, color: o.them ? teamColors(o.them)?.a : undefined },
+          score: statusOf(m, now) === "live" ? `${o.usScore ?? 0} – ${o.themScore ?? 0}` : m.timestamp ? clock(m.timestamp) : "VS",
+          live: statusOf(m, now) === "live",
+        }}
+      />
       <StreamLinks streams={streams.filter((s) => s.platform === "youtube")} max={2} />
     </div>
   );

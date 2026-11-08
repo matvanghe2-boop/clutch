@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { GAMES } from "@/config/follow";
-import { competitionHref, type HeadToHead, matchHref, type Oriented, type PastMatch, statusOf, type Tracked } from "@/lib/derive";
+import { cache } from "react";
+import { competitionHref, type HeadToHead, matchHref, type Oriented, type PastMatch, statusOf, type Tracked, upcomingFeed } from "@/lib/derive";
 import { clock, dayLabel, infoDate, relative, shortDate, shortDay } from "@/lib/format";
+import { loadSnapshot } from "@/lib/load-snapshot";
 import { competitionMorph, matchMorph } from "@/lib/morph-attrs";
+import { type MatchNote, notesFor } from "@/lib/schedule";
 import { matchStreams } from "@/lib/streams";
 import { accentOf, teamColors } from "@/lib/team-colors";
 import { CountdownCells } from "./Countdown";
@@ -46,9 +49,49 @@ export function H2HLine({ h2h, compact }: { h2h: HeadToHead; compact?: boolean }
   );
 }
 
+/** Ce que signalent les lignes de match (heure changée, autre match en même temps) : calculé une fois par page. */
+export const matchNotes = cache(async () => {
+  const snap = await loadSnapshot();
+  return notesFor(snap, upcomingFeed(snap));
+});
+
+/** « Heure changée » et « en même temps que » : les deux pièges d'un programme. */
+export function NoteTags({ note, now, className }: { note?: MatchNote; now: number; className?: string }) {
+  if (!note?.moved && !note?.clash) return null;
+  const from = note.moved?.from;
+  return (
+    <span className={cn("flex flex-wrap items-center gap-1.5", className)}>
+      {from !== undefined && (
+        <span className="note-tag note-moved" title={`Liquipedia a déplacé ce match (vu ${relative(Date.parse(note.moved!.at) / 1000, now)})`}>
+          <svg viewBox="0 0 16 16" aria-hidden>
+            <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M8 4.6V8l2.3 1.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+          Heure changée · avant <s>{dayKeyLabel(from, note.moved!.to, now)}</s>
+        </span>
+      )}
+      {note.clash && (
+        <span className="note-tag note-clash" title="Un autre de tes matchs se joue en même temps">
+          <svg viewBox="0 0 16 16" aria-hidden>
+            <rect x="1.5" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <rect x="6.5" y="5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          En même temps que {note.clash.join(", ")}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** L'ancienne heure, avec son jour s'il a changé aussi. */
+function dayKeyLabel(from: number, to: number, now: number): string {
+  return shortDay(from, now) === shortDay(to, now) ? clock(from) : `${shortDay(from, now)} ${clock(from)}`;
+}
+
 /** Le grand bandeau du prochain match (ou du match en cours). */
-export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: HeadToHead }) {
+export async function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: HeadToHead }) {
   const m = o.match;
+  const note = (await matchNotes()).get(m.id);
   const streams = matchStreams(o.team, m.streams);
   const st = statusOf(m, now);
   const live = st === "live";
@@ -82,6 +125,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
               <div className="score text-5xl sm:text-6xl lg:text-8xl">{clock(m.timestamp)}</div>
               <div className="mt-2 text-sm text-dim">{dayLabel(m.timestamp, now)}</div>
             </div>
+            <NoteTags note={note} now={now} className="mt-2 justify-center" />
             <div className="mt-3">
               <CountdownCells ts={m.timestamp} initialNow={now} />
             </div>
@@ -113,8 +157,9 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
   );
 }
 
-export function MatchRow({ o, now, h2h, back }: { o: Oriented; now: number; h2h?: HeadToHead; back?: React.ReactNode }) {
+export async function MatchRow({ o, now, h2h, back }: { o: Oriented; now: number; h2h?: HeadToHead; back?: React.ReactNode }) {
   const m = o.match;
+  const note = (await matchNotes()).get(m.id);
   const streams = matchStreams(o.team, m.streams);
   const st = statusOf(m, now);
   return (
@@ -161,6 +206,7 @@ export function MatchRow({ o, now, h2h, back }: { o: Oriented; now: number; h2h?
             <StreamLinks streams={streams} compact max={1} />
           </span>
         </div>
+        <NoteTags note={note} now={now} className="mt-1.5" />
         {h2h && h2h.meetings.length > 0 && (
           <div className="mt-1 text-[11px] sm:hidden">
             <H2HLine h2h={h2h} compact />

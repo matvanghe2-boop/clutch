@@ -1,10 +1,10 @@
-import { quiet } from "./fx";
+import { quiet, sober } from "./fx";
 
 /**
  * Le fond vivant : une scène par jeu, dessinée sur un canvas derrière la page, très discrète.
- *   Rocket League  des traînées de boost qui filent en biais ;
- *   Counter-Strike un radar qui balaie, et des échos qui s'allument à son passage ;
- *   Call of Duty   une trame de balayage et un viseur qui suit la souris ;
+ *   Rocket League  des traînées de boost qui filent en biais, et la balle qui rebondit ;
+ *   Counter-Strike un radar qui balaie, des fumigènes et des rafales de traçantes ;
+ *   Call of Duty   une trame de balayage, un viseur qui suit la souris et la mini-carte du drone ;
  *   Accueil        une constellation aux trois couleurs, reliée au curseur.
  * Sur téléphone, moins d'éléments et 30 images par seconde. Tout s'arrête quand l'onglet est
  * masqué, et rien ne se lance pour qui a coupé les animations ou activé l'économie de données.
@@ -268,10 +268,223 @@ function constellation(pointer: Pointer, small: boolean): Draw {
   };
 }
 
+/** Rocket League : la balle, qui rebondit d'un bord à l'autre avec sa traîne. La souris la frappe. */
+function ball(pointer: Pointer, small: boolean): Draw {
+  let b: { x: number; y: number; vx: number; vy: number } | null = null;
+  const trail: { x: number; y: number }[] = [];
+  return (c, w, h, _t, dt, color) => {
+    const r = small ? 9 : 13;
+    b ??= { x: w * 0.18, y: h * 0.55, vx: 280, vy: -220 };
+    b.vy += 170 * dt;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    if (b.x < r) {
+      b.x = r;
+      b.vx = Math.abs(b.vx);
+    }
+    if (b.x > w - r) {
+      b.x = w - r;
+      b.vx = -Math.abs(b.vx);
+    }
+    if (b.y < r) {
+      b.y = r;
+      b.vy = Math.abs(b.vy);
+    }
+    // Au sol, la balle repart toujours assez haut : la scène ne s'éteint jamais.
+    if (b.y > h - r) {
+      b.y = h - r;
+      b.vy = -Math.max(small ? 260 : 360, Math.abs(b.vy) * 0.92);
+    }
+    if (pointer.active) {
+      const dx = b.x - pointer.x;
+      const dy = b.y - pointer.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 70 && d > 0) {
+        b.vx += (dx / d) * 900 * dt * 6;
+        b.vy += (dy / d) * 900 * dt * 6;
+      }
+    }
+    const speed = Math.hypot(b.vx, b.vy);
+    const max = small ? 520 : 760;
+    if (speed > max) {
+      b.vx *= max / speed;
+      b.vy *= max / speed;
+    }
+    if (Math.abs(b.vx) < 160) b.vx = Math.sign(b.vx || 1) * 160;
+
+    trail.push({ x: b.x, y: b.y });
+    if (trail.length > (small ? 16 : 26)) trail.shift();
+    c.globalCompositeOperation = "lighter";
+    trail.forEach((p, i) => {
+      const k = i / trail.length;
+      c.fillStyle = alpha(color, 0.16 * k);
+      c.beginPath();
+      c.arc(p.x, p.y, r * (0.25 + 0.75 * k), 0, Math.PI * 2);
+      c.fill();
+    });
+    const g = c.createRadialGradient(b.x, b.y, 0, b.x, b.y, r * 3.2);
+    g.addColorStop(0, "rgba(255,255,255,0.5)");
+    g.addColorStop(0.28, alpha(color, 0.3));
+    g.addColorStop(1, alpha(color, 0));
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(b.x, b.y, r * 3.2, 0, Math.PI * 2);
+    c.fill();
+    c.globalCompositeOperation = "source-over";
+    c.fillStyle = "rgba(235,242,255,0.55)";
+    c.beginPath();
+    c.arc(b.x, b.y, r * 0.62, 0, Math.PI * 2);
+    c.fill();
+  };
+}
+
+/** Counter-Strike : des fumigènes qui éclosent et se dissipent, et des rafales de traçantes. */
+function smoke(_pointer: Pointer, small: boolean): Draw {
+  type Cloud = { x: number; y: number; born: number; puffs: { dx: number; dy: number; r: number }[] };
+  const clouds: Cloud[] = [];
+  const shots: { x0: number; y0: number; x1: number; y1: number; at: number }[] = [];
+  let nextCloud = 1.2;
+  let nextBurst = 0.8;
+  const LIFE = 15;
+  return (c, w, h, t) => {
+    if (t > nextCloud) {
+      nextCloud = t + rand(5, 9);
+      clouds.push({ x: rand(0.08, 0.92) * w, y: rand(0.3, 0.95) * h, born: t, puffs: Array.from({ length: small ? 5 : 8 }, () => ({ dx: rand(-1, 1), dy: rand(-0.6, 0.6), r: rand(0.55, 1) })) });
+      if (clouds.length > 3) clouds.shift();
+    }
+    for (const cl of clouds) {
+      const age = t - cl.born;
+      if (age > LIFE) continue;
+      const grow = 1 - Math.pow(1 - Math.min(1, age / 1.6), 3);
+      const fade = age < LIFE - 4 ? 1 : (LIFE - age) / 4;
+      const R = (small ? 70 : 125) * (0.35 + 0.65 * grow);
+      for (const p of cl.puffs) {
+        const px = cl.x + p.dx * R * 0.75 + Math.sin(t * 0.35 + p.dx * 5) * 7;
+        const py = cl.y + p.dy * R * 0.5 - age * 2.5;
+        const g = c.createRadialGradient(px, py, 0, px, py, R * p.r);
+        g.addColorStop(0, `rgba(205,212,226,${0.075 * fade})`);
+        g.addColorStop(1, "rgba(205,212,226,0)");
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(px, py, R * p.r, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+    // Une rafale : trois à cinq balles traçantes, du bord vers le milieu de l'écran.
+    if (t > nextBurst) {
+      nextBurst = t + rand(1.4, small ? 5 : 3.6);
+      const left = Math.random() < 0.5;
+      const y0 = rand(0.2, 0.9) * h;
+      const x1 = left ? rand(0.45, 1.05) * w : rand(-0.05, 0.55) * w;
+      const y1 = y0 + rand(-90, 90);
+      const n = Math.floor(rand(3, 6));
+      for (let i = 0; i < n; i++) shots.push({ x0: left ? -30 : w + 30, y0: y0 + rand(-6, 6), x1, y1: y1 + rand(-14, 14), at: t + i * 0.085 });
+    }
+    c.globalCompositeOperation = "lighter";
+    c.lineCap = "round";
+    for (let i = shots.length - 1; i >= 0; i--) {
+      const s = shots[i];
+      const k = (t - s.at) / 0.22;
+      if (k < 0) continue;
+      if (k > 1.25) {
+        shots.splice(i, 1);
+        continue;
+      }
+      const head = Math.min(1, k);
+      const tail = Math.max(0, k - 0.3);
+      const hx = s.x0 + (s.x1 - s.x0) * head;
+      const hy = s.y0 + (s.y1 - s.y0) * head;
+      const tx = s.x0 + (s.x1 - s.x0) * tail;
+      const ty = s.y0 + (s.y1 - s.y0) * tail;
+      const g = c.createLinearGradient(tx, ty, hx, hy);
+      g.addColorStop(0, "rgba(255,210,140,0)");
+      g.addColorStop(1, "rgba(255,236,190,0.55)");
+      c.strokeStyle = g;
+      c.lineWidth = 1.4;
+      c.beginPath();
+      c.moveTo(tx, ty);
+      c.lineTo(hx, hy);
+      c.stroke();
+    }
+    c.globalCompositeOperation = "source-over";
+  };
+}
+
+/** Call of Duty : la mini-carte du drone (UAV), dans un coin, qui balaie et révèle des ennemis. */
+function uav(_pointer: Pointer, small: boolean): Draw {
+  const pings: { x: number; y: number; born: number }[] = [];
+  let last = 0;
+  return (c, w, h, t, _dt, color) => {
+    const R = small ? 44 : 68;
+    const cx = w - R - (small ? 14 : 34);
+    const cy = h - R - (small ? 96 : 40);
+    c.strokeStyle = alpha(color, 0.28);
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.arc(cx, cy, R, 0, Math.PI * 2);
+    c.stroke();
+    c.strokeStyle = alpha(color, 0.12);
+    c.beginPath();
+    c.arc(cx, cy, R * 0.5, 0, Math.PI * 2);
+    c.moveTo(cx - R, cy);
+    c.lineTo(cx + R, cy);
+    c.moveTo(cx, cy - R);
+    c.lineTo(cx, cy + R);
+    c.stroke();
+    const sweep = (t * 1.7) % (Math.PI * 2);
+    if ("createConicGradient" in c) {
+      const g = c.createConicGradient(sweep - 0.9, cx, cy);
+      g.addColorStop(0, alpha(color, 0));
+      g.addColorStop(0.9 / (Math.PI * 2), alpha(color, 0.3));
+      g.addColorStop(0.9 / (Math.PI * 2) + 0.0005, alpha(color, 0));
+      g.addColorStop(1, alpha(color, 0));
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(cx, cy, R, 0, Math.PI * 2);
+      c.fill();
+    }
+    if (t - last > 0.75) {
+      last = t;
+      const a = sweep - rand(0, 0.35);
+      const d = rand(0.2, 0.92) * R;
+      pings.push({ x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, born: t });
+      if (pings.length > 7) pings.shift();
+    }
+    for (const p of pings) {
+      const age = t - p.born;
+      if (age > 2.6) continue;
+      c.fillStyle = `rgba(255,59,92,${0.75 * (1 - age / 2.6)})`;
+      c.beginPath();
+      c.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+      c.fill();
+    }
+    // Le joueur, au centre : une flèche à la couleur de l'équipe.
+    c.fillStyle = alpha(color, 0.8);
+    c.beginPath();
+    c.moveTo(cx, cy - 6);
+    c.lineTo(cx + 4.5, cy + 5);
+    c.lineTo(cx, cy + 2.5);
+    c.lineTo(cx - 4.5, cy + 5);
+    c.closePath();
+    c.fill();
+    c.fillStyle = alpha(color, 0.45);
+    c.font = "600 10px system-ui, sans-serif";
+    c.fillText("UAV", cx - R, cy - R - 6);
+  };
+}
+
+/** Plusieurs calques dessinés l'un sur l'autre. */
+const layers =
+  (...makers: ((p: Pointer, small: boolean) => Draw)[]) =>
+  (p: Pointer, small: boolean): Draw => {
+    const draws = makers.map((m) => m(p, small));
+    return (...args) => draws.forEach((d) => d(...args));
+  };
+
 const SCENES: Record<string, (p: Pointer, small: boolean) => Draw> = {
-  rocketleague: boost,
-  counterstrike: radar,
-  callofduty: scan,
+  rocketleague: layers(boost, ball),
+  counterstrike: layers(radar, smoke),
+  callofduty: layers(scan, uav),
   home: constellation,
 };
 
@@ -279,7 +492,7 @@ export function watchBackground(): () => void {
   const canvas = document.querySelector<HTMLCanvasElement>(".scene");
   const ambient = document.querySelector<HTMLElement>(".ambient");
   const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
-  if (!canvas || !ambient || quiet() || saveData) return () => undefined;
+  if (!canvas || !ambient || quiet() || sober() || saveData) return () => undefined;
   const ctx = canvas.getContext("2d");
   if (!ctx) return () => undefined;
 
