@@ -26,12 +26,15 @@ const cache = new Map<string, Promise<Peek | null>>();
 function load(href: string): Promise<Peek | null> {
   const key = href.split("#")[0];
   if (!cache.has(key)) {
-    cache.set(
-      key,
-      fetch(`/api/apercu?href=${encodeURIComponent(key)}`)
-        .then((r) => (r.ok ? (r.json() as Promise<Peek | null>) : null))
-        .catch(() => null),
-    );
+    const p = fetch(`/api/apercu?href=${encodeURIComponent(key)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<Peek | null>) : null))
+      .catch(() => null)
+      .then((peek) => {
+        // Rien reçu : on n'en garde pas le souvenir, le prochain survol redemandera.
+        if (!peek) cache.delete(key);
+        return peek;
+      });
+    cache.set(key, p);
   }
   return cache.get(key)!;
 }

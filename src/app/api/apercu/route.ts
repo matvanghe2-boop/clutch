@@ -9,7 +9,7 @@ import type { GameId, TeamRef } from "@/lib/types";
 /**
  * Ce qu'affiche l'aperçu au survol d'un lien (src/lib/motion/peek.ts) : une équipe ou un match, en
  * quelques lignes. Mis en cache une minute sur le réseau de Vercel : survoler beaucoup de liens ne
- * relit pas la base à chaque fois.
+ * relit pas la base à chaque fois. Une réponse vide, elle, n'est jamais gardée.
  */
 export const dynamic = "force-dynamic";
 
@@ -84,5 +84,8 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json(peek, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
+  // Une réponse vide ne se garde pas : une lecture ratée de la base (instantané vide) bloquerait
+  // sinon l'aperçu de ce lien pendant plusieurs minutes, pour tout le monde.
+  const cacheControl = peek ? "public, s-maxage=60, stale-while-revalidate=120" : "no-store";
+  return NextResponse.json(peek, { headers: { "Cache-Control": cacheControl } });
 }
