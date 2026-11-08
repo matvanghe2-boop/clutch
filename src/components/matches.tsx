@@ -6,6 +6,7 @@ import { competitionMorph, matchMorph } from "@/lib/morph-attrs";
 import { matchStreams } from "@/lib/streams";
 import { accentOf, teamColors } from "@/lib/team-colors";
 import { CountdownCells } from "./Countdown";
+import { FlipBack, FlipToggle } from "./Flip";
 import { LiveScore } from "./Moments";
 import { cn, GameTag, LiveBadge, Logo, ResultBadge, StreamLinks } from "./ui";
 import { Versus } from "./versus";
@@ -112,7 +113,7 @@ export function NextMatch({ o, now, h2h }: { o: Oriented; now: number; h2h: Head
   );
 }
 
-export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: HeadToHead }) {
+export function MatchRow({ o, now, h2h, back }: { o: Oriented; now: number; h2h?: HeadToHead; back?: React.ReactNode }) {
   const m = o.match;
   const streams = matchStreams(o.team, m.streams);
   const st = statusOf(m, now);
@@ -122,7 +123,7 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
       style={accentOf(o.us)}
       {...matchMorph(o.us, o.them)}
       data-flip={m.id}
-      className={cn("panel lift sheen relative grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3 py-2.5 pl-4 pr-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:pr-4", st === "live" && "live-ring")}
+      className={cn("panel lift sheen relative grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3 py-2.5 pl-4 pr-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:pr-4", st === "live" && "live-ring", back ? "flip-card !pr-10" : undefined)}
     >
       <span className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)] shadow-[0_0_14px_var(--accent)]" />
       <div className="text-center">
@@ -170,6 +171,12 @@ export function MatchRow({ o, now, h2h }: { o: Oriented; now: number; h2h?: Head
         <StreamLinks streams={streams} compact max={3} />
         {h2h && <H2HLine h2h={h2h} compact />}
       </div>
+      {back && (
+        <>
+          <FlipBack>{back}</FlipBack>
+          <FlipToggle />
+        </>
+      )}
     </div>
   );
 }

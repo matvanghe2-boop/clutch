@@ -212,7 +212,11 @@ function scan(pointer: Pointer, small: boolean): Draw {
 }
 
 function constellation(pointer: Pointer, small: boolean): Draw {
-  const COLORS = ["#4c8dff", "#f4a62a", "#9be15d"];
+  // Les trois jeux, ou les couleurs de l'équipe préférée quand il y en a une.
+  const style = getComputedStyle(document.documentElement);
+  const favA = style.getPropertyValue("--fav-a").trim();
+  const favB = style.getPropertyValue("--fav-b").trim();
+  const COLORS = favA ? [favA, favB || favA, "#ffffff"] : ["#4c8dff", "#f4a62a", "#9be15d"];
   const nodes: { x: number; y: number; vx: number; vy: number; c: string; r: number }[] = [];
   return (c, w, h, _t, dt) => {
     const count = small ? 26 : 60;
@@ -304,8 +308,9 @@ export function watchBackground(): () => void {
     current = root;
     const wanted = root?.getAttribute("data-game") ?? "home";
     if (root) color = getComputedStyle(root).getPropertyValue("--accent").trim() || color;
-    ambient.style.setProperty("--glow-a", root ? color : "var(--color-rl)");
-    ambient.style.setProperty("--glow-b", root ? color : "var(--color-cod)");
+    // Sans page d'équipe, la lueur prend les couleurs de l'équipe préférée, à défaut celles des jeux.
+    ambient.style.setProperty("--glow-a", root ? color : "var(--fav-a, var(--color-rl))");
+    ambient.style.setProperty("--glow-b", root ? color : "var(--fav-b, var(--color-cod))");
     if (wanted === name) return;
     name = wanted;
     // Fondu au noir, puis la nouvelle scène : on ne mêle jamais deux dessins.
@@ -325,17 +330,29 @@ export function watchBackground(): () => void {
   let frame = 0;
   let last = performance.now();
   let drawn = 0;
+  let elapsed = 0;
   const budget = small ? 1000 / 30 : 0;
-  const start = last;
+
   const loop = (now: number) => {
     frame = requestAnimationFrame(loop);
     if (now - drawn < budget) return;
     drawn = now;
-    const dt = Math.min(0.05, (now - last) / 1000);
+    // Pendant le direct d'une de mes équipes, tout va plus vite et le bord de l'écran bat en rouge.
+    const live = document.documentElement.hasAttribute("data-live");
+    const dt = Math.min(0.05, (now - last) / 1000) * (live ? 1.8 : 1);
     last = now;
     if (!draw || document.hidden) return;
+    elapsed += dt;
     ctx.clearRect(0, 0, w, h);
-    draw(ctx, w, h, (now - start) / 1000, dt, color);
+    draw(ctx, w, h, elapsed, dt, color);
+    if (live) {
+      const beat = 0.5 + 0.5 * Math.sin(elapsed * 2.6);
+      const g = ctx.createRadialGradient(w / 2, h * 0.45, Math.min(w, h) * 0.35, w / 2, h * 0.45, Math.max(w, h) * 0.8);
+      g.addColorStop(0, "rgba(255,59,92,0)");
+      g.addColorStop(1, `rgba(255,59,92,${0.1 + beat * 0.12})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
   };
   frame = requestAnimationFrame(loop);
 
@@ -351,7 +368,13 @@ export function watchBackground(): () => void {
   addEventListener("pointermove", move, { passive: true });
   document.documentElement.addEventListener("pointerleave", leave);
   addEventListener("resize", resize);
+  // Une nouvelle équipe préférée : l'accueil redessine sa constellation à ses couleurs.
+  const refav = () => {
+    if (name === "home") draw = constellation(pointer, small);
+  };
+  addEventListener("clutch:fav", refav);
   return () => {
+    removeEventListener("clutch:fav", refav);
     cancelAnimationFrame(frame);
     mo.disconnect();
     removeEventListener("pointermove", move);

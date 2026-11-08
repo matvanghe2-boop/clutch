@@ -4,17 +4,21 @@ import { notFound } from "next/navigation";
 import { GAMES } from "@/config/follow";
 import { FormChips, FormSummary } from "@/components/form";
 import { MatchRow, ResultRow, TournamentCard } from "@/components/matches";
+import { FavoriteStar } from "@/components/Favorite";
 import { RankingCard } from "@/components/ranking";
+import { SeasonStory, type Story } from "@/components/SeasonStory";
+import { type TimePoint, TimeMachine } from "@/components/TimeMachine";
 import { TabsView, type Tab } from "@/components/Tabs";
 import { EraMoment, EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
 import { Empty, Logo, ResultBadge, SectionTitle } from "@/components/ui";
 import { GamePlate, TeamHero, TeamTitle } from "@/components/versus";
 import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, statusOf, teamById, teamPath, trackedTournaments, upcomingFeed } from "@/lib/derive";
 import { lineupSince, pickEra, playedSince, rosterEras } from "@/lib/eras";
-import { infoDate, shortDate, tenure } from "@/lib/format";
+import { clock, dayLabel, infoDate, money, shortDate, tenure } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
 import { loadSnapshot } from "@/lib/load-snapshot";
-import { accentOf } from "@/lib/team-colors";
+import { recordsOf, rivals, tally } from "@/lib/stats";
+import { accentOf, largeLogo, teamColors } from "@/lib/team-colors";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +102,48 @@ export default async function TeamPage({ params, searchParams }: { params: Param
   });
 
   const nextMatch = upcoming[0];
+  const colors = teamColors({ name: team.page, page: team.page, logo: data?.logo }) ?? { a: "#4c8dff", b: "#9be15d" };
+
+  // La saison en récit : les douze derniers mois.
+  const yearAgo = now - 365 * 86400;
+  const season = history.filter((r) => r.timestamp >= yearAgo);
+  const seasonTally = tally(season);
+  const seasonRecords = recordsOf(season);
+  const victim = rivals(season, 2, 1).victims[0];
+  const seasonRows = (palmares?.rows ?? []).filter((r) => r.date && Date.parse(r.date) / 1000 >= yearAgo);
+  const prizeOf = (p?: string) => Number((p ?? "").replace(/[^\d]/g, "")) || 0;
+  const biggest = [...seasonRows].sort((a, b) => prizeOf(b.prize) - prizeOf(a.prize))[0];
+  const bestEra = eras
+    .filter((e) => e.results.length >= 10)
+    .map((e) => ({ e, t: tally(e.results) }))
+    .sort((a, b) => b.t.rate - a.t.rate)[0];
+  const story: Story | undefined =
+    season.length >= 5
+      ? {
+          team: { name: team.page, logo: largeLogo({ name: team.page, page: team.page, logo: data?.logo }), a: colors.a, b: colors.b, game: GAMES[team.game].label },
+          period: "Les douze derniers mois",
+          record: { wins: seasonTally.wins, losses: seasonTally.losses, rate: Math.round(seasonTally.rate * 100) },
+          titles: seasonRows.filter((r) => r.rank === 1).map((r) => r.tournament.name),
+          streak: seasonRecords.bestStreak && { count: seasonRecords.bestStreak.count, dates: `du ${shortDate(seasonRecords.bestStreak.from, now)} au ${shortDate(seasonRecords.bestStreak.to, now)}` },
+          victim: victim && { name: victim.opponent.name, logo: largeLogo(victim.opponent), wins: victim.tally.wins, losses: victim.tally.losses },
+          best: bestEra && {
+            players: bestEra.e.players.join(" · "),
+            rate: Math.round(bestEra.t.rate * 100),
+            wins: bestEra.t.wins,
+            losses: bestEra.t.losses,
+            dates: bestEra.e.current ? `depuis le ${infoDate(bestEra.e.from, now)}` : `${infoDate(bestEra.e.from, now)} → ${bestEra.e.to ? infoDate(bestEra.e.to, now) : ""}`,
+          },
+          prize: biggest && prizeOf(biggest.prize) > 0 ? { name: biggest.tournament.name, amount: money(biggest.prize) ?? biggest.prize ?? "" } : undefined,
+          next: nextMatch?.them
+            ? { them: nextMatch.them.name, logo: largeLogo(nextMatch.them), when: nextMatch.match.timestamp ? `${dayLabel(nextMatch.match.timestamp, now)}${nextMatch.match.timeTbd ? "" : ` à ${clock(nextMatch.match.timestamp)}`}` : "horaire à venir" }
+            : undefined,
+        }
+      : undefined;
+
+  // Remonter le temps : les matchs de l'effectif choisi, du plus ancien au plus récent.
+  const timeline: TimePoint[] = [...(era ? era.results : history)]
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map((r) => ({ t: r.timestamp, r: r.result, o: r.opponent?.name, lg: r.opponent?.logo, tn: r.tournament.name }));
   const ranking = snap.rankings?.[team.game];
 
   const overview = (
@@ -163,6 +209,12 @@ export default async function TeamPage({ params, searchParams }: { params: Param
     <>
       <EraMoment results={era ? era.results : history} label={era ? (era.current ? "avec l'effectif actuel" : `avec ${era.players.join(", ")}`) : "sur tout l'historique du club"} />
       <EraTable eras={eras} selected={era} total={history} palmares={palmares} base={`/equipe/${team.id}?onglet=stats`} now={now} />
+      {timeline.length >= 5 && (
+        <section>
+          <SectionTitle aside={<span className="text-xs text-faint">fais glisser, ou rejoue la saison</span>}>Remonter le temps</SectionTitle>
+          <TimeMachine points={timeline} />
+        </section>
+      )}
       <TeamStatistics results={era ? era.results : history} scope={era ? (era.current ? "Effectif actuel" : era.players.join(", ")) : eras.length ? "Tout l'historique" : undefined} now={now} teamHref={(ref) => teamPath(snap, team.game, ref)} />
       <GamesStats samples={samples.filter((s) => inEra(s.at))} game={team.game} now={now} />
     </>
@@ -244,11 +296,13 @@ export default async function TeamPage({ params, searchParams }: { params: Param
             <FormSummary form={form} />
           </div>
         )}
-        <p className="mt-2 text-sm">
-          <a href={`https://liquipedia.net/${team.game}/${pageToPath(team.page)}`} target="_blank" rel="noopener noreferrer" className="text-faint hover:text-dim">
+        <div className="hero-actions">
+          {story && <SeasonStory story={story} />}
+          <FavoriteStar id={team.id} a={colors.a} b={colors.b} name={team.page} />
+          <a href={`https://liquipedia.net/${team.game}/${pageToPath(team.page)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-faint hover:text-dim">
             Liquipedia ↗
           </a>
-        </p>
+        </div>
       </TeamHero>
 
       <TabsView tabs={tabs} initial={onglet} leading={

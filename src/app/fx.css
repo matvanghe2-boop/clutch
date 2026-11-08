@@ -2008,3 +2008,846 @@ html[data-nav-slow][data-nav="intro"] .nav-skeleton {
   opacity: 1;
   filter: brightness(1.4);
 }
+
+/* ─────────────  Tirer pour rafraîchir (appli installée)  ───────────── */
+
+html[data-standalone] {
+  overscroll-behavior-y: contain;
+}
+.ptr {
+  position: fixed;
+  z-index: 55;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 3.6rem);
+  width: 42px;
+  height: 42px;
+  opacity: 0;
+  transform: translate(-50%, -56px);
+  border-radius: 12px;
+  box-shadow:
+    0 8px 24px -6px rgb(0 0 0 / 0.8),
+    0 0 0 1px rgb(255 255 255 / 0.12);
+  transition:
+    transform 0.4s var(--ease-spring),
+    opacity 0.25s;
+  pointer-events: none;
+}
+.ptr > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+/* La coupure du C s'ouvre à mesure qu'on tire. */
+.ptr .mark-cut {
+  transform: translate(calc(var(--open, 0) * 18px), calc(var(--open, 0) * -24px));
+}
+.ptr[data-ready] {
+  box-shadow:
+    0 8px 24px -6px rgb(0 0 0 / 0.8),
+    0 0 0 2px var(--accent),
+    0 0 22px -2px var(--accent);
+}
+@keyframes ptr-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.ptr[data-spin] {
+  animation: ptr-spin 0.7s linear infinite;
+}
+
+/* ─────────────  L'aperçu au survol  ───────────── */
+
+.peek {
+  position: absolute;
+  z-index: 5;
+  width: 290px;
+  opacity: 0;
+  visibility: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--c) 18%, transparent), transparent 55%, color-mix(in srgb, var(--c2, var(--c)) 14%, transparent)),
+    #10131a;
+  box-shadow: 0 22px 50px -18px #000;
+  padding: 0.75rem 0.85rem;
+  pointer-events: none;
+}
+.peek::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, var(--c), var(--c2, var(--c)));
+}
+.peek[data-on] {
+  opacity: 1;
+  visibility: visible;
+}
+.peek img,
+.peek-blank {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.peek-team {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.peek-team img {
+  width: 42px;
+  height: 42px;
+}
+.peek-team b {
+  display: block;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.peek-line {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--color-dim);
+}
+.peek-form {
+  display: flex;
+  gap: 0.2rem;
+  margin-top: 0.55rem;
+}
+.peek-chip {
+  display: grid;
+  width: 1.15rem;
+  height: 1.15rem;
+  place-items: center;
+  border-radius: 3px;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 800;
+  font-style: italic;
+}
+.peek-win {
+  color: var(--color-win);
+  background: rgb(61 220 151 / 0.15);
+}
+.peek-loss {
+  color: var(--color-loss);
+  background: rgb(255 107 107 / 0.15);
+}
+.peek-draw {
+  color: var(--color-dim);
+  background: var(--color-panel-2);
+}
+.peek-duel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+.peek-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+.peek-side b {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+.peek-center {
+  font-size: 1.6rem;
+}
+@media (pointer: coarse) {
+  a[href^="/equipe"],
+  a[href^="/match/"] {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* ─────────────  Le curseur de visée  ───────────── */
+
+html[data-cursor],
+html[data-cursor] * {
+  cursor: none !important;
+}
+html[data-cursor] input:not([type="range"]),
+html[data-cursor] textarea,
+html[data-cursor] [contenteditable="true"] {
+  cursor: text !important;
+}
+.fx-dot,
+.fx-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+#fx-layer[data-cursor-on]:not([data-cursor-text]) .fx-dot,
+#fx-layer[data-cursor-on]:not([data-cursor-text]) .fx-ring {
+  opacity: 1;
+}
+.fx-dot {
+  z-index: 10;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px rgb(0 0 0 / 0.8);
+}
+.fx-ring {
+  z-index: 9;
+  border-radius: 50%;
+  border: 1.5px solid rgb(255 255 255 / 0.5);
+  transition:
+    border-radius 0.25s,
+    border-color 0.2s,
+    opacity 0.2s,
+    scale 0.15s;
+}
+.fx-ring[data-lock] {
+  border-radius: 10px;
+  border-color: transparent;
+}
+.fx-ring[data-press] {
+  scale: 0.9;
+}
+/* Verrouillé : quatre équerres aux couleurs de ce qu'on vise. */
+.fx-ring > i {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  opacity: 0;
+  border: 2px solid var(--c, #fff);
+  filter: drop-shadow(0 0 4px var(--c, #fff));
+  transition: opacity 0.2s;
+}
+.fx-ring[data-lock] > i {
+  opacity: 1;
+}
+.fx-ring-tl {
+  left: -2px;
+  top: -2px;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+}
+.fx-ring-tr {
+  right: -2px;
+  top: -2px;
+  border-left: 0 !important;
+  border-bottom: 0 !important;
+}
+.fx-ring-bl {
+  left: -2px;
+  bottom: -2px;
+  border-right: 0 !important;
+  border-top: 0 !important;
+}
+.fx-ring-br {
+  right: -2px;
+  bottom: -2px;
+  border-left: 0 !important;
+  border-top: 0 !important;
+}
+
+/* ─────────────  Les cartes retournables  ───────────── */
+
+.flip-card .flip-back {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;
+  cursor: pointer;
+  align-items: center;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    var(--color-panel);
+  padding: 0.5rem 2.75rem 0.5rem 1rem;
+}
+.flip-card[data-flipped] .flip-back {
+  display: flex;
+}
+.flip-toggle {
+  position: absolute;
+  z-index: 3;
+  right: 0.5rem;
+  top: 50%;
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  translate: 0 -50%;
+  border-radius: 8px;
+  color: var(--color-faint);
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    rotate 0.4s var(--ease-spring);
+}
+.flip-toggle svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.flip-toggle:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.flip-card[data-flipped] .flip-toggle {
+  rotate: 180deg;
+  color: var(--accent);
+}
+.row-back {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1.25rem;
+}
+.row-back-h2h {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.row-back-forms {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* ─────────────  Remonter le temps  ───────────── */
+
+.tm {
+  padding: 1rem 1.1rem 1.1rem;
+}
+.tm-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.tm-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  padding: 0.35rem 0.85rem 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--accent);
+  transition: background-color 0.2s;
+}
+.tm-play:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.tm-play svg {
+  width: 1rem;
+  height: 1rem;
+}
+.tm-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 1rem;
+  margin: 1.1rem 0 1rem;
+}
+@media (min-width: 640px) {
+  .tm-figures {
+    grid-template-columns: repeat(4, minmax(0, auto));
+    justify-content: space-between;
+  }
+}
+.tm-recent {
+  display: flex;
+  gap: 0.25rem;
+}
+.tm-chip {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: 4px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 0.8rem;
+}
+.tm-chip.tm-win {
+  color: var(--color-win);
+  background: rgb(61 220 151 / 0.15);
+}
+.tm-chip.tm-loss {
+  color: var(--color-loss);
+  background: rgb(255 107 107 / 0.15);
+}
+.tm-chip.tm-draw {
+  color: var(--color-dim);
+  background: var(--color-panel-2);
+}
+.tm-track {
+  position: relative;
+  height: 48px;
+  cursor: pointer;
+  touch-action: none;
+  border-bottom: 1px solid var(--color-line);
+}
+.tm-tick {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px 1px 0 0;
+  opacity: 0.22;
+  transition: opacity 0.15s;
+}
+.tm-tick.tm-win {
+  height: 78%;
+  background: var(--color-win);
+}
+.tm-tick.tm-loss {
+  height: 38%;
+  background: var(--color-loss);
+}
+.tm-tick.tm-draw {
+  height: 55%;
+  background: var(--color-dim);
+}
+.tm-tick[data-past] {
+  opacity: 0.95;
+}
+.tm-head-line {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  pointer-events: none;
+}
+.tm-head-line::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+.tm-range {
+  width: 100%;
+  margin-top: 0.75rem;
+  accent-color: var(--accent);
+}
+.tm-match {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+.tm-match img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+/* ─────────────  La saison en récit  ───────────── */
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  margin-top: 0.85rem;
+}
+.story-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transform: skewX(-10deg);
+  border-radius: 4px;
+  background: #fff;
+  padding: 0.35rem 0.85rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  color: #07090d;
+  box-shadow: 0 0 22px -6px var(--accent);
+  transition:
+    transform 0.25s var(--ease-spring),
+    box-shadow 0.25s;
+}
+.story-open:hover {
+  transform: skewX(-10deg) scale(1.05);
+  box-shadow: 0 0 30px -4px var(--accent);
+}
+.story-open svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.story {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow: hidden;
+  color: var(--color-ink);
+  background:
+    radial-gradient(60% 50% at 15% 20%, color-mix(in srgb, var(--a) 55%, transparent), transparent 70%),
+    radial-gradient(55% 50% at 85% 85%, color-mix(in srgb, var(--b) 45%, transparent), transparent 70%),
+    #07090d;
+  user-select: none;
+}
+.story-bars {
+  position: absolute;
+  z-index: 3;
+  inset: calc(env(safe-area-inset-top) + 0.75rem) 0.75rem auto;
+  display: flex;
+  gap: 4px;
+}
+.story-bars > span {
+  height: 3px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.25);
+}
+.story-bars i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #fff;
+}
+.story-bars i[data-state="done"] {
+  width: 100%;
+}
+@keyframes story-bar {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+.story-bars i[data-state="run"],
+.story-bars i[data-state="paused"] {
+  animation: story-bar linear forwards;
+}
+.story-bars i[data-state="paused"] {
+  animation-play-state: paused;
+}
+.story-close {
+  position: absolute;
+  z-index: 4;
+  right: 0.9rem;
+  top: calc(env(safe-area-inset-top) + 1.4rem);
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.35);
+  font-size: 1rem;
+}
+.story-stage {
+  position: absolute;
+  inset: 0;
+}
+.story-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 4rem 1.5rem 3rem;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+}
+.story-slide[data-active] {
+  opacity: 1;
+}
+.story-kicker {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--a) 70%, #fff);
+}
+.story-big {
+  max-width: 16ch;
+  font-size: clamp(2.6rem, 10vw, 6rem);
+  line-height: 0.95;
+}
+.story-mid {
+  max-width: 22ch;
+  font-size: clamp(1.6rem, 6vw, 3rem);
+  line-height: 1;
+}
+.story-huge {
+  font-size: clamp(6rem, 30vw, 13rem);
+  line-height: 0.85;
+  background: linear-gradient(180deg, #fff 10%, var(--a));
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 40px color-mix(in srgb, var(--a) 50%, transparent));
+}
+.story-huge small {
+  font-size: 0.4em;
+}
+.story-gold {
+  background: linear-gradient(180deg, #fff3cf 6%, #f6c453 55%, #a8741d);
+  background-clip: text;
+  color: transparent;
+}
+.story-sub {
+  max-width: 30ch;
+  font-size: 1rem;
+  color: var(--color-dim);
+}
+.story-logo {
+  width: clamp(90px, 26vw, 150px);
+  height: clamp(90px, 26vw, 150px);
+  object-fit: contain;
+  filter: drop-shadow(0 0 40px color-mix(in srgb, var(--a) 60%, transparent));
+}
+.story-list {
+  display: grid;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-style: italic;
+  font-size: clamp(1rem, 4vw, 1.4rem);
+  text-transform: uppercase;
+}
+
+/* ─────────────  L'équipe préférée  ───────────── */
+
+.fav-star {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  padding: 0.3rem 0.75rem 0.3rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--color-dim);
+  transition:
+    border-color 0.2s,
+    color 0.2s,
+    background-color 0.2s;
+}
+.fav-star svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+.fav-star:hover {
+  color: var(--color-ink);
+  border-color: var(--color-faint);
+}
+.fav-star[data-on] {
+  color: #f6c453;
+  border-color: rgb(246 196 83 / 0.55);
+  background: rgb(246 196 83 / 0.1);
+}
+.fav-star[data-on] svg {
+  fill: #f6c453;
+  filter: drop-shadow(0 0 6px rgb(246 196 83 / 0.8));
+}
+/* Ses couleurs sur tout le site : le nom de Clutch, et le liseré sous l'en-tête. */
+html[data-fav] .brand-text {
+  background: linear-gradient(95deg, #fff 25%, var(--fav-a) 62%, var(--fav-b));
+  background-clip: text;
+}
+html[data-fav] header.sticky {
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--fav-a) 45%, transparent);
+}
+
+/* ─────────────  L'accueil réorganisable  ───────────── */
+
+.arrange {
+  position: relative;
+  display: grid;
+  gap: 2.5rem;
+}
+.arrange-bar {
+  position: absolute;
+  right: 0;
+  top: -4.35rem;
+}
+.arrange-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  padding: 0.3rem 0.75rem 0.3rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--color-faint);
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+.arrange-toggle svg {
+  width: 1rem;
+  height: 1rem;
+}
+.arrange-toggle:hover,
+.arrange-toggle[aria-pressed="true"] {
+  color: var(--color-ink);
+  border-color: var(--color-faint);
+}
+.arrange[data-editing] {
+  gap: 0.75rem;
+}
+.arrange[data-editing] .arrange-block {
+  position: relative;
+  border-radius: 16px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--color-line));
+  background: rgb(16 19 26 / 0.7);
+  padding: 0.5rem;
+}
+.arrange[data-editing] .arrange-body {
+  max-height: 150px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.55;
+  mask-image: linear-gradient(180deg, black 50%, transparent);
+}
+.arrange-handle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: grab;
+  touch-action: none;
+  border-radius: 10px;
+  padding: 0.55rem 0.6rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 1rem;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  background: var(--color-panel-2);
+}
+.arrange-handle svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--color-faint);
+}
+.arrange-block[data-dragging] {
+  z-index: 5;
+  box-shadow: 0 24px 50px -16px #000;
+}
+.arrange-block[data-dragging] .arrange-handle {
+  cursor: grabbing;
+  background: color-mix(in srgb, var(--accent) 20%, var(--color-panel-2));
+}
+
+/* ─────────────  La vitrine en relief  ───────────── */
+
+.trophy {
+  padding-right: 2.4rem;
+}
+.trophy-cup {
+  position: absolute;
+  right: 0.6rem;
+  top: 0.55rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #f6c453;
+  opacity: 0.75;
+  filter: drop-shadow(0 0 6px rgb(246 196 83 / 0.6));
+  transition:
+    translate 0.4s var(--ease-out-strong),
+    scale 0.4s var(--ease-spring),
+    opacity 0.2s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .trophy[data-tilt] {
+    background-image:
+      radial-gradient(220px circle at var(--mx) var(--my), rgb(255 226 150 / 0.24), transparent 65%),
+      linear-gradient(160deg, color-mix(in srgb, #f6c453 13%, transparent), transparent 60%);
+    border-color: rgb(246 196 83 / 0.6);
+  }
+  .trophy[data-tilt] .trophy-cup {
+    opacity: 1;
+    scale: 1.2;
+    translate: calc(var(--px) * 6px) calc(var(--py) * 5px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Une diapositive entre : chaque ligne monte à son tour. */
+  @keyframes story-rise {
+    from {
+      opacity: 0;
+      transform: translateY(26px) scale(0.97);
+    }
+  }
+  .story-slide[data-active] > * {
+    animation: story-rise 0.6s var(--ease-out-strong) backwards;
+  }
+  .story-slide[data-active] > :nth-child(2) {
+    animation-delay: 0.08s;
+  }
+  .story-slide[data-active] > :nth-child(3) {
+    animation-delay: 0.16s;
+  }
+  .story-slide[data-active] > :nth-child(4) {
+    animation-delay: 0.24s;
+  }
+  .story-list li {
+    animation: story-rise 0.5s var(--ease-out-strong) backwards;
+    animation-delay: calc(var(--i, 0) * 0.12s + 0.3s);
+  }
+  @keyframes story-drift {
+    to {
+      background-position:
+        20% 30%,
+        80% 70%,
+        0 0;
+    }
+  }
+  .story {
+    background-size:
+      140% 140%,
+      140% 140%,
+      auto;
+    animation: story-drift 12s ease-in-out infinite alternate;
+  }
+  @keyframes fav-pop {
+    40% {
+      scale: 1.45;
+      rotate: -14deg;
+    }
+  }
+  .fav-star[data-on] svg {
+    animation: fav-pop 0.5s var(--ease-spring);
+  }
+}

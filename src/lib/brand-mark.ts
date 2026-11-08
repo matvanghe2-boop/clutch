@@ -18,7 +18,9 @@ const ITALIC = "matrix(1 0 -0.176 1 45 0)";
 const LEFT = "0,0 306,0 216,512 0,512";
 const RIGHT = "306,0 512,0 512,512 216,512";
 
-export function markSvg({ rounded = false, safeZone = false, id = "clutch" }: { rounded?: boolean; safeZone?: boolean; id?: string } = {}): string {
+/** `tint` : une seule couleur au lieu des trois jeux, pour l'icône d'un raccourci. */
+export function markSvg({ rounded = false, safeZone = false, id = "clutch", tint }: { rounded?: boolean; safeZone?: boolean; id?: string; tint?: string } = {}): string {
+  const [rl, cs, cod] = tint ? [tint, tint, tint] : [RL, CS, COD];
   const r = rounded ? ' rx="112"' : "";
   const letter = `<path d="${ARC}" fill="none" stroke="url(#${id}-ink)" stroke-width="80" transform="${ITALIC}"/>`;
   const drawing = `
@@ -30,9 +32,9 @@ export function markSvg({ rounded = false, safeZone = false, id = "clutch" }: { 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="${id}-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#141c2e"/><stop offset="1" stop-color="#07090d"/></linearGradient>
-    <radialGradient id="${id}-a" cx="0.14" cy="0.16" r="0.75"><stop offset="0" stop-color="${RL}" stop-opacity="0.5"/><stop offset="1" stop-color="${RL}" stop-opacity="0"/></radialGradient>
-    <radialGradient id="${id}-b" cx="0.92" cy="0.94" r="0.7"><stop offset="0" stop-color="${COD}" stop-opacity="0.34"/><stop offset="1" stop-color="${COD}" stop-opacity="0"/></radialGradient>
-    <linearGradient id="${id}-seam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${RL}"/><stop offset="0.5" stop-color="${CS}"/><stop offset="1" stop-color="${COD}"/></linearGradient>
+    <radialGradient id="${id}-a" cx="0.14" cy="0.16" r="0.75"><stop offset="0" stop-color="${rl}" stop-opacity="0.5"/><stop offset="1" stop-color="${rl}" stop-opacity="0"/></radialGradient>
+    <radialGradient id="${id}-b" cx="0.92" cy="0.94" r="0.7"><stop offset="0" stop-color="${cod}" stop-opacity="0.34"/><stop offset="1" stop-color="${cod}" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${id}-seam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${rl}"/><stop offset="0.5" stop-color="${cs}"/><stop offset="1" stop-color="${cod}"/></linearGradient>
     <linearGradient id="${id}-ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c3cddd"/></linearGradient>
     <clipPath id="${id}-l"><polygon points="${LEFT}"/></clipPath>
     <clipPath id="${id}-r"><polygon points="${RIGHT}"/></clipPath>

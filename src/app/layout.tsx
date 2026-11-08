@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist } from "next/font/google";
 import Script from "next/script";
 import { MotionRoot } from "@/components/Motion";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { NavSkeleton, SiteFooter, SiteHeader } from "@/components/site";
+import { markSvg } from "@/lib/brand-mark";
 import "./globals.css";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
@@ -18,7 +20,9 @@ const barlow = Barlow_Condensed({
  * démarre pas à temps (réseau coupé, erreur) : une animation ne doit jamais cacher le contenu.
  */
 const MOTION_BOOT =
-  "(function(){var h=document.documentElement;h.classList.add('motion');setTimeout(function(){if(!h.hasAttribute('data-motion-ready'))h.classList.remove('motion')},6000)})()";
+  "(function(){var h=document.documentElement;h.classList.add('motion');setTimeout(function(){if(!h.hasAttribute('data-motion-ready'))h.classList.remove('motion')},6000);" +
+  // Les couleurs de l'équipe préférée, posées avant le premier affichage : pas d'éclair aux couleurs par défaut.
+  "try{var f=JSON.parse(localStorage.getItem('clutch:fav')||'null');if(f&&f.a){h.style.setProperty('--fav-a',f.a);h.style.setProperty('--fav-b',f.b||f.a);h.setAttribute('data-fav',f.id)}}catch(e){}})()";
 
 /** La passe de secours tourne après l'envoi de la page (voir SiteHeader) : elle a besoin de temps. */
 export const maxDuration = 300;
@@ -48,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         </div>
         <MotionRoot />
         <div id="fx-layer" aria-hidden />
+        <PullToRefresh mark={markSvg({ rounded: true, id: "tirer" })} />
         {/*
           Signature du réseau Orbit : écran d'ouverture et header, avec le
           pingouin esport. Copies servies depuis public/ (et mises en cache par

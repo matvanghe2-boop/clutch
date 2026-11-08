@@ -9,6 +9,7 @@ import { matchMorph, teamMorph } from "@/lib/morph-attrs";
 import { autoRefresh, STALE_MS } from "@/lib/sync/auto";
 import { accentOf } from "@/lib/team-colors";
 import { LiveRefresher } from "./LiveRefresher";
+import { LiveSignal } from "./LiveSignal";
 import { NavIndicator, NavLink } from "./Motion";
 import { InstallButton } from "./Pwa";
 import { Logo } from "./ui";
@@ -160,6 +161,11 @@ export async function SiteHeader() {
       </div>
       <StaleBanner checkedAt={snap.checkedAt ?? snap.updatedAt} now={now} />
       <LiveRefresher active={live} />
+      <LiveSignal
+        matches={upcomingFeed(snap)
+          .filter((o) => statusOf(o.match, now) === "live")
+          .map((o) => ({ label: `${o.us.short ?? o.us.name}–${o.them?.short ?? o.them?.name ?? "?"}`, score: `${o.usScore ?? 0}–${o.themScore ?? 0}` }))}
+      />
     </header>
     <Ticker snap={snap} now={now} />
     </>

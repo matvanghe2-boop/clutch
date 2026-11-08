@@ -370,6 +370,16 @@ sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
   et retiré après 6 s si le JavaScript du site n'a pas démarré. Une section sans `data-in` est invisible :
   `watchSections` (`src/lib/reveal.ts`) ne tient donc aucune liste à part. Tout ce qui bouge est dans
   `prefers-reduced-motion: no-preference` : qui a coupé les animations voit tout, tout de suite.
+- **Le logo** (`src/lib/brand-mark.ts`) : un seul dessin pour l'icône, le favicon, l'en-tête et les raccourcis ;
+  `npx tsx scripts/icons.ts` régénère toutes les images.
+- **Appli installée** : raccourcis de l'icône (`manifest.ts`, une entrée par équipe suivie), tirer pour rafraîchir
+  (`components/PullToRefresh.tsx`, seulement en plein écran), onglet qui affiche le direct (`LiveSignal.tsx`).
+- **Interactions** : aperçu au survol ou à l'appui long (`motion/peek.ts`, données de `/api/apercu` mises en
+  cache une minute), curseur de visée (`motion/cursor.ts`, à la souris), cartes retournables (`Flip.tsx`),
+  accueil réorganisable (`Arrange.tsx`, ordre dans le cookie `clutch_accueil`), équipe préférée
+  (`Favorite.tsx`, stockage local `clutch:fav`, posée avant le premier affichage par `layout.tsx`).
+- **Pages d'équipe** : la saison en récit (`SeasonStory.tsx`, les douze derniers mois) et « Remonter le temps »
+  (`TimeMachine.tsx`, les matchs de l'effectif choisi).
 - **Pour contrôler** : toujours en cliquant, pas seulement en ouvrant une adresse, et dans un navigateur qui
   rend de vraies images (un onglet masqué n'en rend aucune, donc aucune entrée ne s'y déclenche).
 

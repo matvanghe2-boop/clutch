@@ -437,6 +437,9 @@ export function PalmaresCard({ palmares, wiki, now }: { palmares: Palmares; wiki
             <ul className="stagger grid gap-2 sm:grid-cols-2">
               {trophies.map((r, i) => (
                 <li key={i} className="trophy">
+                  <svg className="trophy-cup" viewBox="0 0 24 24" aria-hidden>
+                    <path d="M7 4h10v4a5 5 0 0 1-10 0V4Zm0 2H4v1a3 3 0 0 0 3 3m10-4h3v1a3 3 0 0 1-3 3M12 13v4m-4 3h8m-6-3h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                   <span className="display line-clamp-2 text-base leading-tight">{r.tournament.name}</span>
                   <span className="text-xs text-dim">{[r.date ? infoDate(r.date, now) : null, money(r.prize)].filter(Boolean).join(" · ")}</span>
                 </li>

@@ -6,11 +6,12 @@ import { quiet } from "./fx";
  * où il n'y a pas de survol à suivre.
  */
 
-const SELECTOR = ".arena, .lift, .tile";
+const SELECTOR = ".arena, .lift, .tile, .trophy";
 
 /** L'inclinaison maximale, en degrés : plus la carte est grande, plus elle doit bouger peu. */
 function maxTilt(el: HTMLElement, width: number) {
   if (el.classList.contains("arena")) return 1.6;
+  if (el.classList.contains("trophy")) return 9;
   return width > 600 ? 1.8 : 5;
 }
 
