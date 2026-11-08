@@ -4,6 +4,7 @@ import { GAMES } from "@/config/follow";
 import { liveSoon, matchHref, recentFeed, statusOf, teamsOf, upcomingFeed } from "@/lib/derive";
 import { clock, dayKey, relative, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { markSvg } from "@/lib/brand-mark";
 import { matchMorph, teamMorph } from "@/lib/morph-attrs";
 import { autoRefresh, STALE_MS } from "@/lib/sync/auto";
 import { accentOf } from "@/lib/team-colors";
@@ -105,7 +106,7 @@ export async function SiteHeader() {
     <header className="sticky top-[env(safe-area-inset-top)] z-20 border-b border-line/70 bg-bg/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2">
-          <Mark className="size-7 transition-transform group-hover:-rotate-6" />
+          <Mark className="size-7" />
           <span className="brand-text display text-2xl tracking-[0.1em]">CLUTCH</span>
         </Link>
         <nav className="site-nav -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 py-1">
@@ -165,25 +166,9 @@ export async function SiteHeader() {
   );
 }
 
-/** Le même dessin que l'icône de l'appli (scripts/icons.ts), sur fond clair. */
+/** Le même dessin que l'icône de l'appli (src/lib/brand-mark.ts). Au survol, la coupure s'ouvre un peu plus. */
 function Mark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 512 512" className={className} aria-hidden>
-      <rect width="512" height="512" rx="112" className="fill-ink" />
-      <g transform="translate(14 0)">
-        <path
-          d="M 340.9 171.1 A 120 120 0 1 0 340.9 340.9"
-          fill="none"
-          className="stroke-bg"
-          strokeWidth="64"
-          strokeLinecap="round"
-        />
-        <rect x="296" y="213" width="84" height="18" rx="9" className="fill-rl" />
-        <rect x="296" y="247" width="84" height="18" rx="9" className="fill-cs" />
-        <rect x="296" y="281" width="84" height="18" rx="9" className="fill-cod" />
-      </g>
-    </svg>
-  );
+  return <span className={`brand-mark ${className ?? ""}`} aria-hidden dangerouslySetInnerHTML={{ __html: markSvg({ rounded: true, id: "entete" }) }} />;
 }
 
 /** Heure de la dernière vérification par la synchro (signal de vie publié au moins toutes les 2 h). */

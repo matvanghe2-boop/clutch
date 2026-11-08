@@ -1980,3 +1980,31 @@ html[data-nav-slow][data-nav="intro"] .nav-skeleton {
     animation: plate-in 0.42s var(--ease-out-strong) 0.4s backwards;
   }
 }
+
+/* ─────────────  Le logo de l'en-tête  ───────────── */
+
+.brand-mark {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 22%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+.brand-mark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.brand-mark .mark-cut,
+.brand-mark .mark-seam {
+  transition:
+    transform 0.45s var(--ease-spring),
+    opacity 0.3s;
+}
+/* Au survol, la moitié droite du C s'écarte un peu plus, et la coupure s'allume. */
+.group:hover .brand-mark .mark-cut {
+  transform: translate(14px, -18px);
+}
+.group:hover .brand-mark .mark-seam {
+  opacity: 1;
+  filter: brightness(1.4);
+}
