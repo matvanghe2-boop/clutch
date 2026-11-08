@@ -14,7 +14,7 @@ function Backlight({ team, side }: { team: TeamRef | null; side: "left" | "right
   );
 }
 
-function Fighter({ team, href, side, dim }: { team: TeamRef | null; href?: string; side: "left" | "right"; dim?: boolean }) {
+function Fighter({ team, href, side, dim, lineup }: { team: TeamRef | null; href?: string; side: "left" | "right"; dim?: boolean; lineup?: React.ReactNode }) {
   const name = team?.name ?? "À déterminer";
   return (
     <div className={cn(side === "left" ? "arena-left" : "arena-right", "flex min-w-0 flex-col items-center gap-3 text-center transition-opacity", dim && "opacity-55")}>
@@ -33,6 +33,7 @@ function Fighter({ team, href, side, dim }: { team: TeamRef | null; href?: strin
         </div>
         {team?.short && team.short !== name && <div className="mt-1 text-xs tracking-[0.2em] text-faint">{team.short}</div>}
       </div>
+      {lineup && <div className="arena-lineup">{lineup}</div>}
     </div>
   );
 }
@@ -73,7 +74,10 @@ export function Versus({
   outcome,
   morph,
   dock,
+  lineups,
 }: {
+  /** Les visages des deux lignes, sous les noms (photos : navigateur déverrouillé seulement). */
+  lineups?: [React.ReactNode, React.ReactNode];
   us: TeamRef | null;
   them: TeamRef | null;
   usHref?: string;
@@ -105,9 +109,9 @@ export function Versus({
       <div className="relative p-4 sm:p-7">
         <div className="arena-top flex items-center justify-between gap-3 text-xs">{top}</div>
         <div className="mt-6 grid grid-cols-2 items-center gap-x-3 gap-y-5 sm:mt-8 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-6">
-          <Fighter team={us} href={usHref} side="left" dim={dimUs} />
+          <Fighter team={us} href={usHref} side="left" dim={dimUs} lineup={lineups?.[0]} />
           <div className="arena-center col-span-2 row-start-2 text-center sm:col-span-1 sm:row-start-auto">{center}</div>
-          <Fighter team={them} href={themHref} side="right" dim={dimThem} />
+          <Fighter team={them} href={themHref} side="right" dim={dimThem} lineup={lineups?.[1]} />
         </div>
         {bottom && <div className="arena-bottom mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4 text-sm sm:mt-8">{bottom}</div>}
       </div>
@@ -136,9 +140,9 @@ export function TeamTitle({ name, game }: { name: string; game: GameId }) {
 }
 
 /** Le décor d'une page d'équipe : son logo en filigrane, et sa lumière. */
-export function TeamHero({ team, game, children }: { team: TeamRef; game: string; children: React.ReactNode }) {
+export function TeamHero({ team, game, children, aside }: { team: TeamRef; game: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <section data-game={game} style={accentOf(team)} className="arena arena-solo">
+    <section data-game={game} style={accentOf(team)} className="arena arena-solo" data-aside={aside ? "" : undefined}>
       {team.logo && (
         <span className="arena-half" aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element -- décor : le logo de Liquipedia, sans proxy */}
@@ -158,6 +162,8 @@ export function TeamHero({ team, game, children }: { team: TeamRef; game: string
         </span>
         <div className="arena-name min-w-0">{children}</div>
       </div>
+      {/* À droite de l'en-tête : la ligne de l'équipe en portraits, quand il y en a. */}
+      {aside && <div className="hero-aside">{aside}</div>}
       <ArenaCollapse />
     </section>
   );

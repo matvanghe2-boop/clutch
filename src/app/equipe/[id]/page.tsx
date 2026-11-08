@@ -9,7 +9,7 @@ import { RankingCard } from "@/components/ranking";
 import { SeasonStory, type Story } from "@/components/SeasonStory";
 import { type TimePoint, TimeMachine } from "@/components/TimeMachine";
 import { Later } from "@/components/Later";
-import { RosterCards } from "@/components/RosterCards";
+import { Lineup, RosterCards } from "@/components/RosterCards";
 import { TabsView, type Tab } from "@/components/Tabs";
 import { EraMoment, EraTable, FormerRoster, GamesStats, Honors, IdentityCard, PalmaresCard, rankFigure, TeamStatistics } from "@/components/team-stats";
 import { Empty, Logo, ResultBadge, SectionTitle } from "@/components/ui";
@@ -18,7 +18,9 @@ import { formOf, headToHead, historyOf, opponentsRecord, rankOf, recentFeed, sta
 import { lineupSince, pickEra, playedSince, rosterEras } from "@/lib/eras";
 import { clock, dayLabel, infoDate, money, shortDate } from "@/lib/format";
 import { pageToPath } from "@/lib/liquipedia/html";
+import { isAdmin } from "@/lib/admin";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { rosterPhotos } from "@/lib/photos";
 import { recordsOf, rivals, tally } from "@/lib/stats";
 import { accentOf, largeLogo, teamColors } from "@/lib/team-colors";
 
@@ -56,6 +58,8 @@ export default async function TeamPage({ params, searchParams }: { params: Param
   const team = teamById(snap, (await params).id);
   if (!team) notFound();
   const data = snap.teams[team.id];
+  // Les photos des joueurs ne s'affichent que sur le navigateur déverrouillé (voir lib/photos.ts).
+  const photos = rosterPhotos(snap, team.game, data?.roster ?? [], await isAdmin());
   const now = Date.now() / 1000;
 
   const upcoming = upcomingFeed(snap).filter((o) => o.team.id === team.id && statusOf(o.match, now) !== "stale");
@@ -235,7 +239,7 @@ export default async function TeamPage({ params, searchParams }: { params: Param
       {data?.roster?.length ? (
         <section>
           <SectionTitle>Effectif</SectionTitle>
-          <RosterCards players={data.roster} team={{ name: team.page, page: team.page, logo: data.logo }} now={now} />
+          <RosterCards players={data.roster} team={{ name: team.page, page: team.page, logo: data.logo }} now={now} photos={photos} />
         </section>
       ) : null}
       {data?.timeline?.length ? (
@@ -268,7 +272,7 @@ export default async function TeamPage({ params, searchParams }: { params: Param
 
   return (
     <div data-game={team.game} style={accentOf({ name: team.page, page: team.page, logo: data?.logo })} className="space-y-10">
-      <TeamHero team={{ name: team.page, page: team.page, logo: data?.logo }} game={team.game}>
+      <TeamHero team={{ name: team.page, page: team.page, logo: data?.logo }} game={team.game} aside={Object.keys(photos).length ? <Lineup players={data?.roster ?? []} photos={photos} /> : undefined}>
         <TeamTitle name={team.page} game={team.game} />
         {form.last.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1" title="Forme du moment : les 10 derniers matchs, du plus récent au plus ancien">

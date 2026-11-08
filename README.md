@@ -385,6 +385,15 @@ sous l'en-tête. Tout est dans [`src/app/globals.css`](src/app/globals.css) :
   (`Favorite.tsx`, stockage local `clutch:fav`, posée avant le premier affichage par `layout.tsx`).
 - **Pages d'équipe** : la saison en récit (`SeasonStory.tsx`, les douze derniers mois), « Remonter le temps »
   (`TimeMachine.tsx`, les matchs de l'effectif choisi) et l'effectif en cartes à collectionner (`RosterCards.tsx`).
+- **Photos des joueurs** (`lib/sync/photos.ts`, `lib/photos.ts`, `components/Portrait.tsx`) : la photo en tête de
+  chaque page de joueur (`pageprops.metaimage`), puis sa vignette de 480 px et son crédit sur Liquipedia Commons :
+  deux requêtes légères par jeu, toutes les deux semaines, pour mes effectifs et les adversaires de la semaine.
+  Ces photos ne sont pas libres (les organisateurs, BLAST ou l'Esports World Cup, en autorisent l'usage à
+  Liquipedia) : **elles ne s'affichent que sur le navigateur déverrouillé** avec le code des réglages, avec le nom
+  du photographe et de l'ayant droit, et restent sur les serveurs de Liquipedia. Rendu en deux tons (bleu nuit et
+  couleur de l'équipe), trame de points et coupure en biais ; les vraies couleurs reviennent au survol. Elles
+  habillent les cartes de l'effectif, l'en-tête de l'équipe (sa ligne en éventail), l'affiche et les effectifs
+  de la feuille de match.
 - **Compétitions** : le format en vignettes animées (`FormatStrip.tsx`, déduit des phases par
   `lib/format-kind.ts`), la route qui reste à mon équipe dans le bracket (pointillés) et le zoom
   (`BracketZoom.tsx` : boutons, pincement, Ctrl + molette).

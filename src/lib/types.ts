@@ -180,6 +180,8 @@ export interface RecentMatch {
 export interface RosterEntry {
   /** Pseudo. */
   id: string;
+  /** Titre de sa page Liquipedia (« ApEX »), quand elle existe : sa photo s'y lit. */
+  page?: string;
   name?: string;
   /** Rôle ou statut (« RFA », « Coach »…), quand Liquipedia le précise. */
   role?: string;
@@ -255,8 +257,26 @@ export interface Snapshot {
    * (« équipe:adversaire ») : voir src/lib/schedule.ts.
    */
   moves?: Record<string, ScheduleMove>;
+  /**
+   * Photos des joueurs (effectifs suivis et adversaires de la semaine), clé « wiki:page ».
+   * Elles ne s'affichent que sur le navigateur déverrouillé : voir src/lib/photos.ts.
+   */
+  photos?: Record<string, PlayerPhoto>;
   /** Échecs récents par clé de tâche, pour espacer les nouvelles tentatives. */
   failures: Record<string, { at: string; message: string }>;
+}
+
+/** La photo d'un joueur sur Liquipedia Commons, avec son crédit. Sans `src`, on a cherché et rien trouvé. */
+export interface PlayerPhoto {
+  /** Vignette de 480 px de large. */
+  src?: string;
+  /** Page de la photo sur Liquipedia, pour le crédit. */
+  file?: string;
+  /** Photographe. */
+  author?: string;
+  /** Détenteur des droits (organisateur). */
+  owner?: string;
+  fetchedAt: string;
 }
 
 /** Un horaire déplacé : l'heure qu'on affichait, la nouvelle (secondes), et quand on l'a vu. */

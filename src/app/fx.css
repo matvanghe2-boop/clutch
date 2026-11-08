@@ -4076,3 +4076,278 @@ a.since-chip:hover {
 .lan-list > li {
   min-width: 0;
 }
+
+/* ─────────────  Portraits de joueurs (components/Portrait.tsx)  ─────────────
+   Deux tons : l'image en niveaux de gris multipliée par la couleur de l'équipe, puis ses noirs
+   relevés au bleu nuit de la page (calque en « lighten »). Une trame de points par-dessus.
+   Au survol, la copie en couleurs remonte. */
+.portrait {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--portrait-tint, var(--accent));
+}
+.portrait img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 22%;
+  user-select: none;
+}
+.portrait-duo {
+  filter: grayscale(1) contrast(1.28) brightness(1.08);
+  mix-blend-mode: multiply;
+}
+.portrait::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #0d1322;
+  mix-blend-mode: lighten;
+  pointer-events: none;
+}
+.portrait::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(rgb(7 9 13 / 0.42) 0.85px, transparent 1.15px) 0 0 / 3.4px 3.4px;
+  opacity: 0.75;
+  transition: opacity 0.5s ease;
+}
+.portrait-real {
+  z-index: 2;
+  opacity: 0;
+  filter: saturate(0.92) contrast(1.05);
+  transition: opacity 0.55s ease;
+}
+.player-card:hover .portrait-real,
+.lineup li:hover .portrait-real,
+.roster-face:hover .portrait-real {
+  opacity: 0.94;
+}
+.player-card:hover .portrait::after,
+.lineup li:hover .portrait::after {
+  opacity: 0.25;
+}
+.photo-credit {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--color-faint);
+}
+a.photo-credit:hover {
+  color: var(--color-dim);
+  text-decoration: underline;
+}
+
+/* La photo dans la carte : le haut de la carte, coupé en biais, fondu vers le bas. */
+.pc-photo {
+  position: absolute;
+  inset: 0 0 24% 0;
+  z-index: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 84%, 0 100%);
+  mask-image: linear-gradient(180deg, #000 58%, transparent 100%);
+}
+.pc-photo img {
+  transition: transform 0.7s var(--ease-spring), opacity 0.55s ease;
+}
+.player-card:hover .pc-photo img {
+  transform: scale(1.06);
+}
+.player-card {
+  container-type: inline-size;
+  /* Une seule colonne, qui ne s'élargit jamais pour un contenu trop long. */
+  grid-template-columns: minmax(0, 1fr);
+}
+.pc-name {
+  /* La largeur de la carte, partagée entre les lettres du pseudo (capitales larges comprises). */
+  font-size: clamp(1.1rem, calc(88cqi / (var(--len, 6) * 0.68)), 2.3rem) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  padding-right: 0.15em;
+}
+.player-card[data-photo] .pc-name {
+  align-self: end;
+  margin-bottom: 0.15rem;
+  text-shadow: 0 2px 14px rgb(0 0 0 / 0.85), 0 0 26px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.player-card[data-photo] .pc-flag,
+.player-card[data-photo] .pc-role {
+  background: rgb(7 9 13 / 0.7);
+  backdrop-filter: blur(6px);
+}
+.player-card[data-photo] .pc-foot .photo-credit {
+  opacity: 0.85;
+}
+
+/* La ligne de l'équipe, à droite de l'en-tête de sa page. */
+.hero-aside {
+  position: relative;
+  z-index: 2;
+  padding: 0 1.25rem 1.25rem;
+}
+@media (min-width: 1024px) {
+  .arena:has(.lineup) .arena-left {
+    padding-right: 25rem;
+  }
+  .hero-aside {
+    position: absolute;
+    right: 2rem;
+    bottom: 1.6rem;
+    padding: 0;
+  }
+}
+.lineup {
+  display: flex;
+  align-items: flex-end;
+}
+.lineup li {
+  position: relative;
+  margin-left: -0.85rem;
+  transition: transform 0.45s var(--ease-spring);
+}
+.lineup li:first-child {
+  margin-left: 0;
+}
+.lineup-face {
+  width: 3.8rem;
+  height: 5.1rem;
+  border-radius: 14px;
+  border: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: 0 14px 30px -12px rgb(0 0 0 / 0.9);
+  transform: rotate(calc((var(--i) - (var(--n) - 1) / 2) * 3.5deg));
+}
+@media (min-width: 640px) {
+  .lineup-face {
+    width: 4.9rem;
+    height: 6.6rem;
+  }
+}
+@media (min-width: 1024px) {
+  .lineup-face {
+    width: 5.4rem;
+    height: 7.3rem;
+  }
+}
+.lineup-name {
+  position: absolute;
+  left: 50%;
+  bottom: -0.35rem;
+  z-index: 4;
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: rgb(7 9 13 / 0.85);
+  padding: 0 0.35rem;
+  font-size: 0.8rem;
+  text-transform: none;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.lineup li:hover {
+  z-index: 2;
+  transform: translateY(-6px) scale(1.07);
+}
+.lineup li:hover .lineup-name {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html.motion .lineup li {
+    animation: lineup-in 0.7s var(--ease-spring) both;
+    animation-delay: calc(0.35s + var(--i) * 80ms);
+  }
+  @keyframes lineup-in {
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(0.9);
+    }
+  }
+}
+
+/* Les visages des effectifs, sur la feuille de match. */
+.roster-face {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* Petit, le visage doit primer sur la trame. */
+.roster-face::after {
+  opacity: 0.2;
+}
+.roster-face-empty {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 14%, var(--color-panel));
+  color: var(--accent);
+  font-family: var(--font-barlow), sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  text-transform: uppercase;
+}
+
+/* Les visages des deux lignes, sur l'affiche d'un match. */
+.arena-lineup {
+  display: flex;
+  justify-content: center;
+  margin-top: -0.25rem;
+}
+.face-row {
+  display: flex;
+}
+.face-row li {
+  margin-left: -0.55rem;
+  transition: transform 0.4s var(--ease-spring);
+}
+.face-row li:first-child {
+  margin-left: 0;
+}
+.face-row-face {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 999px;
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--portrait-tint, var(--accent)) 70%, transparent);
+}
+.face-row-face::after {
+  opacity: 0.2;
+}
+@media (min-width: 640px) {
+  .face-row-face {
+    width: 2.9rem;
+    height: 2.9rem;
+  }
+}
+.face-row li:hover {
+  position: relative;
+  z-index: 2;
+  transform: translateY(-4px) scale(1.18);
+}
+.face-row li:hover .portrait-real {
+  opacity: 0.94;
+}
+/* Chaque ligne à la couleur de son équipe (sans couleur connue, celle de la page). */
+.arena-right .face-row-face {
+  --portrait-tint: var(--team-b);
+}
+.arena-left .face-row-face {
+  --portrait-tint: var(--team-a);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html.motion .face-row li {
+    animation: lineup-in 0.6s var(--ease-spring) both;
+    animation-delay: calc(0.9s + var(--i) * 70ms);
+  }
+}

@@ -214,7 +214,7 @@ function land(flight: Flight, reveal: () => void) {
     return;
   }
   const box = arena.getBoundingClientRect();
-  const targets = [...arena.querySelectorAll<HTMLImageElement>("img:not(.backlight):not(.watermark)")].filter((img) => !img.closest(".dock"));
+  const targets = [...arena.querySelectorAll<HTMLImageElement>("img:not(.backlight):not(.watermark)")].filter((img) => !img.closest(".dock, .portrait"));
   const pairs = flight.logos.map((l) => ({ ...l, target: targets.find((t) => logoFile(t.src) === l.file) }));
   for (const p of pairs) if (p.target) p.target.style.visibility = "hidden";
 

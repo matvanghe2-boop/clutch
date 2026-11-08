@@ -17,6 +17,7 @@ import { parseSeasonStandings, parseVrs } from "../liquipedia/rankings";
 import { parseMatchHistory, parsePalmares, parseTeamPage } from "../liquipedia/team-page";
 import { parseTournamentPage } from "../liquipedia/tournament-page";
 import { recordMoves, scheduleOf } from "../schedule";
+import { fetchPhotos, photoKey, stalePhotos, wantedPhotos } from "./photos";
 import { tournamentKey } from "../snapshot";
 import { hasDatabase } from "../store";
 import { tournamentMatches } from "../tournament";
@@ -512,6 +513,23 @@ function plan(snap: Snapshot, teams: FollowedTeam[], opts: PassOptions, done: Se
         },
       });
     }
+
+    // Les photos des joueurs (mes effectifs, les adversaires de la semaine) : deux requêtes légères par jeu.
+    for (const [wiki, pages] of stalePhotos(snap, teams)) {
+      const key = `photos:${wiki}`;
+      if (done.has(key) || failedRecently(key)) continue;
+      tasks.push({
+        key,
+        label: `photos de ${Math.min(50, pages.length)} joueurs (${wiki})`,
+        priority: 3.65,
+        staleness: 0,
+        run: async (s) => {
+          const found = await fetchPhotos(wiki, pages, onWait);
+          s.photos = { ...s.photos, ...found };
+          return `${Object.values(found).filter((p) => p.src).length} photos sur ${Object.keys(found).length} joueurs`;
+        },
+      });
+    }
   }
 
   for (const [key, ref] of discover(snap, teams)) {
@@ -577,6 +595,10 @@ function prune(snap: Snapshot, teams: FollowedTeam[]) {
   }
   const keep = discover(snap, teams);
   for (const key of Object.keys(snap.tournaments)) if (!keep.has(key)) delete snap.tournaments[key];
+  if (snap.photos) {
+    const wanted = new Set([...wantedPhotos(snap, teams)].flatMap(([wiki, pages]) => pages.map((p) => photoKey(wiki, p))));
+    for (const key of Object.keys(snap.photos)) if (!wanted.has(key)) delete snap.photos[key];
+  }
 }
 
 export interface PassResult {

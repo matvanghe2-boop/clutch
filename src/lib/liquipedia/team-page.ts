@@ -48,8 +48,16 @@ function parseRoster($: cheerio.CheerioAPI): RosterEntry[] {
     const player = text($id.find(".inline-player a, a").first()) || text($id);
     if (!player) return;
     const $flag = $id.find(".flag img").first();
+    // Le titre de sa page, pour y lire sa photo : pas un lien rouge (page absente), pas une catégorie de drapeau.
+    const page = $id
+      .find(".inline-player a, a")
+      .toArray()
+      .map((a) => $(a))
+      .find(($a) => !$a.hasClass("new") && /^[^:]+$/.test($a.attr("title") ?? ""))
+      ?.attr("title");
     out.push({
       id: player,
+      page,
       name: iName >= 0 ? text(tds.eq(iName)) || undefined : undefined,
       role: iRole >= 0 ? text(tds.eq(iRole)) || undefined : undefined,
       joined: iJoin >= 0 ? text(tds.eq(iJoin)).match(/\d{4}-\d{2}-\d{2}/)?.[0] : undefined,

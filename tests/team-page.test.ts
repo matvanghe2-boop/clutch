@@ -77,6 +77,9 @@ describe("détails par équipe", () => {
     expect(recent[0]).toMatchObject({ result: "loss", score: ["0", "2"], tier: "S-Tier" });
     expect(recent[0].opponent?.short).toBe("MOUZ");
     expect(roster.find((p) => p.id === "apEX")?.captain).toBe(true);
+    // Le titre de la page du joueur, où se lit sa photo (MediaWiki met une majuscule).
+    expect(roster.find((p) => p.id === "apEX")?.page).toBe("ApEX");
+    expect(roster.every((p) => p.page)).toBe(true);
   });
 
   it("Paris Gentle Mates (CDL) : aucun match annoncé, statut RFA lu", () => {

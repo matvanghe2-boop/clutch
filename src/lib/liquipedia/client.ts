@@ -124,6 +124,21 @@ export async function apiQuery(wiki: GameId, params: Record<string, string>, onW
   );
 }
 
+/** Liquipedia Commons, où vivent les images (photos de joueurs) : même rythme que le reste de l'API. */
+export async function commonsQuery(params: Record<string, string>, onWait?: (ms: number) => void): Promise<unknown> {
+  const url = new URL("https://liquipedia.net/commons/api.php");
+  url.search = new URLSearchParams({ action: "query", format: "json", formatversion: "2", ...params }).toString();
+  return scheduled(
+    false,
+    async () => {
+      const res = await request(url);
+      if (!res.ok) throw new LiquipediaError(`http-${res.status}`, `HTTP ${res.status} sur commons (query)`);
+      return res.json();
+    },
+    onWait,
+  );
+}
+
 /** Titres des pages qui commencent par `prefix` (requête légère). */
 export async function listPages(wiki: GameId, prefix: string, descending = false, onWait?: (ms: number) => void): Promise<string[]> {
   const json = (await apiQuery(

@@ -7,7 +7,9 @@ import { MatchDock } from "@/components/MatchDock";
 import { matchNotes, NoteTags } from "@/components/matches";
 import { ExactMoment, LiveScore, VictoryMoment } from "@/components/Moments";
 import { PronoReveal } from "@/components/PronoReveal";
+import { Portrait } from "@/components/Portrait";
 import { ReplayVs } from "@/components/ReplayVs";
+import { FaceRow } from "@/components/RosterCards";
 import { ScorePicker } from "@/components/ScorePicker";
 import { FormChips, FormSummary } from "@/components/form";
 import { StreamPlayer } from "@/components/StreamPlayer";
@@ -20,12 +22,13 @@ import { competitionHref, findMatch, type Form, formOf, headToHead, historyOf, m
 import { lineupSince, playedSince } from "@/lib/eras";
 import { clock, dayLabel, shortDate } from "@/lib/format";
 import { loadSnapshot } from "@/lib/load-snapshot";
+import { rosterPhotos } from "@/lib/photos";
 import { loadPredictions } from "@/lib/prediction-store";
 import { revealedIds } from "@/lib/reveal-store";
 import { judge, possibleScores, type Prediction } from "@/lib/predictions";
 import { embeddable, matchStreams } from "@/lib/streams";
-import { duelVars, largeLogo, teamColors } from "@/lib/team-colors";
-import type { RankingRow, RosterEntry, TeamRef } from "@/lib/types";
+import { accentOf, duelVars, largeLogo, teamColors } from "@/lib/team-colors";
+import type { PlayerPhoto, RankingRow, RosterEntry, TeamRef } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +93,8 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   const themForm = opp ? formOf(opp.recent) : undefined;
   const usRoster = snap.teams[o.team.id]?.roster ?? [];
   const themRoster = opp?.roster ?? [];
+  const usPhotos = rosterPhotos(snap, m.wiki, usRoster, admin);
+  const themPhotos = rosterPhotos(snap, m.wiki, themRoster, admin);
   const usSince = lineupSince(usRoster);
   const themSince = lineupSince(themRoster);
   const t = m.tournament;
@@ -118,6 +123,10 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         them={o.them}
         usHref={teamPath(snap, m.wiki, o.us)}
         themHref={teamPath(snap, m.wiki, o.them)}
+        lineups={[
+          <FaceRow key="a" players={usRoster} photos={usPhotos} label={`La ligne de ${o.us.name}`} />,
+          <FaceRow key="b" players={themRoster} photos={themPhotos} label={`La ligne de ${o.them?.name ?? "l'adversaire"}`} />,
+        ]}
         dimUs={st === "done" && o.result === "loss"}
         dimThem={st === "done" && o.result === "win"}
         top={
@@ -297,8 +306,8 @@ export default async function MatchPage({ params, searchParams }: { params: Para
         <section>
           <SectionTitle>Effectifs</SectionTitle>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Roster team={o.us} players={usRoster} />
-            <Roster team={o.them} players={themRoster} />
+            <Roster team={o.us} players={usRoster} photos={usPhotos} />
+            <Roster team={o.them} players={themRoster} photos={themPhotos} />
           </div>
         </section>
       )}
@@ -330,9 +339,10 @@ function FormRow({ team, form, missing, rank, rankLabel, current }: { team: Team
   );
 }
 
-function Roster({ team, players }: { team: TeamRef | null; players: RosterEntry[] }) {
+/** Un effectif, avec les portraits des joueurs sur le navigateur déverrouillé (voir lib/photos.ts). */
+function Roster({ team, players, photos }: { team: TeamRef | null; players: RosterEntry[]; photos: Record<string, PlayerPhoto> }) {
   return (
-    <div className="overflow-hidden panel">
+    <div className="overflow-hidden panel" style={team ? accentOf(team) : undefined}>
       <div className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-sm font-medium">
         <Logo team={team} size={20} />
         <span className="truncate">{team?.name ?? "À déterminer"}</span>
@@ -340,7 +350,15 @@ function Roster({ team, players }: { team: TeamRef | null; players: RosterEntry[
       {players.length ? (
         <ul className="divide-y divide-line">
           {players.map((p) => (
-            <li key={p.id} className="flex items-baseline gap-2 px-4 py-2 text-sm">
+            <li key={p.id} className={cn("flex gap-2 px-4 py-2 text-sm", Object.keys(photos).length ? "items-center" : "items-baseline")}>
+              {photos[p.id] ? (
+                <Portrait photo={photos[p.id]} className="roster-face" />
+              ) : Object.keys(photos).length > 0 ? (
+                // Sans photo dans un effectif qui en a : une pastille à l'initiale garde les noms alignés.
+                <span className="roster-face roster-face-empty" aria-hidden>
+                  {p.id.slice(0, 1)}
+                </span>
+              ) : null}
               <span className="font-medium">{p.id}</span>
               {p.captain && <span className="text-[var(--accent)]" title="Capitaine">©</span>}
               {p.name && <span className="truncate text-xs text-faint">{p.name}</span>}
