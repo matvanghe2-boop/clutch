@@ -240,10 +240,10 @@ function columnOf(node: BracketNode): number {
 }
 
 /** Colonnes sautées entre un match et son parent : le trait les traverse. */
-function Gap({ columns, column, heat }: { columns: number; column: number; heat?: Heat }) {
+function Gap({ columns, column, heat, ahead }: { columns: number; column: number; heat?: Heat; ahead?: boolean }) {
   return (
     <div className="bk-link" style={{ width: `${columns * COLUMN_REM}rem`, "--c": column } as React.CSSProperties} aria-hidden>
-      <i className="bk-line bk-h inset-x-0 top-1/2" data-heat={heat} style={{ "--s": 3 } as React.CSSProperties} />
+      <i className="bk-line bk-h inset-x-0 top-1/2" data-heat={heat} data-ahead={!heat && ahead ? "" : undefined} style={{ "--s": 3 } as React.CSSProperties} />
     </div>
   );
 }
@@ -286,7 +286,7 @@ function NodeView({ node, team, now, champion, route = NO_ROUTE }: { node: Brack
               // Un sous-arbre plus court se range contre le match parent : les colonnes restent alignées sur les tours.
               <div key={i} className="flex items-center justify-end py-1.5">
                 <NodeView node={c} team={team} now={now} champion={champion} route={route} />
-                {c.skip ? <Gap columns={c.skip} column={column - 1} heat={heatOf(c.match, team, champion)} /> : null}
+                {c.skip ? <Gap columns={c.skip} column={column - 1} heat={heatOf(c.match, team, champion)} ahead={onRoute(c) && route.ahead.has(node)} /> : null}
               </div>
             ))}
           </div>
