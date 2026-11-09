@@ -25,7 +25,7 @@ import { loadSnapshot } from "@/lib/load-snapshot";
 import { rosterPhotos } from "@/lib/photos";
 import { loadPredictions } from "@/lib/prediction-store";
 import { revealedIds } from "@/lib/reveal-store";
-import { judge, possibleScores, type Prediction } from "@/lib/predictions";
+import { findPick, judge, possibleScores, type Prediction } from "@/lib/predictions";
 import { embeddable, matchStreams } from "@/lib/streams";
 import { accentOf, duelVars, largeLogo, teamColors } from "@/lib/team-colors";
 import type { PlayerPhoto, RankingRow, RosterEntry, TeamRef } from "@/lib/types";
@@ -63,7 +63,8 @@ export default async function MatchPage({ params, searchParams }: { params: Para
   if (id.includes(":nodate:") && m.id !== id) redirect(matchHref(m));
   const prono = (await searchParams).prono;
   const [predictions, admin, revealed] = await Promise.all([loadPredictions(), isAdmin(), revealedIds()]);
-  const prediction = predictions[id] ?? predictions[undatedId(m)];
+  // Le même match peut avoir été pronostiqué sous un autre identifiant (page de la compétition, horaire changé).
+  const prediction = findPick(predictions, { wiki: m.wiki, teamId: o.team.id, opponent: { name: o.them?.name ?? "", page: o.them?.page }, timestamp: m.timestamp }, [id, m.id, undatedId(m)]);
   const now = Date.now() / 1000;
   const st = statusOf(m, now);
   const note = st === "upcoming" ? (await matchNotes()).get(m.id) : undefined;

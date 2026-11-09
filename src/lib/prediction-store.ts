@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { cookies } from "next/headers";
-import type { Prediction, Predictions } from "./predictions";
+import { dedupePredictions, type Prediction, type Predictions } from "./predictions";
 import { hasOnlineStore, readDoc, writeDoc } from "./store";
 
 const LOCAL_PATH = path.join(process.cwd(), "data", "predictions.json");
@@ -34,15 +34,17 @@ async function recent(): Promise<Predictions> {
   }
 }
 
+/** Un seul pronostic par match, même s'il a été donné sous deux identifiants (voir `samePick`). */
 export async function loadPredictions(): Promise<Predictions> {
   const [all, fresh] = await Promise.all([stored(), recent()]);
-  return { ...all, ...fresh };
+  return dedupePredictions({ ...all, ...fresh });
 }
 
 export async function savePrediction(id: string, p: Prediction): Promise<void> {
   // Lecture stricte : en cas de panne de la base, réécrire la sauvegarde d'hier perdrait les pronostics du jour.
   const current = hasOnlineStore() ? ((await readDoc<Predictions>("predictions", { strict: true })) ?? {}) : await stored();
-  const all = { ...current, ...(await recent()), [id]: p };
+  // Le nouveau pronostic remplace un éventuel ancien sur le même match, rangé sous un autre identifiant.
+  const all = dedupePredictions({ ...current, ...(await recent()), [id]: p });
   if (!(await writeDoc("predictions", all))) {
     fs.mkdirSync(path.dirname(LOCAL_PATH), { recursive: true });
     fs.writeFileSync(LOCAL_PATH, JSON.stringify(all, null, 2));

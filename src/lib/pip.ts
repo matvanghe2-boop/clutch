@@ -65,9 +65,10 @@ function side(doc: Document, s: PipSide, cls: string): HTMLElement {
   el.className = `side ${cls}`;
   if (s.logo) {
     const img = doc.createElement("img");
-    img.src = s.logo;
-    img.alt = "";
+    // Avant `src` : sans quoi Liquipedia voit le Referer et refuse l'image (voir motion/fx.ts).
     img.referrerPolicy = "no-referrer";
+    img.alt = "";
+    img.src = s.logo;
     el.append(img);
   }
   const name = doc.createElement("span");

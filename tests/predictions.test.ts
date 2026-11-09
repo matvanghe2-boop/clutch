@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formOf } from "@/lib/derive";
-import { judge, possibleScores, validScore } from "@/lib/predictions";
+import { dedupePredictions, findPick, judge, possibleScores, samePick, validScore } from "@/lib/predictions";
 
 describe("scores possibles selon le format", () => {
   it.each([
@@ -54,5 +54,33 @@ describe("forme du moment", () => {
 
   it("sans résultat, pas de série", () => {
     expect(formOf([])).toMatchObject({ last: [], streak: undefined });
+  });
+});
+
+describe("un seul pronostic par match", () => {
+  const base = { us: 3, them: 1, wiki: "callofduty" as const, teamId: "m8-cdl", opponent: { name: "Toronto KOI", page: "Toronto KOI" }, timestamp: 1794168000 };
+
+  it("rapproche le même match vu sous deux identifiants, et garde le dernier pronostic", () => {
+    const all = {
+      "callofduty:1794168000:paris-gentle-mates~toronto-koi": { ...base, at: "2026-11-08T10:00:00Z" },
+      "callofduty:1794168000:toronto-koi~paris-gentle-mates": { ...base, us: 3, them: 2, at: "2026-11-08T12:00:00Z" },
+    };
+    const kept = dedupePredictions(all);
+    expect(Object.keys(kept)).toEqual(["callofduty:1794168000:toronto-koi~paris-gentle-mates"]);
+    expect(findPick(all, { ...base, timestamp: base.timestamp + 3600 })?.them).toBeDefined();
+  });
+
+  it("garde deux matchs distincts contre le même adversaire (finale du haut, puis grande finale)", () => {
+    const all = {
+      a: { ...base, at: "2026-11-08T10:00:00Z" },
+      b: { ...base, timestamp: base.timestamp + 4 * 3600, at: "2026-11-08T12:00:00Z" },
+      c: { ...base, teamId: "vitality-cs2", wiki: "counterstrike" as const, at: "2026-11-08T12:00:00Z" },
+    };
+    expect(Object.keys(dedupePredictions(all)).sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("ne rapproche pas deux adversaires encore inconnus", () => {
+    const tbd = { ...base, opponent: { name: "À déterminer" } };
+    expect(samePick(tbd, { ...tbd })).toBe(false);
   });
 });

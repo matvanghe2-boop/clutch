@@ -11,11 +11,16 @@
  * les servir du cache sans risque. Les logos d'équipes viennent de Liquipedia
  * et changent rarement : servis du cache, rafraîchis en arrière-plan.
  *
+ * Liquipedia refuse ses images à une requête qui porte un Referer d'un autre site :
+ * elle répond par une image « hotlinking is not allowed ». Le service worker les
+ * redemande donc toujours sans Referer, quoi qu'ait fait la page. La version v3
+ * vide les caches où cette image de refus a pu entrer (novembre 2026).
+ *
  * Les scripts du réseau Orbit (header et écran de chargement) sont mis en
  * cache dès l'installation : hors connexion, sans eux, l'écran de chargement
  * resterait une page vide pendant 8 s avant de s'effacer.
  */
-const VERSION = "v2";
+const VERSION = "v3";
 const PAGES = `clutch-pages-${VERSION}`;
 const ASSETS = `clutch-assets-${VERSION}`;
 const LOGOS = `clutch-logos-${VERSION}`;
@@ -54,7 +59,7 @@ self.addEventListener("fetch", (event) => {
   } else if (url.origin === self.location.origin && ORBIT_FILES.includes(url.pathname)) {
     event.respondWith(staleWhileRevalidate(request, ORBIT));
   } else if (url.hostname === "liquipedia.net" && url.pathname.startsWith("/commons/images/")) {
-    event.respondWith(staleWhileRevalidate(request, LOGOS));
+    event.respondWith(staleWhileRevalidate(withoutReferrer(request), LOGOS));
   }
 });
 
@@ -112,6 +117,11 @@ async function staleWhileRevalidate(request, name) {
     })
     .catch(() => hit);
   return hit ?? refresh;
+}
+
+/** La même image, demandée sans Referer et sans cookie : la seule forme que Liquipedia accepte. */
+function withoutReferrer(request) {
+  return new Request(request.url, { mode: "no-cors", credentials: "omit", referrerPolicy: "no-referrer" });
 }
 
 async function trim(cache, max) {

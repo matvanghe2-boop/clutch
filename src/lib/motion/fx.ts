@@ -36,9 +36,11 @@ export function fxLayer(): HTMLElement | null {
 
 export function ghostLogo(layer: HTMLElement, src: string, at: Rect, hi?: string): HTMLImageElement {
   const img = document.createElement("img");
-  img.src = src;
-  img.alt = "";
+  // Avant `src` : la requête part dès qu'il est posé. Avec l'adresse de Clutch en Referer,
+  // Liquipedia répond par son image « hotlinking is not allowed ».
   img.referrerPolicy = "no-referrer";
+  img.alt = "";
+  img.src = src;
   img.className = "fx-logo";
   Object.assign(img.style, { left: `${at.x}px`, top: `${at.y}px`, width: `${at.width}px`, height: `${at.height}px` });
   layer.append(img);

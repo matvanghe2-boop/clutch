@@ -1,6 +1,6 @@
 /** Les matchs qui attendent encore un pronostic. */
 import { type Oriented, statusOf, undatedId, upcomingFeed } from "./derive";
-import type { Predictions } from "./predictions";
+import { findPick, type Predictions } from "./predictions";
 import type { Snapshot } from "./types";
 
 /**
@@ -8,10 +8,10 @@ import type { Snapshot } from "./types";
  * heure précise compte s'il est annoncé pour ce jour-là.
  */
 export function awaitingPick(snap: Snapshot, predictions: Predictions, now: number, horizon: number): Oriented[] {
-  return upcomingFeed(snap).filter(({ match: m, them }) => {
+  return upcomingFeed(snap).filter(({ match: m, them, team }) => {
     if (!them || m.timestamp === undefined || statusOf(m, now) !== "upcoming") return false;
     if (m.timestamp - now > horizon) return false;
-    return !predictions[m.id] && !predictions[undatedId(m)];
+    return !findPick(predictions, { wiki: m.wiki, teamId: team.id, opponent: { name: them.name, page: them.page }, timestamp: m.timestamp }, [m.id, undatedId(m)]);
   });
 }
 

@@ -58,3 +58,41 @@ export function validScore(us: number, them: number, bestOf?: number): boolean {
   const allowed = possibleScores(bestOf);
   return !allowed || allowed.some(([a, b]) => a === us && b === them);
 }
+
+const plain = (s?: string) =>
+  (s ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** Ce qui situe un pronostic : l'équipe, l'adversaire et l'heure du match. */
+export type PickProbe = Pick<Prediction, "wiki" | "teamId" | "opponent" | "timestamp">;
+
+/**
+ * Deux pronostics sur le même match : même équipe, même adversaire connu, à moins de 3 h.
+ * Le même match a parfois deux identifiants (page de l'équipe et page de la compétition, qui ne
+ * rangent pas les équipes dans le même ordre ; horaire publié ou déplacé entre-temps) : sans ce
+ * rapprochement, on pouvait le pronostiquer deux fois et il comptait double dans le bilan.
+ */
+export function samePick(a: PickProbe, b: PickProbe): boolean {
+  if (a.wiki !== b.wiki || a.teamId !== b.teamId) return false;
+  const them = plain(a.opponent.page ?? a.opponent.name);
+  if (!them || them === "a determiner" || them !== plain(b.opponent.page ?? b.opponent.name)) return false;
+  return a.timestamp !== undefined && b.timestamp !== undefined && Math.abs(a.timestamp - b.timestamp) < 3 * 3600;
+}
+
+/** Un seul pronostic par match : le dernier donné. */
+export function dedupePredictions(all: Predictions): Predictions {
+  const newest = Object.entries(all).sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at));
+  const kept: [string, Prediction][] = [];
+  for (const [id, p] of newest) if (!kept.some(([, q]) => samePick(p, q))) kept.push([id, p]);
+  return Object.fromEntries(kept);
+}
+
+/** Le pronostic déjà donné pour ce match, quel que soit l'identifiant sous lequel il a été rangé. */
+export function findPick(all: Predictions, probe: PickProbe, ids: string[] = []): Prediction | undefined {
+  for (const id of ids) if (all[id]) return all[id];
+  return Object.values(all).find((p) => samePick(p, probe));
+}
