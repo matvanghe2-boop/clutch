@@ -9,11 +9,12 @@
  *                                  Android y découpe un cercle ou une goutte
  *   public/icons/raccourci-*.png   les raccourcis de l'icône (appui long) : Ce soir,
  *                                  Calendrier, et un par jeu pour les équipes
+ *   public/icons/badge-96.png      le pictogramme blanc des notifications (Android)
  */
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { markSvg } from "../src/lib/brand-mark";
+import { badgeSvg, markSvg } from "../src/lib/brand-mark";
 
 /** Un pictogramme blanc sur le fond du logo, pour les raccourcis. */
 const glyph = (body: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
@@ -41,6 +42,7 @@ async function main() {
   const full = markSvg();
   const maskable = markSvg({ safeZone: true });
 
+  await png(badgeSvg(), 96, "public/icons/badge-96.png");
   fs.writeFileSync("src/app/icon.svg", rounded);
   console.log("src/app/icon.svg");
   await png(full, 180, "src/app/apple-icon.png");

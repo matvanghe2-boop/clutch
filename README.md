@@ -509,6 +509,23 @@ réseau** : en ligne, on voit toujours les données et la version du jour. Le
 cache ne sert qu'hors connexion, avec la dernière version vue de chaque page.
 Les icônes se régénèrent avec `npx tsx scripts/icons.ts`.
 
+## Notifications
+
+Web Push, même appli fermée : **Réglages → Notifications → Activer**, sur chaque appareil (navigateur
+déverrouillé avec le code). Sur iPhone, seulement depuis l'appli installée sur l'écran d'accueil (iOS 16.4
+ou plus) ; sur Android, depuis Chrome ou l'appli installée.
+
+- **Ce qui part** (`src/lib/push/events.ts`) : un rappel un quart d'heure avant un match à heure connue,
+  chaque manche du direct, le résultat, une heure changée par Liquipedia. Chacun se coupe dans Réglages.
+- **Quand** : après chaque passe de la synchro régulière (`scheduledPass`, toutes les 5 minutes). Un journal
+  (`push-sent`) empêche les doublons ; à sa toute première lecture, il note l'existant sans rien envoyer.
+- **Où** : abonnements (`push`) et journal dans la base seulement, jamais dans la copie publique de Blob ;
+  `data/` en local. Un abonnement expiré (404, 410) est oublié au premier envoi raté.
+- **Clés VAPID** : la publique dans `src/config/push.ts`, la privée dans la variable `VAPID_PRIVATE_KEY`
+  (Vercel, `.env.local`). Sans elle, rien ne part et Réglages le dit.
+- **Affichage** : `public/sw.js` (événements `push` et `notificationclick`), icône de l'appli et pictogramme
+  blanc `badge-96.png` (Android). Pas de logo d'équipe : l'appareil le demanderait à Liquipedia avec un Referer.
+
 ## Réseau Orbit
 
 Clutch fait partie de mon [réseau Orbit](https://orbit-umber-sigma.vercel.app),

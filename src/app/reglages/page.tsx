@@ -7,6 +7,7 @@ import { readHidden } from "@/lib/hidden";
 import { loadSnapshot } from "@/lib/load-snapshot";
 import type { GameId } from "@/lib/types";
 import { EffectsSetting } from "@/components/EffectsSetting";
+import { PushSetting } from "@/components/PushSetting";
 
 export const metadata: Metadata = { title: "Réglages" };
 export const dynamic = "force-dynamic";
@@ -47,6 +48,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           Les équipes suivies sont communes à tout le site ; les compétitions masquées ne valent que pour ce navigateur.
         </p>
       </header>
+
+      <section>
+        <SectionTitle aside={<span className="text-xs text-faint">sur cet appareil</span>}>Notifications</SectionTitle>
+        <PushSetting admin={admin} />
+      </section>
 
       <section>
         <SectionTitle aside={<span className="text-xs text-faint">sur ce navigateur</span>}>Intensité des effets</SectionTitle>

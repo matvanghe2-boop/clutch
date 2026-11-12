@@ -4351,3 +4351,117 @@ a.photo-credit:hover {
     animation-delay: calc(0.9s + var(--i) * 70ms);
   }
 }
+
+/* ─────────────  Notifications (components/PushSetting.tsx)  ───────────── */
+.push {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+}
+.push-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.push-bell {
+  display: grid;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: none;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--fav-a, var(--color-rl)) 16%, transparent);
+  color: var(--fav-a, var(--color-rl));
+}
+.push-bell svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.push[data-state="on"] .push-bell svg {
+  transform-origin: 50% 10%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .push[data-state="on"] .push-bell svg {
+    animation: push-ring 2.6s ease-in-out infinite;
+  }
+  @keyframes push-ring {
+    0%,
+    70%,
+    100% {
+      transform: rotate(0);
+    }
+    75% {
+      transform: rotate(14deg);
+    }
+    82% {
+      transform: rotate(-12deg);
+    }
+    89% {
+      transform: rotate(6deg);
+    }
+  }
+}
+.push-cta {
+  min-height: 2.6rem;
+  border-radius: 999px;
+  background: var(--fav-a, var(--color-rl));
+  padding: 0.5rem 1.15rem;
+  font-weight: 700;
+  color: #07090d;
+  transition: transform 0.3s var(--ease-spring), opacity 0.2s;
+}
+.push-cta:hover {
+  transform: scale(1.04);
+}
+.push-cta:disabled {
+  opacity: 0.5;
+}
+.push-choices {
+  display: grid;
+  gap: 0.5rem;
+}
+@media (min-width: 640px) {
+  .push-choices {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.push-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.2rem;
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  padding: 0.55rem 0.8rem;
+  transition: border-color 0.2s, background 0.2s;
+}
+.push-choice[aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--fav-a, var(--color-rl)) 55%, var(--color-line));
+  background: color-mix(in srgb, var(--fav-a, var(--color-rl)) 8%, transparent);
+}
+.push-switch {
+  position: relative;
+  width: 2.3rem;
+  height: 1.35rem;
+  flex: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+  transition: background 0.25s;
+}
+.push-switch::after {
+  content: "";
+  position: absolute;
+  top: 0.18rem;
+  left: 0.18rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: #fff;
+  transition: transform 0.35s var(--ease-spring);
+}
+.push-choice[aria-checked="true"] .push-switch {
+  background: var(--fav-a, var(--color-rl));
+}
+.push-choice[aria-checked="true"] .push-switch::after {
+  transform: translateX(0.95rem);
+}

@@ -20,7 +20,7 @@
  * cache dès l'installation : hors connexion, sans eux, l'écran de chargement
  * resterait une page vide pendant 8 s avant de s'effacer.
  */
-const VERSION = "v3";
+const VERSION = "v4";
 const PAGES = `clutch-pages-${VERSION}`;
 const ASSETS = `clutch-assets-${VERSION}`;
 const LOGOS = `clutch-logos-${VERSION}`;
@@ -61,6 +61,43 @@ self.addEventListener("fetch", (event) => {
   } else if (url.hostname === "liquipedia.net" && url.pathname.startsWith("/commons/images/")) {
     event.respondWith(staleWhileRevalidate(withoutReferrer(request), LOGOS));
   }
+});
+
+/**
+ * Les notifications (Web Push) : la synchro les envoie (src/lib/push), le service worker les
+ * affiche même appli fermée. Une notification de même étiquette remplace la précédente : les
+ * scores d'un même match ne s'empilent pas.
+ */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Clutch", body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Clutch", {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/badge-96.png",
+      tag: data.tag,
+      renotify: Boolean(data.tag),
+      data: { url: data.url || "/" },
+    }),
+  );
+});
+
+/** Au toucher : la page du match, dans l'appli déjà ouverte s'il y en a une. */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      if (open) return open.navigate(url).then((w) => (w || open).focus());
+      return self.clients.openWindow(url);
+    }),
+  );
 });
 
 /**

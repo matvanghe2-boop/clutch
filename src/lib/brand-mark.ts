@@ -48,3 +48,20 @@ export function markSvg({ rounded = false, safeZone = false, id = "clutch", tint
 </svg>
 `;
 }
+
+/**
+ * Le pictogramme des notifications sur Android (« badge ») : Android n'en garde que la forme,
+ * en blanc, dans la barre d'état. Le C seul, sans fond, toujours tranché.
+ */
+export function badgeSvg(): string {
+  const letter = `<path d="${ARC}" fill="none" stroke="#fff" stroke-width="88" transform="${ITALIC}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="b-l"><polygon points="${LEFT}"/></clipPath>
+    <clipPath id="b-r"><polygon points="${RIGHT}"/></clipPath>
+  </defs>
+  <g clip-path="url(#b-l)">${letter}</g>
+  <g clip-path="url(#b-r)"><g transform="translate(16 -22)">${letter}</g></g>
+</svg>
+`;
+}

@@ -15,10 +15,14 @@
 import zlib from "node:zlib";
 import { put } from "@vercel/blob";
 
-export type DocName = "snapshot" | "config" | "predictions";
+export type DocName = "snapshot" | "config" | "predictions" | "push" | "push-sent";
 
+/**
+ * Les documents copiés chaque jour dans Blob, qui est public. Les abonnements aux notifications
+ * (`push`) et leur journal n'y vont jamais : ils ne vivent que dans la base.
+ */
 const DOCS: DocName[] = ["snapshot", "config", "predictions"];
-const FILES: Record<DocName, string> = { snapshot: "snapshot.json", config: "config.json", predictions: "predictions.json" };
+const FILES: Record<DocName, string> = { snapshot: "snapshot.json", config: "config.json", predictions: "predictions.json", push: "push.json", "push-sent": "push-sent.json" };
 const key = (name: DocName) => `clutch:${name}`;
 const DAY_MS = 24 * 60 * 60 * 1000;
 

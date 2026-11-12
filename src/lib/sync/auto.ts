@@ -25,6 +25,7 @@ import { emptySnapshot } from "../snapshot";
 import type { Snapshot } from "../types";
 import { backupIfDue, canWrite, hasDatabase, lockInDatabase } from "../store";
 import { runPass } from "./engine";
+import { notifyFromSnapshot } from "../push/notify";
 import { publishIfNeeded, readPublished, stateOf } from "./publish";
 import { loadTeamConfig } from "./team-config";
 
@@ -120,6 +121,10 @@ export async function scheduledPass(): Promise<void> {
     });
     const outcome = await publishIfNeeded(snap, before);
     console.log(`[clutch] synchro régulière : ${result.pages} pages, ${outcome}`);
+    // Les notifications : rappels, scores, résultats et heures changées, d'après l'instantané à jour.
+    await notifyFromSnapshot(snap)
+      .then((r) => console.log(`[clutch] notifications : ${r}`))
+      .catch((e) => console.error("[clutch] notifications :", e));
     await backupIfDue().catch((e) => console.error("[clutch] sauvegarde dans Blob :", e));
   } finally {
     running = false;
