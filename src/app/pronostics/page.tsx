@@ -40,12 +40,15 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
   const rows = Object.entries(predictions)
     .map(([id, p]) => {
       const found = findMatch(snap, id);
-      const result = predictionResult(snap, id, p);
+      // Un pronostic donné avant que Liquipedia publie l'heure n'en garde pas : on prend celle du match,
+      // connue depuis, sinon le moment où il a été donné. Sans date, il restait en tête de l'historique.
+      const when = p.timestamp ?? found?.o.match.timestamp ?? Date.parse(p.at) / 1000;
+      const result = predictionResult(snap, id, { ...p, timestamp: p.timestamp ?? found?.o.match.timestamp });
       const verdict: Verdict | undefined = result ? judge(p, result) : undefined;
       const team = teamById(snap, p.teamId);
-      return { id, p, found, result, verdict, team };
+      return { id, p, when, found, result, verdict, team };
     })
-    .sort((a, b) => (b.p.timestamp ?? Infinity) - (a.p.timestamp ?? Infinity));
+    .sort((a, b) => b.when - a.when);
 
   const judged = rows.filter((r) => r.verdict);
   const points = judged.reduce((n, r) => n + r.verdict!.points, 0);
@@ -55,12 +58,13 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
 
   // Le tas de la semaine : les matchs sans pronostic dont le format est connu (il dit les scores possibles).
   const deck: DeckCard[] = admin
-    ? awaitingPick(snap, predictions, now, 7 * 86400).flatMap(({ match: m, us, them }) => {
+    ? awaitingPick(snap, predictions, now, 7 * 86400, { undated: true }).flatMap(({ match: m, us, them }) => {
         // Format inconnu (Liquipedia ne l'a pas encore écrit) : les scores d'un Bo3, d'un Bo5 et d'un Bo7.
         const scores = possibleScores(m.bestOf) ?? ANY_FORMAT;
-        if (!them || m.timestamp === undefined) return [];
+        if (!them) return [];
         const side = (ref: typeof us) => ({ name: ref.name, short: ref.short ?? ref.name, logo: largeLogo(ref), color: teamColors(ref)?.a });
-        return [{ id: m.id, us: side(us), them: side(them), when: `${dayLabel(m.timestamp, now)}${m.timeTbd ? "" : ` · ${clock(m.timestamp)}`}`, tournament: m.tournament?.name, scores, format: m.bestOf ? `Bo${m.bestOf}` : undefined }];
+        return [{ id: m.id, us: side(us), them: side(them), // Le jour sans l'heure, ou ni l'un ni l'autre : le match se pronostique quand même.
+        when: m.timestamp === undefined ? "Date à venir" : `${dayLabel(m.timestamp, now)} · ${m.timeTbd ? "heure à venir" : clock(m.timestamp)}`, tournament: m.tournament?.name, scores, format: m.bestOf ? `Bo${m.bestOf}` : undefined }];
       })
     : [];
 
@@ -112,11 +116,11 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
         <SectionTitle>Historique</SectionTitle>
         {rows.length ? (
           <div className="divide-y divide-line overflow-hidden panel">
-            {rows.map(({ id, p, found, result, verdict, team }) => {
+            {rows.map(({ id, p, when, found, result, verdict, team }) => {
               const label = `${team?.page ?? p.teamId} – ${p.opponent.name}`;
               return (
                 <div key={id} data-game={p.wiki} className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-sm sm:grid-cols-[4rem_minmax(0,1fr)_auto_auto] sm:px-4">
-                  <span className="text-xs text-faint">{p.timestamp ? shortDate(p.timestamp, now) : "—"}</span>
+                  <span className="text-xs text-faint">{shortDate(when, now)}</span>
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" title={GAMES[p.wiki].label} />
@@ -142,7 +146,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
                   </span>
                   <span className="col-span-3 justify-self-end sm:col-span-1">
                     {verdict ? (
-                      <PronoReveal id={id} covered={Boolean(result && p.timestamp && now - p.timestamp < REVEAL_WINDOW_S && !revealed.has(id))} verdict={verdict}>
+                      <PronoReveal id={id} covered={Boolean(result && now - when < REVEAL_WINDOW_S && !revealed.has(id))} verdict={verdict}>
                       <span
                         className={cn(
                           "rounded px-2 py-0.5 text-xs font-semibold",
@@ -154,7 +158,7 @@ export default async function PredictionsPage({ searchParams }: { searchParams: 
                       </span>
                       </PronoReveal>
                     ) : (
-                      <span className="text-xs text-faint">{p.timestamp && p.timestamp > now ? "à venir" : "en attente"}</span>
+                      <span className="text-xs text-faint">{when > now ? "à venir" : "en attente"}</span>
                     )}
                   </span>
                 </div>
